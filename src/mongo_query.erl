@@ -27,7 +27,7 @@
 write (DbConn, Write, GetLastErrorParams) ->
 	Query = #'query' {batchsize = -1, collection = '$cmd', selector = [getlasterror, 1 | GetLastErrorParams]},
 	Reply = mongo_connect:call (DbConn, [Write], Query),
-	{0, [Doc, _]} = query_reply (Reply),
+	{0, [Doc | _]} = query_reply (Reply),
 	Doc.
 
 -spec write (mongo_connect:dbconnection(), write()) -> ok. % CIO
@@ -42,7 +42,7 @@ write (DbConn, Write) ->
 command (DbConn, Command) ->
 	Query = #'query' {batchsize = -1, collection = '$cmd', selector = Command},
 	Reply = mongo_connect:call (DbConn, [], Query),
-	{0, [Doc, _]} = query_reply (Reply),
+	{0, [Doc | _]} = query_reply (Reply),
 	Doc.
 
 -type read() :: #'query'{}.

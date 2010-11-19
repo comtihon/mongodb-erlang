@@ -49,7 +49,15 @@ bool (1) -> true.
 % Concat db and collection name with period (.) in between
 dbcoll (Db, Coll) -> <<(atom_to_binary (Db, utf8)) /binary, $., (atom_to_binary (Coll, utf8)) /binary>>.
 
--spec put_message (db(), notice() | request(), requestid()) -> binary().
+-type message() :: notice() | request().
+
+-spec append_message (binary(), db(), message(), requestid()) -> binary().
+% Append message binary with size prefix to given binary
+append_message (Bin, Db, Message, RequestId) ->
+	MBin = put_message (Db, Message, RequestId),
+	<<Bin /binary, ?put_int32 (byte_size (MBin) + 4), MBin /binary>>.
+
+-spec put_message (db(), message(), requestid()) -> binary().
 put_message (Db, Message, RequestId) -> case Message of
 	#insert {collection = Coll, documents = Docs} -> <<
 		?put_header (?InsertOpcode),

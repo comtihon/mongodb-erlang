@@ -14,16 +14,6 @@
 
 -type connectionfailure() :: {connectionfailure, gen_tcp:socket() | {host(), tcp_port()}, any()}. % any reason
 
--spec tcp_send (gen_tcp:socket(), binary()) -> ok. % CIO
-tcp_send (Socket, Binary) -> case gen_tcp:send (Socket, Binary) of
-	{error, Reason} -> gen_tcp:close (Socket), throw ({connectionfailure, Socket, Reason});
-	ok -> ok end.
-
--spec tcp_recv (gen_tcp:socket(), integer()) -> binary(). % CIO
-tcp_recv (Socket, Size) -> case gen_tcp:recv (Socket, Size) of
-	{error, Reason} -> gen_tcp:close (Socket), throw ({connectionfailure, Socket, Reason});
-	{ok, Binary} -> Binary end.
-
 -opaque connection() :: var:mvar (gen_tcp:socket()).
 % passive raw binary socket kept inside var for exclusive access
 
@@ -41,14 +31,14 @@ connect (Host, Port) -> case gen_tcp:connect (Host, Port, [binary, {active, fals
 -spec call (dbconnection(), [mongo_protocol:notice()], mongo_protocol:request()) -> mongo_protocol:reply(). % CIO
 % Synchronous send and reply. Notices are sent write before request in single block. Exclusive access to connection during entire call.
 call ({Db, Conn}, Notices, Request) ->
-	NotBin = << <<?put_int32 (byte_size (MBin) + 4), MBin /binary>> ||
-		Mess <- Notices,
-		MBin = mongo_protocol:put_message (Db, Mess, mongodb_app:next_requestid()) >>,
+	Build = fun (Notice, Bin) ->
+		RequestId = mongodb_app:next_requestid(),
+		mongo_protocol:append_message (Bin, Db, Notice, RequestId) end,
+	Bin0 = lists:foldl (Build, <<>>, Notices),
 	RequestId = mongodb_app:next_requestid(),
-	MBin = mongo_protocol:put_message (Db, Request, RequestId),
-	RequestBin = <<?put_int32 (byte_size (MBin) + 4), MBin /binary>>,
+	Bin1 = mongo_protocol:append_message (Bin0, Db, Request, RequestId),
 	var:with (Conn, fun (Socket) ->
-		tcp_send (Socket, <<NotBin /binary, RequestBin /binary>>),
+		tcp_send (Socket, Bin1),
 		<<?get_int32 (N)>> = tcp_recv (Socket, 4),
 		ReplyBin = tcp_recv (Socket, N - 4),
 		{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin), % ResponseTo == RequestId
@@ -61,3 +51,13 @@ send ({Db, Conn}, Notices) ->
 		Mess <- Notices,
 		MBin = mongo_protocol:put_message (Db, Mess, mongodb_app:next_requestid()) >>,
 	var:with (Conn, fun (Socket) -> tcp_send (Socket, NotBin) end).
+
+-spec tcp_send (gen_tcp:socket(), binary()) -> ok. % CIO
+tcp_send (Socket, Binary) -> case gen_tcp:send (Socket, Binary) of
+	{error, Reason} -> gen_tcp:close (Socket), throw ({connectionfailure, Socket, Reason});
+	ok -> ok end.
+
+-spec tcp_recv (gen_tcp:socket(), integer()) -> binary(). % CIO
+tcp_recv (Socket, Size) -> case gen_tcp:recv (Socket, Size) of
+	{error, Reason} -> gen_tcp:close (Socket), throw ({connectionfailure, Socket, Reason});
+	{ok, Binary} -> Binary end.

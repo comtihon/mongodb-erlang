@@ -21,6 +21,7 @@ app_test() ->
 	{oid, <<T3, T2, _:80>>} = bson:objectid (Ms div 1000, <<1,2,3,4,5>>, 0),
 	{oid, <<T3, T2, _:56, 0:24>>} = mongodb_app:gen_objectid(). % high two timestamp bytes should match
 
+% Mongod server must be running on 127.0.0.1:27017
 connect_test() ->
 	Conn = mongo_connect:connect ("127.0.0.1", 27017),
 	DbConn = {test, Conn},
