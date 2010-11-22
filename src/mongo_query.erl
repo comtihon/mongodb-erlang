@@ -9,8 +9,8 @@
 
 -include ("mongo_protocol.hrl").
 
-% CIO means does IO and may throw mongo_connect:connectionfailure()
-% QIO means does IO and may throw mongo_connect:connectionfailure() or queryerror().
+% CIO means does IO and may throw mongo_connect:failure()
+% QIO means does IO and may throw mongo_connect:failure() or queryerror().
 
 -type queryerror() :: {queryerror, bson:utf8()}.
 
@@ -31,14 +31,14 @@ write (DbConn, Write, GetLastErrorParams) ->
 	Doc.
 
 -spec write (mongo_connect:dbconnection(), write()) -> ok. % CIO
-% Send write to mongodb over connection. Does not wait for reply hence may silently fail. Throw connectionfailure if network problem.
+% Send write to mongodb over connection. Does not wait for reply hence may silently fail. Throw connection failure if network problem.
 write (DbConn, Write) ->
 	mongo_connect:send (DbConn, [Write]).
 
 -type command() :: bson:document().
 
 -spec command (mongo_connect:dbconnection(), command()) -> bson:document(). % QIO
-% Send command to mongodb over connection and wait for reply and return it. Throw queryerror if bad command (TODO, confirm this). Throw connectionfailure if network problem.
+% Send command to mongodb over connection and wait for reply and return it. Throw queryerror if bad command (TODO, confirm this). Throw connection failure if network problem.
 command (DbConn, Command) ->
 	Query = #'query' {batchsize = -1, collection = '$cmd', selector = Command},
 	Reply = mongo_connect:call (DbConn, [], Query),
@@ -48,7 +48,7 @@ command (DbConn, Command) ->
 -type read() :: #'query'{}.
 
 -spec findone (mongo_connect:dbconnection(), read()) -> maybe:maybe (bson:document()). % QIO
-% Send read request to mongodb over connection and wait for reply. Return first result or nothing if empty. Throw queryerror if bad query. Throw connectionfailure if network problem.
+% Send read request to mongodb over connection and wait for reply. Return first result or nothing if empty. Throw queryerror if bad query. Throw connection failure if network problem.
 findone (DbConn, Query) ->
 	Query1 = Query #'query' {batchsize = -1},
 	Reply = mongo_connect:call (DbConn, [], Query1),
@@ -56,7 +56,7 @@ findone (DbConn, Query) ->
 	maybe:list_to_maybe (Docs).
 
 -spec find (mongo_connect:dbconnection(), read()) -> mongo_cursor:cursor(). % QIO
-% Send read request to mongodb over connection and wait for reply of first batch. Return a cursor holding this batch and able to fetch next batch on demand. Throw queryerror if bad query. Throw connectionfailure if network problem.
+% Send read request to mongodb over connection and wait for reply of first batch. Return a cursor holding this batch and able to fetch next batch on demand. Throw queryerror if bad query. Throw connection failure if network problem.
 find (DbConn, Query) ->
 	Reply = mongo_connect:call (DbConn, [], Query),
 	mongo_cursor:cursor (DbConn, Query #'query'.collection, Query #'query'.batchsize, query_reply (Reply)).

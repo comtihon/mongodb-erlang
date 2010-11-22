@@ -16,19 +16,22 @@ test() -> eunit:test ({setup,
 
 % This test must be run first right after application start (assumes vars contain initial value)
 app_test() ->
-	0 = mongodb_app:next_requestid(),
+	1 = mongodb_app:next_requestid(),
 	{unixtime, Ms} = bson:timenow(),
 	{oid, <<T3, T2, _:80>>} = bson:objectid (Ms div 1000, <<1,2,3,4,5>>, 0),
-	{oid, <<T3, T2, _:56, 0:24>>} = mongodb_app:gen_objectid(). % high two timestamp bytes should match
+	{oid, <<T3, T2, _:56, 1:24/big>>} = mongodb_app:gen_objectid(). % high two timestamp bytes should match
 
 % Mongod server must be running on 127.0.0.1:27017
 connect_test() ->
-	Conn = mongo_connect:connect ("127.0.0.1", 27017),
+	{ok, Conn} = mongo_connect:connect ({"127.0.0.1", 27017}),
 	DbConn = {test, Conn},
-	Doc = mongo_query:write (DbConn, #delete {collection = foo, selector = []}, []),
-	{null} = bson:lookup (err, Doc),
-	Docs = [['_id', 0, text, <<"hello">>], ['_id', 1, text, <<"world">>]],
-	Doc1 = mongo_query:write (DbConn, #insert {collection = foo, documents = Docs}, []),
-	{null} = bson:lookup (err, Doc1),
+	Res = mongo_query:write (DbConn, #delete {collection = foo, selector = []}, []),
+	{null} = bson:lookup (err, Res),
+	Doc0 = ['_id', 0, text, <<"hello">>],
+	Doc1 = ['_id', 1, text, <<"world">>],
+	Res1 = mongo_query:write (DbConn, #insert {collection = foo, documents = [Doc0, Doc1]}, []),
+	{null} = bson:lookup (err, Res1),
+	ok = mongo_query:write (DbConn, #update {collection = foo, selector = ['_id', 1], updater = ['$set', [text, <<"world!!">>]]}),
+	Doc1X = bson:update (text, <<"world!!">>, Doc1),
 	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = []}),
-	Docs = mongo_cursor:rest (Cursor).
+	[Doc0, Doc1X] = mongo_cursor:rest (Cursor).

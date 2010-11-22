@@ -19,23 +19,25 @@ stop (_) -> ok.
 
 %% Create global vars which will be owned by this supervisor (and die with it)
 init ([]) ->
-	register (oid_counter, var:new (0)),
-	register (oid_machineprocid, var:new (oid_machineprocid())),
-	register (requestid_counter, var:new (0)),
+	ets:new (?MODULE, [named_table, public]),
+	ets:insert (?MODULE, [
+		{oid_counter, 0},
+		{oid_machineprocid, oid_machineprocid()},
+		{requestid_counter, 0} ]),
 	{ok, {{one_for_one,3,10}, []}}.
 
 %% API functions
 
 -spec next_requestid () -> mongo_protocol:requestid(). % IO
 % Fresh request id
-next_requestid() -> var:modify (requestid_counter, fun (N) -> {N+1, N} end).
+next_requestid() -> ets:update_counter (?MODULE, requestid_counter, 1).
 
 -spec gen_objectid () -> bson:objectid(). % IO
 % Fresh object id
 gen_objectid() ->
 	{unixtime, Now} = bson:timenow(),
-	MPid = var:read (oid_machineprocid),
-	N = var:modify (oid_counter, fun (N) -> {N+1, N} end),
+	MPid = ets:lookup_element (?MODULE, oid_machineprocid, 2),
+	N = ets:update_counter (?MODULE, oid_counter, 1),
 	bson:objectid (Now div 1000, MPid, N).
 
 -spec oid_machineprocid () -> <<_:40>>. % IO
