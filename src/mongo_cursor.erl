@@ -18,7 +18,6 @@
 -type state() :: {env(), batch()}.
 -type env() :: {mongo_connect:dbconnection(), collection(), batchsize()}.
 -type batch() :: {cursorid(), [bson:document()]}.
--type batchsize() :: integer().
 
 -type maybe(A) :: {A} | {}.
 

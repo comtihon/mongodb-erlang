@@ -12,8 +12,6 @@
 -include_lib ("bson/include/bson_binary.hrl").
 -import (bson_binary, [put_cstring/1, put_document/1, get_document/1]).
 
--type db() :: atom().
-
 -type notice() :: #insert{} | #update{} | #delete{} | #killcursor{}.
 % A notice is an asynchronous message sent to the server (no reply expected)
 
@@ -78,7 +76,7 @@ put_message (Db, Message, RequestId) -> case Message of
 		?put_int32 (length (Cids)),
 		<< <<?put_int64 (Cid)>> || Cid <- Cids>> /binary >>;
 	#'query' {tailablecursor = TC, slaveok = SOK, nocursortimeout = NCT, awaitdata = AD,
-	 collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projetor = Proj} -> <<
+	 collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj} -> <<
 		?put_header (?QueryOpcode),
 		0:1, (bit (TC)):1, (bit (SOK)):1, 0:1, (bit (NCT)):1, (bit (AD)):1, 0:1, 0:25,
 		(put_cstring (dbcoll (Db, Coll))) /binary,

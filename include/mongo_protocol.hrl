@@ -1,8 +1,12 @@
 % Wire protocol message types (records)
 
+-type db() :: atom().
+
 -type collection() :: atom(). % without db prefix
 
 -type cursorid() :: integer().
+
+-type selector() :: bson:document().
 
 -record (insert, {
 	collection :: collection(),
@@ -12,13 +16,15 @@
 	collection :: collection(),
 	upsert = false :: boolean(),
 	multiupdate = false :: boolean(),
-	selector :: bson:document(),
-	updater :: bson:document() }).
+	selector :: selector(),
+	updater :: bson:document() | modifier() }).
+
+-type modifier() :: bson:document().
 
 -record (delete, {
 	collection :: collection(),
 	singleremove = false :: boolean(),
-	selector :: bson:document() }).
+	selector :: selector() }).
 
 -record (killcursor, {
 	cursorids :: [cursorid()] }).
@@ -29,10 +35,14 @@
 	nocursortimeout = false :: boolean(),
 	awaitdata = false :: boolean(),
 	collection :: collection(),
-	skip = 0 :: integer(),
-	batchsize = 0 :: integer(),
-	selector :: bson:document(),
-	projetor = [] :: bson:document() }).
+	skip = 0 :: skip(),
+	batchsize = 0 :: batchsize(),
+	selector :: selector(),
+	projector = [] :: projector() }).
+
+-type projector() :: bson:document().
+-type skip() :: integer().
+-type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 
 -record (getmore, {
 	collection :: collection(),
