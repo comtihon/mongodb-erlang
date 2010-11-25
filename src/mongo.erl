@@ -83,7 +83,7 @@ write (Write) ->
 	case Context #context.write_mode of
 		unsafe -> mongo_query:write (Context #context.dbconn, Write);
 		SafeMode -> 
-			Params = case SafeMode of safe -> []; {safe, Param} -> Param end,
+			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 			Ack = mongo_query:write (Context #context.dbconn, Write, Params),
 			case bson:lookup (err, Ack) of
 				{} -> ok; {null} -> ok;
@@ -104,13 +104,13 @@ insert_all (Coll, Docs) ->
 % If doc has no '_id' field then generate a fresh object id for it
 assign_id (Doc) -> case bson:lookup ('_id', Doc) of
 	{_Value} -> Doc;
-	{} -> ['_id', mongodb_app:gen_objectid() | Doc] end.
+	{} -> bson:append ({'_id', mongodb_app:gen_objectid()}, Doc) end.
 
 -spec save (collection(), bson:document()) -> ok. % Action
 % If document has no '_id' field then insert it, otherwise update it and insert only if missing.
 save (Coll, Doc) -> case bson:lookup ('_id', Doc) of
 	{} -> insert (Coll, Doc);
-	{Id} -> repsert (Coll, ['_id', Id], Doc) end.
+	{Id} -> repsert (Coll, {'_id', Id}, Doc) end.
 
 -spec replace (collection(), selector(), bson:document()) -> ok. % Action
 % Replace first document selected with given document.
@@ -209,8 +209,11 @@ count (Coll, Selector) -> count (Coll, Selector, 0).
 -spec count (collection(), selector(), integer()) -> integer(). % Action
 % Count selected documents up to given max number; 0 means no max. Ie. stops counting when max is reached to save processing time.
 count (Coll, Selector, Limit) ->
-	LimitDoc = if Limit =< 0 -> []; true -> [limit, Limit] end,
-	Doc = command ([count, atom_to_binary (Coll, utf8), 'query', Selector | LimitDoc]),
+	CollStr = atom_to_binary (Coll, utf8),
+	Command = if
+		Limit =< 0 -> {count, CollStr, 'query', Selector};
+		true -> {count, CollStr, 'query', Selector, limit, Limit} end,
+	Doc = command (Command),
 	trunc (bson:at (n, Doc)). % Server returns count as float
 
 % Command %

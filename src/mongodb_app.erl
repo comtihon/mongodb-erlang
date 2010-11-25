@@ -35,10 +35,10 @@ next_requestid() -> ets:update_counter (?MODULE, requestid_counter, 1).
 -spec gen_objectid () -> bson:objectid(). % IO
 % Fresh object id
 gen_objectid() ->
-	{unixtime, Now} = bson:timenow(),
+	Now = bson:unixtime_to_secs (bson:timenow()),
 	MPid = ets:lookup_element (?MODULE, oid_machineprocid, 2),
 	N = ets:update_counter (?MODULE, oid_counter, 1),
-	bson:objectid (Now div 1000, MPid, N).
+	bson:objectid (Now, MPid, N).
 
 -spec oid_machineprocid () -> <<_:40>>. % IO
 % Fetch hostname and os pid and compress into a 5 byte id
