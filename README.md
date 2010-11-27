@@ -2,7 +2,7 @@ This is the MongoDB driver for Erlang. [MongoDB](http://www.mongodb.org) is a do
 
 This first version of the driver only supports individual connections to single servers, although multiple processes can use the same connection simultaneously without interfering with each other. This version does not support connection pooling and smart replica-set connection, which will be included in the next version coming out in a couple of weeks.
 
-This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need to download both of these applications. Below we describe the mongodb application; you should also read the bson documentation to understand the document type.
+This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need to download both of these applications. Below we describe the mongodb application; you should also see the bson application to understand the document type.
 
 Once downloaded, compile each application
 
@@ -35,7 +35,7 @@ A database operation happens in the context of a connection, database, read-mode
 		mongo:insert (foo, {x,1, y,2}),
 		mongo:find (foo, {x,1}) end).
 
-`safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are write-modes. Safe mode makes a *getLastError* request after every write in the sequence. If the reply says it failed then the rest of the sequence is aborted and `mongo:do` returns `{failure, {write_failure, Reason}}`, or `{failure, not_master}` if connected to a slave. An example write failure is attempting to insert a duplicate key that is indexed to be unique. Alternatively, unsafe mode issues every write without a confirmation, so if a write fails you won't know about it and remaining operations will be executed. This is unsafe but faster because you there is no round-trip delay.
+`safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are write-modes. Safe mode makes a *getLastError* request after every write in the sequence. If the reply says it failed then the rest of the sequence is aborted and `mongo:do` returns `{failure, {write_failure, Reason}}`, or `{failure, not_master}` when connected to a slave. An example write failure is attempting to insert a duplicate key that is indexed to be unique. Alternatively, unsafe mode issues every write without a confirmation, so if a write fails you won't know about it and remaining operations will be executed. This is unsafe but faster because you there is no round-trip delay.
 
 `master`, along with `slave_ok`, are read-modes. `master` means every query in the sequence must read fresh data (from a master/primary server). If the connected server is not a master then the first read will fail, the remaining operations will be aborted, and `mongo:do` will return `{failure, not_master}`. `slave_ok` means every query is allowed to read stale data from a slave (fresh data from a master is fine too).
 
