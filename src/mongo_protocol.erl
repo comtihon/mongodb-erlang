@@ -61,14 +61,14 @@ put_message (Db, Message, RequestId) -> case Message of
 		?put_header (?UpdateOpcode),
 		?put_int32 (0),
 		(put_cstring (dbcoll (Db, Coll))) /binary,
-		(bit (U)):1, (bit (M)):1, 0:30,
+		?put_bits32 (0,0,0,0,0,0, bit(M), bit(U)),
 		(put_document (Sel)) /binary,
 		(put_document (Up)) /binary >>;
 	#delete {collection = Coll, singleremove = R, selector = Sel} -> <<
 		?put_header (?DeleteOpcode),
 		?put_int32 (0),
 		(put_cstring (dbcoll (Db, Coll))) /binary,
-		(bit (R)):1, 0:31,
+		?put_bits32 (0,0,0,0,0,0,0, bit(R)),
 		(put_document (Sel)) /binary >>;
 	#killcursor {cursorids = Cids} -> <<
 		?put_header (?KillcursorOpcode),
@@ -78,7 +78,7 @@ put_message (Db, Message, RequestId) -> case Message of
 	#'query' {tailablecursor = TC, slaveok = SOK, nocursortimeout = NCT, awaitdata = AD,
 	 collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj} -> <<
 		?put_header (?QueryOpcode),
-		0:1, (bit (TC)):1, (bit (SOK)):1, 0:1, (bit (NCT)):1, (bit (AD)):1, 0:1, 0:25,
+		?put_bits32 (0, 0, bit(AD), bit(NCT), 0, bit(SOK), bit(TC), 0),
 		(put_cstring (dbcoll (Db, Coll))) /binary,
 		?put_int32 (Skip),
 		?put_int32 (Batch),
@@ -95,7 +95,7 @@ put_message (Db, Message, RequestId) -> case Message of
 -spec get_reply (binary()) -> {requestid(), reply(), binary()}.
 get_reply (<<
 	?get_header (?ReplyOpcode, ResponseTo),
-	CursorNotFound:1, QueryError:1, _:1, AwaitCapable:1, _:28,
+	?get_bits32 (_,_,_,_, AwaitCapable, _, QueryError, CursorNotFound),
 	?get_int64 (CursorId),
 	?get_int32 (StartingFrom),
 	?get_int32 (NumDocs),

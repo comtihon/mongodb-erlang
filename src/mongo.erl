@@ -38,19 +38,20 @@ connect (Address) -> mongo_connect:connect ({Address, 27017}).
 disconnect (Conn) -> mongo_connect:close (Conn).
 
 -type action(A) :: fun (() -> A).
-% IO, reads process dict {mongo_action_context, #context{}}, and throws failure()
+% An Action does IO, reads process dict {mongo_action_context, #context{}}, and throws failure()
 
 -type failure() ::
-	mongo_connect:failure() |
-	write_failure() |
-	mongo_cursor:expired().
+	mongo_connect:failure() |  % thrown by read and safe write
+	mongo_query:not_master() |  % throws by read and safe write
+	write_failure() |  % throws by safe write
+	mongo_cursor:expired().  % thrown by cursor next/rest
 
 -record (context, {
 	write_mode :: write_mode(),
 	read_mode :: read_mode(),
 	dbconn :: mongo_connect:dbconnection() }).
 
--spec do (write_mode(), read_mode(), connection(), db(), action(A)) -> {ok, A} | {error, failure()}. % IO
+-spec do (write_mode(), read_mode(), connection(), db(), action(A)) -> {ok, A} | {failure, failure()}. % IO
 % Execute mongo action under given write_mode, read_mode, connection, and db. Return action result or failure.
 do (WriteMode, ReadMode, Connection, Database, Action) ->
 	PrevContext = get (mongo_action_context),
@@ -58,9 +59,10 @@ do (WriteMode, ReadMode, Connection, Database, Action) ->
 	try Action() of
 		Result -> {ok, Result}
 	catch
-		throw: E = {connection_failure, _, _} -> {error, E};
-		throw: E = {write_failure, _, _} -> {error, E};
-		throw: E = {cursor_expired, _} -> {error, E}
+		throw: E = {connection_failure, _, _} -> {failure, E};
+		throw: E = not_master -> {failure, E};
+		throw: E = {write_failure, _, _} -> {failure, E};
+		throw: E = {cursor_expired, _} -> {failure, E}
 	after
 		case PrevContext of undefined -> erase (mongo_action_context); _ -> put (mongo_action_context, PrevContext) end
 	end.
@@ -87,7 +89,9 @@ write (Write) ->
 			Ack = mongo_query:write (Context #context.dbconn, Write, Params),
 			case bson:lookup (err, Ack) of
 				{} -> ok; {null} -> ok;
-				{String} -> throw ({write_failure, bson:at (code, Ack), String}) end end.
+				{String} -> case bson:at (code, Ack) of
+					10058 -> throw (not_master);
+					Code -> throw ({write_failure, Code, String}) end end end.
 
 -spec insert (collection(), bson:document()) -> bson:value(). % Action
 % Insert document into collection. Return its '_id' value, which is auto-generated if missing.

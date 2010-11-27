@@ -46,7 +46,7 @@
 
 -record (getmore, {
 	collection :: collection(),
-	batchsize :: integer(),
+	batchsize = 0 :: batchsize(),
 	cursorid :: cursorid() }).
 
 -record (reply, {

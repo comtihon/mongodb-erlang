@@ -36,6 +36,8 @@ connect_test() ->
 	Doc1X = bson:update (text, <<"world!!">>, Doc1),
 	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = {}}),
 	[Doc0, Doc1X] = mongo_cursor:rest (Cursor),
+	mongo_cursor:close (Cursor),
+	#reply {cursornotfound = true} = mongo_connect:call (DbConn, [], #getmore {collection = foo, cursorid = 2938725639}),
 	mongo_connect:close (Conn).
 
 % Mongod server must be running on 127.0.0.1:27017
@@ -57,6 +59,8 @@ mongo_test() ->
 		TeamNames = lists:map (fun (Team) -> {name, bson:at (name, Team)} end, Teams),
 		TeamNames = mongo:rest (mongo:find (team, {}, {'_id', 0, name, 1})),
 		BostonTeam = lists:last (Teams),
-		{BostonTeam} = mongo:find_one (team, {home, {city, <<"Boston">>, state, <<"MA">>}})
+		{BostonTeam} = mongo:find_one (team, {home, {city, <<"Boston">>, state, <<"MA">>}}),
+		mongo:delete_one (team, {}),
+		3 = mongo:count (team, {})
 	end),
 	mongo:disconnect (Conn).
