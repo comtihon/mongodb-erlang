@@ -2,10 +2,12 @@ This is the MongoDB driver for Erlang. [MongoDB](http://www.mongodb.org) is a do
 
 This first version of the driver only supports individual connections to single servers, although multiple processes can use the same connection simultaneously without interfering with each other. This version does not support connection pooling and smart replica-set connection, which will be included in the next version coming out in a couple of weeks.
 
-This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need to download both of these applications. Below we describe the mongodb application; you should also see the bson application to understand the document type.
+This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need both of these. Below we describe the mongodb application; you should also see the bson application to understand the document type.
 
-Once downloaded, compile each application
+Downloaded and compile each application
 
+	$ git clone git://github.com/TonyGen/bson-erlang.git bson
+	$ git clone git://github.com/TonyGen/mongodb-erlang.git mongodb
 	$ cd bson
 	$ erlc -o ebin -I include src/*.erl
 	$ cd ../mongodb
