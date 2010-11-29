@@ -2,21 +2,29 @@
 -module (mongo).
 
 -export_type ([maybe/1]).
--export_type ([host/0, connection/0, cursor/0]).
--export_type ([action/1, write_mode/0, read_mode/0, failure/0]).
--export_type ([db/0, collection/0, selector/0, projector/0, skip/0, batchsize/0, modifier/0]).
--export_type ([command/0]).
 
+-export_type ([host/0, connection/0]).
 -export ([connect/1, disconnect/1]).
+
+-export_type ([action/1, db/0, write_mode/0, read_mode/0, failure/0]).
 -export ([do/5]).
+
+-export_type ([collection/0, selector/0, projector/0, skip/0, batchsize/0, modifier/0]).
 -export ([insert/2, insert_all/2]).
 -export ([save/2, replace/3, repsert/3, modify/3]).
 -export ([delete/2, delete_one/2]).
 -export ([find_one/2, find_one/3, find_one/4]).
 -export ([find/2, find/3, find/4, find/5]).
--export ([next/1, rest/1, close_cursor/1]).
 -export ([count/2, count/3]).
+
+-export_type ([cursor/0]).
+-export ([next/1, rest/1, close_cursor/1]).
+
+-export_type ([command/0]).
 -export ([command/1]).
+
+-export_type ([key_order/0, index_uniqueness/0]).
+-export ([create_index/2, create_index/3, create_index/4]).
 
 -include ("mongo_protocol.hrl").
 
@@ -229,3 +237,48 @@ count (Coll, Selector, Limit) ->
 command (Command) ->
 	Context = get (mongo_action_context),
 	mongo_query:command (Context #context.dbconn, Command, slave_ok (Context)).
+
+% Administration %
+
+-type key_order() :: bson:document().
+% List keys and whether ascending (1) or descending (-1). Eg. {x,1, y,-1}
+
+-spec create_index (collection(), key_order()) -> ok. % Action
+% Create non-unique index on given keys in collection
+create_index (Coll, KeyOrder) ->
+	create_index (Coll, KeyOrder, non_unique).
+
+-type index_uniqueness() ::
+	non_unique |  % Multiple docs with same index value allowed
+	unique |  % At most one doc with same index value, index creation fails otherwise
+	unique_dropdups.  % Same as unique, but deletes docs with duplicate index value on index creation
+
+-spec create_index (collection(), key_order(), index_uniqueness()) -> ok. % Action
+% Create index on given keys with given uniqueness
+create_index (Coll, KeyOrder, Uniqueness) ->
+	create_index (Coll, KeyOrder, Uniqueness, gen_index_name (KeyOrder)).
+
+-spec gen_index_name (key_order()) -> bson:utf8().
+gen_index_name (KeyOrder) ->
+	AsName = fun (Label, Order, Name) -> <<
+		$_,
+		Name /binary,
+		(atom_to_binary (Label, utf8)) /binary,
+		$_,
+		(bson:utf8 (integer_to_list (Order))) /binary >> end,
+	bson:doc_foldl (AsName, <<>>, KeyOrder).
+
+-spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
+% Create index on given keys with given uniqueness and name
+create_index (Coll, KeyOrder, Uniqueness, IndexName) ->
+	{Db, _} = (get (mongo_action_context)) #context.dbconn,
+	{Unique, DropDups} = case Uniqueness of
+		non_unique -> {false, false};
+		unique -> {true, false};
+		unique_dropdups -> {true, true} end,
+	insert ('system.indexes', {
+		ns, mongo_protocol:dbcoll (Db, Coll),
+		key, KeyOrder,
+		name, IndexName,
+		unique, Unique,
+		dropDups, DropDups}).
