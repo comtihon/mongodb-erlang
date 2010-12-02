@@ -1,47 +1,34 @@
 % A cursor references pending query results on a server.
 % TODO: terminate cursor after idle for 10 minutes.
--module(mongo_cursor).
+-module (mongo_cursor).
 
--export_type ([cursor/0, expired/0, maybe/1]).
+-export_type ([maybe/1]).
+-export_type ([cursor/0, expired/0]).
 
 -export ([next/1, rest/1, close/1]). % API
 -export ([cursor/4]). % for mongo_query
 
--behaviour (gen_server).
--export ([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
-
 -include ("mongo_protocol.hrl").
 
--type server(_) :: pid() | atom(). % Pid or register process name with parameterized state
--type reason() :: any().
+-type maybe(A) :: {A} | {}.
+
+-opaque cursor() :: mvar:mvar (state()).
+% Thread-safe cursor, ie. access to query results
+
+-type expired() :: {cursor_expired, cursor()}.
 
 -type state() :: {env(), batch()}.
 -type env() :: {mongo_connect:dbconnection(), collection(), batchsize()}.
 -type batch() :: {cursorid(), [bson:document()]}.
 
--type maybe(A) :: {A} | {}.
-
--opaque cursor() :: server (state()).
-% Thread-safe cursor, ie. access to query results
-
--type expired() :: {cursor_expired, cursor()}.
-
 -spec cursor (mongo_connect:dbconnection(), collection(), batchsize(), {cursorid(), [bson:document()]}) -> cursor(). % IO
 % Create new cursor from result batch
 cursor (DbConn, Collection, BatchSize, Batch) ->
-	{ok, Cursor} = gen_server:start_link (?MODULE, {{DbConn, Collection, BatchSize}, Batch}, []),
-	Cursor.
+	mvar:new ({{DbConn, Collection, BatchSize}, Batch}, fun finalize/1).
 
 -spec close (cursor()) -> ok. % IO
-% Close cursor.
-close (Cursor) -> gen_server:cast (Cursor, stop).
-
--spec next (cursor()) -> maybe (bson:document()). % IO throws expired() & mongo_connect:failure()
-% Return next document in query result or nothing if finished.
-next (Cursor) -> case gen_server:call (Cursor, next) of
-	{ok, Result} -> Result;
-	expired -> throw ({cursor_expired, Cursor});
-	F = {connection_failure, _, _} -> throw (F) end.
+% Close cursor
+close (Cursor) -> mvar:terminate (Cursor).
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws expired() & mongo_connect:failure()
 % Return remaining documents in query result
@@ -49,22 +36,14 @@ rest (Cursor) -> case next (Cursor) of
 	{} -> [];
 	{Doc} -> [Doc | rest (Cursor)] end.
 
-% gen_server callbacks %
-
--spec init (state()) -> {ok, state()}.
-init (State) -> {ok, State}.
-
--type tag() :: any(). % Unique tag
-
--spec handle_call (next, {pid(), tag()}, gen_tcp:socket()) -> {reply, {ok, maybe (bson:document())}, state()} | {stop, expired, expired, state()} | {stop, connection_failure, mongo_connect:failure(), state()}. % IO
-% Get next document in cursor or return stop on expired or connection failure
-handle_call (next, _From, {Env, Batch}) ->
-	try xnext (Env, Batch) of
-		{Batch1, MDoc} -> {reply, {ok, MDoc}, {Env, Batch1}}
-	catch
-		throw: expired -> {stop, expired, expired, {Env, Batch}};
-		throw: E = {connection_failure, _, _} -> {stop, connection_failure, E, {Env, Batch}}
-	end.
+-spec next (cursor()) -> maybe (bson:document()). % IO throws expired() & mongo_connect:failure()
+% Return next document in query result or nothing if finished.
+next (Cursor) ->
+	Next = fun ({Env, Batch}) ->
+		{Batch1, MDoc} = xnext (Env, Batch),
+		{{Env, Batch1}, MDoc} end,
+	try mvar:modify (Cursor, Next)
+		catch expired -> throw ({cursor_expired, Cursor}) end.
 
 -spec xnext (env(), batch()) -> {batch(), maybe (bson:document())}. % IO throws expired & mongo_connect:failure()
 % Get next document in cursor, fetching next batch from server if necessary
@@ -85,18 +64,8 @@ batch_reply (#reply {
 		CursorNotFound -> throw (expired);
 		true -> {CursorId, Docs} end.
 
--spec handle_cast (stop, state()) -> {stop, normal, state()}.
-% Close cursor
-handle_cast (stop, State) -> {stop, normal, State}.
-
-handle_info (_Info, Socket) -> {noreply, Socket}.
-
--spec terminate (reason(), state()) -> any(). % IO. Result ignored
+-spec finalize (state()) -> ok. % IO. Result ignored
 % Kill cursor on server if not already
-terminate (expired, _) -> ok;
-terminate (connection_failure, _) -> ok;
-terminate (_Reason, {{DbConn, _, _}, {CursorId, _}}) -> case CursorId of
+finalize ({{DbConn, _, _}, {CursorId, _}}) -> case CursorId of
 	0 -> ok;
 	_ -> mongo_connect:send (DbConn, [#killcursor {cursorids = [CursorId]}]) end.
-
-code_change (_OldVsn, State, _Extra) -> {ok, State}.

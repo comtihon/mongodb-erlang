@@ -10,12 +10,33 @@ test() -> eunit:test ({setup,
 	fun () -> application:start (mongodb),
 		io:format (user, "~n** Make sure mongod is running on 127.0.0.1:27017 **~n~n", []) end,
 	fun (_) -> application:stop (mongodb) end,
-	[fun app_test/0,
+	[fun var_test/0,
+	 fun var_finalize_test/0,
+	 fun app_test/0,
 	 fun connect_test/0,
 	 fun mongo_test/0
 	]}).
 
-% This test must be run first right after application start (assumes vars contain initial value)
+var_test() ->
+	Var = mvar:new (0),
+	0 = mvar:write (Var, 1),
+	1 = mvar:read (Var),
+	foo = mvar:modify (Var, fun (N) -> {N+1, foo} end),
+	2 = mvar:read (Var),
+	foo = (catch mvar:with (Var, fun (_) -> throw (foo) end)),
+	mvar:terminate (Var),
+	{exit, {noproc, _}} = try mvar:read (Var) catch C:E -> {C, E} end.
+
+var_finalize_test() ->
+	Var0 = mvar:new ({}),
+	Var = mvar:new (0, fun (N) -> mvar:write (Var0, N) end),
+	{} = mvar:read (Var0),
+	0 = mvar:read (Var),
+	mvar:terminate (Var),
+	0 = mvar:read (Var0),
+	mvar:terminate (Var0).
+
+% This test must be run first right after application start (assumes counter table contain initial values)
 app_test() ->
 	1 = mongodb_app:next_requestid(),
 	UnixSecs = bson:unixtime_to_secs (bson:timenow()),
@@ -24,6 +45,7 @@ app_test() ->
 
 % Mongod server must be running on 127.0.0.1:27017
 connect_test() ->
+	{error, _} = mongo_connect:connect ({"127.0.0.1", 26555}),
 	{ok, Conn} = mongo_connect:connect ({"127.0.0.1", 27017}),
 	DbConn = {test, Conn},
 	Res = mongo_query:write (DbConn, #delete {collection = foo, selector = {}}, {}),
