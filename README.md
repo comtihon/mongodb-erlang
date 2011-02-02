@@ -1,6 +1,6 @@
 This is the MongoDB driver for Erlang. [MongoDB](http://www.mongodb.org) is a document-oriented database management system. A driver is a client library that provides an API for connecting to MongoDB servers, performing queries and updates on those servers, and performing administrative tasks like creating indexes and viewing performance statistics.
 
-This first version of the driver only supports individual connections to single servers, although multiple processes can use the same connection simultaneously without interfering with each other. This version does not support connection pooling and smart replica-set connection, which will be included in the next version coming out in a couple of weeks.
+This first version of the driver only supports individual connections to single servers, although multiple processes can use the same connection simultaneously without interfering with each other. This version does not support connection pooling and smart replica-set connection, which will be included in the next version coming out in a few of weeks.
 
 This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need both of these. Below we describe the mongodb application; you should also see the bson application to understand the document type.
 
