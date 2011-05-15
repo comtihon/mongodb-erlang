@@ -1,12 +1,14 @@
-% unit tests. For tests to work, a mongodb server must be listening on 127.0.0.1:27017.
+% Unit tests.
+% For test1 to work, a mongodb server must be listening on 127.0.0.1:27017.
+% For test2 to work, a mongodb replica set must be listening on 127.0.0.1:27017 & 127.0.0.1:27018.
 -module(mongodb_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 -include ("mongo_protocol.hrl").
 
--export ([test/0]).
+-export ([test1/0, test2/0]).
 
-test() -> eunit:test ({setup,
+test1() -> eunit:test ({setup,
 	fun () -> application:start (mongodb),
 		io:format (user, "~n** Make sure mongod is running on 127.0.0.1:27017 **~n~n", []) end,
 	fun (_) -> application:stop (mongodb) end,
@@ -15,6 +17,14 @@ test() -> eunit:test ({setup,
 	 fun app_test/0,
 	 fun connect_test/0,
 	 fun mongo_test/0
+%%	 fun pool_test/0
+	]}).
+
+test2() -> eunit:test ({setup,
+	fun () -> application:start (mongodb),
+		io:format (user, "~n** Make sure replica set is running on 127.0.0.1:27017 & 27018 **~n~n", []) end,
+	fun (_) -> application:stop (mongodb) end,
+	[fun replset_test/0
 	]}).
 
 var_test() ->
@@ -25,7 +35,8 @@ var_test() ->
 	2 = mvar:read (Var),
 	foo = (catch mvar:with (Var, fun (_) -> throw (foo) end)),
 	mvar:terminate (Var),
-	{exit, {noproc, _}} = try mvar:read (Var) catch C:E -> {C, E} end.
+	{exit, {noproc, _}} = try mvar:read (Var) catch C:E -> {C, E} end,
+	mvar:terminate (Var). % repeat termination is no-op (not failure)
 
 var_finalize_test() ->
 	Var0 = mvar:new ({}),
@@ -58,7 +69,6 @@ connect_test() ->
 	Doc1X = bson:update (text, <<"world!!">>, Doc1),
 	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = {}}),
 	[Doc0, Doc1X] = mongo_cursor:rest (Cursor),
-	mongo_cursor:close (Cursor),
 	#reply {cursornotfound = true} = mongo_connect:call (DbConn, [], #getmore {collection = foo, cursorid = 2938725639}),
 	mongo_connect:close (Conn).
 
@@ -86,3 +96,38 @@ mongo_test() ->
 		3 = mongo:count (team, {})
 	end),
 	mongo:disconnect (Conn).
+
+% Mongod server must be running on 127.0.0.1:27017
+%% pool_test() ->
+%% 	Pool = mongo_pool:new (2, {localhost, 27017}),
+%% 	Conn = mongo_pool:connect (Pool),
+%% 	Do = fun () ->
+%% 		mongo:do (safe, master, Conn, admin, fun () -> mongo:command ({listDatabases, 1}) end) end,
+%% 	{ok, Doc} = Do(),
+%% 	{_} = bson:lookup (databases, Doc),
+%% 	mongo_pool:close (Pool),
+%% 	{'EXIT', {noproc, _}} = (catch Do()).
+
+% Replica set named "rs1" must be running on 127.0.0.1:27017 & 27018
+replset_test() -> % TODO: change from connect_test
+	RS0 = mongo_replset:connect ({<<"rs0">>,["127.0.0.1"]}),
+	{error, [{not_member, _, _} | _]} = mongo_replset:primary (RS0),
+	RS1 = mongo_replset:connect ({<<"rs1">>,["127.0.0.1"]}),
+	{ok, Conn} = mongo_replset:primary (RS1),
+	DbConn = {test, Conn},
+	Res = mongo_query:write (DbConn, #delete {collection = foo, selector = {}}, {}),
+	{null} = bson:lookup (err, Res),
+	Doc0 = {'_id', 0, text, <<"hello">>},
+	Doc1 = {'_id', 1, text, <<"world">>},
+	Res1 = mongo_query:write (DbConn, #insert {collection = foo, documents = [Doc0, Doc1]}, {}),
+	{null} = bson:lookup (err, Res1),
+	ok = mongo_query:write (DbConn, #update {collection = foo, selector = {'_id', 1}, updater = {'$set', {text, <<"world!!">>}}}),
+	Doc1X = bson:update (text, <<"world!!">>, Doc1),
+	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = {}}),
+	[Doc0, Doc1X] = mongo_cursor:rest (Cursor),
+	mongo_connect:close (Conn),
+	{ok, Conn2} = mongo_replset:secondary_ok (RS1),
+	DbConn2 = {test, Conn2},
+	Cursor2 = mongo_query:find (DbConn2, #'query' {collection = foo, selector = {}, slaveok = true}),
+	[Doc0, Doc1X] = mongo_cursor:rest (Cursor2),
+	mongo_connect:close (Conn2).
