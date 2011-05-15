@@ -3,7 +3,7 @@
 
 -export_type ([mvar/1]).
 -export ([create/2, new/2, new/1]).
--export ([modify/2, with/2, read/1, write/2]).
+-export ([modify/2, modify_/2, with/2, read/1, write/2]).
 -export ([terminate/1]).
 
 -behaviour (gen_server).
@@ -41,6 +41,10 @@ modify (Var, Modify) -> case gen_server:call (Var, {modify, Modify}) of
 	{ok, B} -> B;
 	{throw, Thrown} -> throw (Thrown) end.
 
+-spec modify_ (mvar(A), fun ((A) -> A)) -> ok. % IO throws X
+% Same as modify but don't return anything
+modify_ (Var, Modify) -> modify (Var, fun (A) -> {Modify (A), ok} end).
+
 -spec with (mvar(A), fun ((A) -> B)) -> B. % IO throws X, fun IO throws X
 % Execute Procedure with exclusive access to content but don't modify it.
 with (Var, Act) -> modify (Var, fun (A) -> {A, Act (A)} end).
@@ -54,8 +58,8 @@ read (Var) -> with (Var, fun (A) -> A end).
 write (Var, Value) -> modify (Var, fun (A) -> {Value, A} end).
 
 -spec terminate (mvar(_)) -> ok. % IO
-% Terminate mvar. Its finalizer will be executed. Future accesses to this mvar will fail.
-terminate (Var) -> gen_server:call (Var, stop).
+% Terminate mvar. Its finalizer will be executed. Future accesses to this mvar will fail, although repeated termination is fine.
+terminate (Var) -> catch gen_server:call (Var, stop), ok.
 
 % gen_server callbacks %
 
@@ -85,5 +89,9 @@ terminate (_Reason, {A, Finalize}) -> Finalize (A).
 -type reason() :: any().
 
 handle_cast (_Request, State) -> {noreply, State}.
-handle_info (_Info, State) -> {noreply, State}.
+
+handle_info (Message, State) ->
+	io:format ("received: ~p~n", [Message]),
+	{noreply, State}.
+
 code_change (_OldVsn, State, _Extra) -> {ok, State}.
