@@ -30,16 +30,15 @@
 
 -type reason() :: any().
 
--type host() :: inet:hostname() | inet:ip_address() | mongo_connect:host().
-% Hostname or ip address with or without port. Port defaults to 27017 if port missing.
+-type host() :: mongo_connect:host().
+% Hostname or ip address with or without port. Port defaults to 27017 when missing.
 % Eg. "localhost" or {"localhost", 27017}
 
 -type connection() :: mongo_connect:connection().
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
 % Connect to given MongoDB server
-connect ({Address, Port}) -> mongo_connect:connect ({Address, Port});
-connect (Address) -> mongo_connect:connect ({Address, 27017}).
+connect (Host) -> mongo_connect:connect (Host).
 
 -spec disconnect (connection()) -> ok. % IO
 % Close connection to server
