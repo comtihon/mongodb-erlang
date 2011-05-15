@@ -43,7 +43,8 @@ next (Cursor) ->
 		{Batch1, MDoc} = xnext (Env, Batch),
 		{{Env, Batch1}, MDoc} end,
 	try mvar:modify (Cursor, Next)
-		catch expired -> throw ({cursor_expired, Cursor}) end.
+		of {} -> close (Cursor), {}; {Doc} -> {Doc}
+		catch expired -> close (Cursor), throw ({cursor_expired, Cursor}) end.
 
 -spec xnext (env(), batch()) -> {batch(), maybe (bson:document())}. % IO throws expired & mongo_connect:failure()
 % Get next document in cursor, fetching next batch from server if necessary
