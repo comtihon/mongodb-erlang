@@ -1,11 +1,8 @@
 %% Get connection to appropriate server in a replica set
 -module (mongo_replset).
 
--export_type ([replset/0, replset_connection/0]).
--export ([connect/1, primary/1, secondary_ok/1]). % API
-
--export ([connect_member/2, fetch_member_info/1]).
--export ([until_success/2]).
+-export_type ([replset/0, rs_connection/0]).
+-export ([connect/1, primary/1, secondary_ok/1, close/1, is_closed/1]). % API
 
 -type maybe(A) :: {A} | {}.
 -type err_or(A) :: {ok, A} | {error, reason()}.
@@ -32,22 +29,22 @@ rotate (N, List) ->
 -type host() :: mongo_connect:host().
 -type connection() :: mongo_connect:connection().
 
--type replset() :: {replset_name(), [host()]}.
+-type replset() :: {rs_name(), [host()]}.
 % Identify replset. Hosts is just seed list, not necessarily all hosts in replica set
--type replset_name() :: bson:utf8().
+-type rs_name() :: bson:utf8().
 
--spec connect (replset()) -> replset_connection(). % IO
+-spec connect (replset()) -> rs_connection(). % IO
 % Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called.
 connect ({ReplName, Hosts}) ->
 	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
 	{ReplName, mvar:new (Dict)}.
 
--opaque replset_connection() :: {replset_name(), mvar:mvar(connections())}.
+-opaque rs_connection() :: {rs_name(), mvar:mvar(connections())}.
 % Maintains set of connections to some if not all of the replica set members
 -type connections() :: dict:dictionary (host(), maybe(connection())).
 % All hosts listed in last member_info fetched are keys in dict. Value is {} if no attempt to connect to that host yet
 
--spec primary (replset_connection()) -> err_or(connection()). % IO
+-spec primary (rs_connection()) -> err_or(connection()). % IO
 % Return connection to current primary in replica set
 primary (ReplConn) -> try
 		MemberInfo = fetch_member_info (ReplConn),
@@ -55,7 +52,7 @@ primary (ReplConn) -> try
 	of Conn -> {ok, Conn}
 	catch Reason -> {error, Reason} end.
 
--spec secondary_ok (replset_connection()) -> err_or([connection()]). % IO
+-spec secondary_ok (rs_connection()) -> err_or(connection()). % IO
 % Return connection to a current secondary in replica set or primary if none
 secondary_ok (ReplConn) -> try
 		{_Conn, Info} = fetch_member_info (ReplConn),
@@ -65,12 +62,23 @@ secondary_ok (ReplConn) -> try
 	of Conn -> {ok, Conn}
 	catch Reason -> {error, Reason} end.
 
+-spec close (rs_connection()) -> ok. % IO
+% Close replset connection
+close ({_, VConns}) ->
+	CloseConn = fun (_, MCon, _) -> case MCon of {Con} -> mongo_connect:close (Con); {} -> ok end end,
+	mvar:with (VConns, fun (Dict) -> dict:fold (CloseConn, ok, Dict) end),
+	mvar:terminate (VConns).
+
+-spec is_closed (rs_connection()) -> boolean(). % IO
+% Has replset connection been closed?
+is_closed ({_, VConns}) -> mvar:is_terminated (VConns).
+
 % EIO = IO that may throw error of any type
 
 -type member_info() :: {connection(), bson:document()}.
 % Result of isMaster query on a server connnection. Returned fields are: setName, ismaster, secondary, hosts, [primary]. primary only present when ismaster = false
 
--spec primary_conn (integer(), replset_connection(), member_info()) -> connection(). % EIO
+-spec primary_conn (integer(), rs_connection(), member_info()) -> connection(). % EIO
 % Return connection to primary designated in member_info. Only chase primary pointer N times.
 primary_conn (0, _ReplConn, MemberInfo) -> throw ({false_primary, MemberInfo});
 primary_conn (Tries, ReplConn, {Conn, Info}) -> case bson:at (ismaster, Info) of
@@ -81,7 +89,7 @@ primary_conn (Tries, ReplConn, {Conn, Info}) -> case bson:at (ismaster, Info) of
 			primary_conn (Tries - 1, ReplConn, MemberInfo);
 		{} -> throw ({no_primary, {Conn, Info}}) end end.
 
--spec secondary_ok_conn (replset_connection(), [host()]) -> connection(). % EIO
+-spec secondary_ok_conn (rs_connection(), [host()]) -> connection(). % EIO
 % Return connection to a live secondaries in replica set, or primary if none
 secondary_ok_conn (ReplConn, Hosts) -> try
 		until_success (Hosts, fun (Host) ->
@@ -89,7 +97,7 @@ secondary_ok_conn (ReplConn, Hosts) -> try
 			case bson:at (secondary, Info) of true -> Conn; false -> throw (not_secondary) end end)
 	catch _ -> primary_conn (2, ReplConn, fetch_member_info (ReplConn)) end.
 
--spec fetch_member_info (replset_connection()) -> member_info(). % EIO
+-spec fetch_member_info (rs_connection()) -> member_info(). % EIO
 % Retrieve isMaster info from a current known member in replica set. Update known list of members from fetched info.
 % TODO: close connections dropped from Dict
 fetch_member_info ({ReplName, VConns}) ->
@@ -101,8 +109,8 @@ fetch_member_info ({ReplName, VConns}) ->
 		dict:from_list (lists:map (MapHost, NewHosts)) end),
 	{Conn, Info}.
 
--spec connect_member (replset_connection(), host()) -> member_info(). % EIO
-% Connect to host and verify membership. Cache connection in replset_connection
+-spec connect_member (rs_connection(), host()) -> member_info(). % EIO
+% Connect to host and verify membership. Cache connection in rs_connection
 connect_member ({ReplName, VConns}, Host) -> mvar:modify (VConns, fun (Dict) ->
 	Conn = case dict:find (Host, Dict) of
 		{ok, {Con}} -> Con;

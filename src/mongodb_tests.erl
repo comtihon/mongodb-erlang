@@ -16,8 +16,8 @@ test1() -> eunit:test ({setup,
 	 fun var_finalize_test/0,
 	 fun app_test/0,
 	 fun connect_test/0,
-	 fun mongo_test/0
-%%	 fun pool_test/0
+	 fun mongo_test/0,
+	 fun pool_test/0
 	]}).
 
 test2() -> eunit:test ({setup,
@@ -69,8 +69,10 @@ connect_test() ->
 	Doc1X = bson:update (text, <<"world!!">>, Doc1),
 	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = {}}),
 	[Doc0, Doc1X] = mongo_cursor:rest (Cursor),
+	true = mongo_cursor:is_closed (Cursor),
 	#reply {cursornotfound = true} = mongo_connect:call (DbConn, [], #getmore {collection = foo, cursorid = 2938725639}),
-	mongo_connect:close (Conn).
+	mongo_connect:close (Conn),
+	true = mongo_connect:is_closed (Conn).
 
 % Mongod server must be running on 127.0.0.1:27017
 mongo_test() ->
@@ -98,20 +100,22 @@ mongo_test() ->
 	mongo:disconnect (Conn).
 
 % Mongod server must be running on 127.0.0.1:27017
-%% pool_test() ->
-%% 	Pool = mongo_pool:new (2, {localhost, 27017}),
-%% 	Conn = mongo_pool:connect (Pool),
-%% 	Do = fun () ->
-%% 		mongo:do (safe, master, Conn, admin, fun () -> mongo:command ({listDatabases, 1}) end) end,
-%% 	{ok, Doc} = Do(),
-%% 	{_} = bson:lookup (databases, Doc),
-%% 	mongo_pool:close (Pool),
-%% 	{'EXIT', {noproc, _}} = (catch Do()).
+pool_test() ->
+	Pool = pool:new (mongo:connection_factory ({"127.0.0.1", 27017}), 2),
+	Do = fun (Conn) -> mongo:do (safe, master, Conn, admin, fun () -> mongo:command ({listDatabases, 1}) end) end,
+	lists:foreach (fun (_) ->
+			{ok, Conn} = pool:get (Pool),
+			{ok, Doc} = Do (Conn),
+			{_} = bson:lookup (databases, Doc) end,
+		lists:seq (1,8)),
+	pool:close (Pool),
+	true = pool:is_closed (Pool).
 
 % Replica set named "rs1" must be running on 127.0.0.1:27017 & 27018
 replset_test() -> % TODO: change from connect_test
 	RS0 = mongo_replset:connect ({<<"rs0">>,["127.0.0.1"]}),
 	{error, [{not_member, _, _} | _]} = mongo_replset:primary (RS0),
+	mongo_replset:close (RS0),
 	RS1 = mongo_replset:connect ({<<"rs1">>,["127.0.0.1"]}),
 	{ok, Conn} = mongo_replset:primary (RS1),
 	DbConn = {test, Conn},
@@ -125,9 +129,9 @@ replset_test() -> % TODO: change from connect_test
 	Doc1X = bson:update (text, <<"world!!">>, Doc1),
 	Cursor = mongo_query:find (DbConn, #'query' {collection = foo, selector = {}}),
 	[Doc0, Doc1X] = mongo_cursor:rest (Cursor),
-	mongo_connect:close (Conn),
 	{ok, Conn2} = mongo_replset:secondary_ok (RS1),
 	DbConn2 = {test, Conn2},
 	Cursor2 = mongo_query:find (DbConn2, #'query' {collection = foo, selector = {}, slaveok = true}),
 	[Doc0, Doc1X] = mongo_cursor:rest (Cursor2),
-	mongo_connect:close (Conn2).
+	mongo_replset:close (RS1),
+	true = mongo_replset:is_closed (RS1).

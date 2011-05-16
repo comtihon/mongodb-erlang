@@ -4,7 +4,7 @@
 -export_type ([host/0, connection/0, dbconnection/0, failure/0]).
 
 -export ([host_port/1, read_host/1, show_host/1]).
--export ([connect/1, reconnect/1, close/1, conn_host/1]).
+-export ([connect/1, reconnect/1, conn_host/1, close/1, is_closed/1]).
 
 -export ([call/3, send/2]). % for mongo_query and mongo_cursor
 
@@ -61,6 +61,10 @@ conn_host ({Host, _VSocket}) -> Host.
 -spec close (connection()) -> ok. % IO
 % Close connection.
 close ({_Host, VSocket}) -> mvar:terminate (VSocket).
+
+-spec is_closed (connection()) -> boolean(). % IO
+% Has connection been closed?
+is_closed ({_, VSocket}) -> mvar:is_terminated (VSocket).
 
 -type dbconnection() :: {mongo_protocol:db(), connection()}.
 

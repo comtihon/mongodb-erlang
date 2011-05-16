@@ -4,7 +4,10 @@
 -export_type ([maybe/1]).
 
 -export_type ([host/0, connection/0]).
--export ([connect/1, disconnect/1]).
+-export ([connect/1, disconnect/1, connection_factory/1]).
+
+-export_type ([replset/0, rs_connection/0]).
+-export ([rs_connect/1, rs_primary/1, rs_secondary_ok/1, rs_disconnect/1, rs_connection_factory/1]).
 
 -export_type ([action/1, db/0, write_mode/0, read_mode/0, failure/0]).
 -export ([do/5]).
@@ -30,10 +33,11 @@
 
 -type reason() :: any().
 
+% Server %
+
 -type host() :: mongo_connect:host().
 % Hostname or ip address with or without port. Port defaults to 27017 when missing.
 % Eg. "localhost" or {"localhost", 27017}
-
 -type connection() :: mongo_connect:connection().
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
@@ -43,6 +47,37 @@ connect (Host) -> mongo_connect:connect (Host).
 -spec disconnect (connection()) -> ok. % IO
 % Close connection to server
 disconnect (Conn) -> mongo_connect:close (Conn).
+
+-spec connection_factory (host()) -> pool:factory(connection()).
+% Factory for use with a connection pool. See pool module.
+connection_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_connect:is_closed/1}.
+
+% Replica Set %
+
+-type replset() :: mongo_replset:replset().
+-type rs_connection() :: mongo_replset:rs_connection().
+
+-spec rs_connect (replset()) -> rs_connection(). % IO
+% Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
+rs_connect (Replset) -> mongo_replset:connect (Replset).
+
+-spec rs_primary (rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
+% Return connection to current primary in replica set
+rs_primary (ReplsetConn) -> mongo_replset:primary (ReplsetConn).
+
+-spec rs_secondary_ok (rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
+% Return connection to a current secondary in replica set or primary if none
+rs_secondary_ok (ReplsetConn) -> mongo_replset:secondary_ok (ReplsetConn).
+
+-spec rs_disconnect (rs_connection()) -> ok. % IO
+% Close cache of replset connections
+rs_disconnect (ReplsetConn) -> mongo_replset:close (ReplsetConn).
+
+-spec rs_connection_factory (replset()) -> pool:factory(rs_connection()).
+% Factory for use with a rs_connection pool. See pool module.
+rs_connection_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
+
+% Action %
 
 -type action(A) :: fun (() -> A).
 % An Action does IO, reads process dict {mongo_action_context, #context{}}, and throws failure()
@@ -154,7 +189,7 @@ delete_one (Coll, Selector) ->
 -type read_mode() :: master | slave_ok.
 % Every query inside an action() will use this mode.
 % master = Server must be master/primary so reads are consistent (read latest writes).
-% slave_ok = Server may be slave/secondary so reads are may not be consistent (may read stale data). But the slaves will eventually get the latest writes, so technically this is called eventually-consistent.
+% slave_ok = Server may be slave/secondary so reads may not be consistent (may read stale data). Slaves will eventually get the latest writes, so technically this is called eventually-consistent.
 
 slave_ok (#context {read_mode = slave_ok}) -> true;
 slave_ok (#context {read_mode = master}) -> false.

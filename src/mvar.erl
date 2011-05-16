@@ -4,7 +4,7 @@
 -export_type ([mvar/1]).
 -export ([create/2, new/2, new/1]).
 -export ([modify/2, modify_/2, with/2, read/1, write/2]).
--export ([terminate/1]).
+-export ([terminate/1, is_terminated/1]).
 
 -behaviour (gen_server).
 -export ([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -60,6 +60,10 @@ write (Var, Value) -> modify (Var, fun (A) -> {Value, A} end).
 -spec terminate (mvar(_)) -> ok. % IO
 % Terminate mvar. Its finalizer will be executed. Future accesses to this mvar will fail, although repeated termination is fine.
 terminate (Var) -> catch gen_server:call (Var, stop), ok.
+
+-spec is_terminated (mvar(_)) -> boolean(). % IO
+% Has mvar been terminated?
+is_terminated (Var) -> not is_process_alive (Var).
 
 % gen_server callbacks %
 

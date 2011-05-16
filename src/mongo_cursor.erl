@@ -5,7 +5,7 @@
 -export_type ([maybe/1]).
 -export_type ([cursor/0, expired/0]).
 
--export ([next/1, rest/1, close/1]). % API
+-export ([next/1, rest/1, close/1, is_closed/1]). % API
 -export ([cursor/4]). % for mongo_query
 
 -include ("mongo_protocol.hrl").
@@ -29,6 +29,10 @@ cursor (DbConn, Collection, BatchSize, Batch) ->
 -spec close (cursor()) -> ok. % IO
 % Close cursor
 close (Cursor) -> mvar:terminate (Cursor).
+
+-spec is_closed (cursor()) -> boolean(). % IO
+% Is cursor closed
+is_closed (Cursor) -> mvar:is_terminated (Cursor).
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws expired() & mongo_connect:failure()
 % Return remaining documents in query result
