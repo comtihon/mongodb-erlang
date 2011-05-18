@@ -4,7 +4,7 @@
 -export_type ([host/0, connection/0, dbconnection/0, failure/0]).
 
 -export ([host_port/1, read_host/1, show_host/1]).
--export ([connect/1, reconnect/1, conn_host/1, close/1, is_closed/1]).
+-export ([connect/1, conn_host/1, close/1, is_closed/1]).
 
 -export ([call/3, send/2]). % for mongo_query and mongo_cursor
 
@@ -48,13 +48,6 @@ connect (Host) -> try mvar:create (fun () -> tcp_connect (host_port (Host)) end,
 	of VSocket -> {ok, {connection, host_port (Host), VSocket}}
 	catch Reason -> {error, Reason} end.
 
--spec reconnect (connection()) -> ok | {error, reason()}. % IO
-% Close current socket and create a new socket connected to same server. Error if fails
-reconnect ({connection, Host, VSocket}) -> try
-		mvar:modify_ (VSocket, fun (Socket) -> gen_tcp:close (Socket), tcp_connect (host_port (Host)) end)
-	of ok -> ok
-	catch Reason -> {error, Reason} end.
-
 -spec conn_host (connection()) -> host().
 % Host this is connected to
 conn_host ({connection, Host, _VSocket}) -> Host.
@@ -83,7 +76,7 @@ call ({Db, Conn = {connection, _Host, VSocket}}, Notices, Request) ->
 		of ReplyBin ->
 			{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
 			Reply  % ^ ResponseTo must match RequestId
-		catch Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
+		catch _:Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
 
 -spec send (dbconnection(), [mongo_protocol:notice()]) -> ok. % IO throws failure()
 % Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
@@ -91,7 +84,7 @@ send ({Db, Conn = {connection, _Host, VSocket}}, Notices) ->
 	{NoticesBin, _} = messages_binary (Db, Notices),
 	Send = fun (Socket) -> tcp_send (Socket, NoticesBin) end,
 	try mvar:with (VSocket, Send)
-		catch Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
+		catch _:Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
 
 -spec messages_binary (mongo_protocol:db(), [mongo_protocol:message()]) -> {binary(), mongo_protocol:requestid()}.
 % Binary representation of messages

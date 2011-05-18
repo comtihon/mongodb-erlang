@@ -6,9 +6,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -include ("mongo_protocol.hrl").
 
--export ([test1/0, test2/0]).
+-export ([test/0, test_rs/0]).
 
-test1() -> eunit:test ({setup,
+test() -> eunit:test ({setup,
 	fun () -> application:start (mongodb),
 		io:format (user, "~n** Make sure mongod is running on 127.0.0.1:27017 **~n~n", []) end,
 	fun (_) -> application:stop (mongodb) end,
@@ -20,7 +20,7 @@ test1() -> eunit:test ({setup,
 	 fun pool_test/0
 	]}).
 
-test2() -> eunit:test ({setup,
+test_rs() -> eunit:test ({setup,
 	fun () -> application:start (mongodb),
 		io:format (user, "~n** Make sure replica set is running on 127.0.0.1:27017 & 27018 **~n~n", []) end,
 	fun (_) -> application:stop (mongodb) end,
@@ -112,12 +112,12 @@ pool_test() ->
 	pool:close (Pool),
 	true = pool:is_closed (Pool).
 
-% Replica set named "rs1" must be running on 127.0.0.1:27017 & 27018
+% Replica set named "rs1" must be running on localhost:27017 & 27018
 replset_test() -> % TODO: change from connect_test
-	RS0 = mongo_replset:connect ({<<"rs0">>,["127.0.0.1"]}),
-	{error, [{not_member, _, _} | _]} = mongo_replset:primary (RS0),
+	RS0 = mongo_replset:connect ({<<"rs0">>,[localhost]}),
+	{error, [{not_member, _, _, _} | _]} = mongo_replset:primary (RS0),
 	mongo_replset:close (RS0),
-	RS1 = mongo_replset:connect ({<<"rs1">>,["127.0.0.1"]}),
+	RS1 = mongo_replset:connect ({<<"rs1">>,[localhost]}),
 	{ok, Conn} = mongo_replset:primary (RS1),
 	DbConn = {test, Conn},
 	Res = mongo_query:write (DbConn, #delete {collection = foo, selector = {}}, {}),
@@ -137,9 +137,9 @@ replset_test() -> % TODO: change from connect_test
 	mongo_replset:close (RS1),
 	true = mongo_replset:is_closed (RS1).
 
-% Replica set named "rs1" must be running on 127.0.0.1:27017 & 27018
+% Replica set named "rs1" must be running on localhost:27017 & 27018
 mongo_rs_test() ->
-	RsConn = mongo:rs_connect ({<<"rs0">>,["127.0.0.1"]}),
+	RsConn = mongo:rs_connect ({<<"rs1">>,[localhost]}),
 	{ok, {Teams1, Ids1}} = mongo:do (safe, master, RsConn, baseball, fun () ->
 		mongo:delete (team, {}),
 		Teams0 = [
@@ -150,6 +150,7 @@ mongo_rs_test() ->
 		Ids0 = mongo:insert_all (team, Teams0),
 		{Teams0, Ids0}
 	end),
+	timer:sleep (200),
 	mongo:do (safe, slave_ok, RsConn, baseball, fun () ->
 		4 = mongo:count (team, {}),
 		Teams = lists:zipwith (fun (Id, Team) -> bson:append ({'_id', Id}, Team) end, Ids1, Teams1),

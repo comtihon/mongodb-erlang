@@ -100,27 +100,48 @@ secondary_ok_conn (ReplConn, Hosts) -> try
 
 -spec fetch_member_info (rs_connection()) -> member_info(). % EIO
 % Retrieve isMaster info from a current known member in replica set. Update known list of members from fetched info.
-% TODO: close connections dropped from Dict
 fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns}) ->
-	OldHosts = dict:fetch_keys (mvar:read (VConns)),
-	{Conn, Info} = until_success (OldHosts, fun (Host) -> connect_member (ReplConn, Host) end),
-	NewHosts = lists:map (fun mongo_connect:read_host/1, bson:at (hosts, Info)),
+	OldHosts_ = dict:fetch_keys (mvar:read (VConns)),
+	{Conn, Info} = until_success (OldHosts_, fun (Host) -> connect_member (ReplConn, Host) end),
+	OldHosts = sets:from_list (OldHosts_),
+	NewHosts = sets:from_list (lists:map (fun mongo_connect:read_host/1, bson:at (hosts, Info))),
 	mvar:modify_ (VConns, fun (Dict) ->
-		MapHost = fun (Host) -> {Host, case dict:find (Host, Dict) of {ok, MConn} -> MConn; error -> {} end} end,
-		dict:from_list (lists:map (MapHost, NewHosts)) end),
+		Dict1 = sets:fold (fun remove_host/2, Dict, sets:subtract (OldHosts, NewHosts)),
+		Dict2 = sets:fold (fun add_host/2, Dict1, sets:subtract (NewHosts, OldHosts)),
+		Dict2 end),
 	{Conn, Info}.
+
+add_host (Host, Dict) -> dict:store (Host, {}, Dict).
+
+remove_host (Host, Dict) ->
+	MConn = dict:fetch (Host, Dict),
+	Dict1 = dict:erase (Host, Dict),
+	case MConn of {Conn} -> mongo_connect:close (Conn); {} -> ok end,
+	Dict1.
 
 -spec connect_member (rs_connection(), host()) -> member_info(). % EIO
 % Connect to host and verify membership. Cache connection in rs_connection
-connect_member ({rs_connection, ReplName, VConns}, Host) -> mvar:modify (VConns, fun (Dict) ->
-	Conn = case dict:find (Host, Dict) of
-		{ok, {Con}} -> Con;
-		_ -> case mongo_connect:connect (Host) of
-			{ok, Con} -> Con;
-			{error, Reason} -> throw ({cant_connect, Reason}) end end,
-	Info = try mongo_query:command ({admin, Conn}, {isMaster, 1}, true) catch _ -> 
-		case mongo_connect:reconnect (Conn) of ok -> ok; {error, Reas} -> throw ({cant_connect, Reas}) end,
-		mongo_query:command ({admin, Conn}, {isMaster, 1}, true) end,
+connect_member ({rs_connection, ReplName, VConns}, Host) ->
+	Conn = get_connection (VConns, Host),
+	Info = try get_member_info (Conn) catch _ ->
+		mongo_connect:close (Conn),
+		Conn1 = get_connection (VConns, Host),
+		get_member_info (Conn1) end,
 	case bson:at (setName, Info) of
-		ReplName -> {dict:store (Host, {Conn}, Dict), {Conn, Info}};
-		_ -> mongo_connect:close (Conn), throw ({not_member, Host, Info}) end end).
+		ReplName -> {Conn, Info};
+		_ ->
+			mongo_connect:close (Conn),
+			throw ({not_member, ReplName, Host, Info}) end.
+
+get_connection (VConns, Host) -> mvar:modify (VConns, fun (Dict) ->
+	case dict:find (Host, Dict) of
+		{ok, {Conn}} -> case mongo_connect:is_closed (Conn) of
+			false -> {Dict, Conn};
+			true -> new_connection (Dict, Host) end;
+		_ -> new_connection (Dict, Host) end end).
+
+new_connection (Dict, Host) -> case mongo_connect:connect (Host) of
+	{ok, Conn} -> {dict:store (Host, {Conn}, Dict), Conn};
+	{error, Reason} -> throw ({cant_connect, Reason}) end.
+
+get_member_info (Conn) -> mongo_query:command ({admin, Conn}, {isMaster, 1}, true).
