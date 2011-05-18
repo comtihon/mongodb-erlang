@@ -4,7 +4,7 @@ This version of the driver supports connecting to a single server or replica set
 
 This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need both of these. Below we describe the mongodb application; you should also see the bson application to understand the document type.
 
-## Installing
+### Installing
 
 Download and compile each application
 
@@ -20,7 +20,7 @@ Then install them in your standard Erlang library location or include them in yo
 
 	$ erl -pa bson/ebin mongodb/ebin
 
-## Starting
+### Starting
 
 The mongodb application needs be started before using (to initialize an internal ets table of counters)
 
@@ -28,7 +28,7 @@ The mongodb application needs be started before using (to initialize an internal
 
 Although the mongodb application includes several modules, you should only need to use *mongo*, which is the top-level interface for the driver, and the generic *pool* if desired. Likewise, you should only need to use the *bson* module in the bson application.
 
-## Connecting
+### Connecting
 
 To connect to a mongodb server listening on `localhost:27017` (or any address & port of your choosing)
 
@@ -46,7 +46,7 @@ To connect to a replica set named "rs1" with seed list of members: `localhost:27
 
 `mongo:do` below will connect to the primary or a secondary in the replica set depending on the read-mode supplied.
 
-## Querying
+### Querying
 
 A database operation happens in the context of a connection (single server or replica set), database, read-mode, and write-mode. These four parameters are supplied once at the beginning of a sequence of read/write operations. Furthermore, if one of the operations fails no further operations in the sequence are executed and an error is returned for the entire sequence.
 
@@ -69,11 +69,11 @@ If there are no errors in the sequence of operations then the result of the last
 
 See the [*mongo* module](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo.erl) for a description of all operations. A type specification is provided with each operation so you know the expected arguments and results. The spec line also has a comment if it performs a side-effect such as IO and what exceptions it may throw. No comment means it is a pure function. Also, see the [*bson* module](http://github.com/TonyGen/bson-erlang/blob/master/src/bson.erl) in the bson application for details on the document type and its value types.
 
-## Administering
+### Administering
 
 This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands. A future version will probably include helper functions for the most common commands.
 
-## Pooling
+### Pooling
 
 A single (replset-)connection is thread-safe, i.e. multiple `mongo:do` actions can access it simultaneously. However, if you want to increase concurrency by using multiple connection simultaneously, you can create a pool of connections using the generic `pool` module with the appropriate factory object supplied by `mongo` module.
 
@@ -83,7 +83,7 @@ To create a connection pool of max size 10 to a single Host
 
 To create a rs-connection pool of max size 10 to a Replset
 
-	> Pool = pool:new (mongo:rs_connection_factory (Host), 10).
+	> Pool = pool:new (mongo:rs_connection_factory (Replset), 10).
 
 To get a (replset-)connection from the pool
 
