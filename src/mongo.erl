@@ -93,11 +93,13 @@ rs_connection_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {
 	read_mode :: read_mode(),
 	dbconn :: mongo_connect:dbconnection() }).
 
--spec do (write_mode(), read_mode(), connection(), db(), action(A)) -> {ok, A} | {failure, failure()}. % IO
+-spec do (write_mode(), read_mode(), connection() | rs_connection(), db(), action(A)) -> {ok, A} | {failure, failure()}. % IO
 % Execute mongo action under given write_mode, read_mode, connection, and db. Return action result or failure.
 do (WriteMode, ReadMode, Connection, Database, Action) ->
+	Conn = try connection_mode (ReadMode, Connection)
+		catch Reason -> throw ({connection_failure, Reason}) end,
 	PrevContext = get (mongo_action_context),
-	put (mongo_action_context, #context {write_mode = WriteMode, read_mode = ReadMode, dbconn = {Database, Connection}}),
+	put (mongo_action_context, #context {write_mode = WriteMode, read_mode = ReadMode, dbconn = {Database, Conn}}),
 	try Action() of
 		Result -> {ok, Result}
 	catch
@@ -108,6 +110,12 @@ do (WriteMode, ReadMode, Connection, Database, Action) ->
 	after
 		case PrevContext of undefined -> erase (mongo_action_context); _ -> put (mongo_action_context, PrevContext) end
 	end.
+
+-spec connection_mode (read_mode(), connection() | rs_connection()) -> connection(). % IO, throw any()
+% For rs_connection return appropriate primary or secondary connection
+connection_mode (_, Conn = {connection, _, _}) -> Conn;
+connection_mode (master, RsConn = {rs_connection, _, _}) -> mongo_replset:primary (RsConn);
+connection_mode (slave_ok, RsConn = {rs_connection, _, _}) -> mongo_replset:secondary_ok (RsConn).
 
 % Write %
 

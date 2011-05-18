@@ -37,43 +37,43 @@ read_host (UString) -> case string:tokens (bson:str (UString), ":") of
 
 -type reason() :: any().
 
--opaque connection() :: {host(), mvar:mvar (gen_tcp:socket())}.
+-opaque connection() :: {connection, host(), mvar:mvar (gen_tcp:socket())}.
 % Thread-safe, TCP connection to a MongoDB server.
 % Passive raw binary socket.
+% Type not opaque to mongo:connection_mode/2
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
 % Create connection to given MongoDB server or return reason for connection failure.
 connect (Host) -> try mvar:create (fun () -> tcp_connect (host_port (Host)) end, fun gen_tcp:close/1)
-	of VSocket -> {ok, {host_port (Host), VSocket}}
+	of VSocket -> {ok, {connection, host_port (Host), VSocket}}
 	catch Reason -> {error, Reason} end.
 
 -spec reconnect (connection()) -> ok | {error, reason()}. % IO
 % Close current socket and create a new socket connected to same server. Error if fails
-reconnect ({Host, VSocket}) -> try
+reconnect ({connection, Host, VSocket}) -> try
 		mvar:modify_ (VSocket, fun (Socket) -> gen_tcp:close (Socket), tcp_connect (host_port (Host)) end)
 	of ok -> ok
 	catch Reason -> {error, Reason} end.
 
 -spec conn_host (connection()) -> host().
 % Host this is connected to
-conn_host ({Host, _VSocket}) -> Host.
+conn_host ({connection, Host, _VSocket}) -> Host.
 
 -spec close (connection()) -> ok. % IO
 % Close connection.
-close ({_Host, VSocket}) -> mvar:terminate (VSocket).
+close ({connection, _Host, VSocket}) -> mvar:terminate (VSocket).
 
 -spec is_closed (connection()) -> boolean(). % IO
 % Has connection been closed?
-is_closed ({_, VSocket}) -> mvar:is_terminated (VSocket).
+is_closed ({connection, _, VSocket}) -> mvar:is_terminated (VSocket).
 
 -type dbconnection() :: {mongo_protocol:db(), connection()}.
 
 -type failure() :: {connection_failure, connection(), reason()}.
-% -type failure() :: {connection_failure, connection() | mongo_pool:pool(), reason()}.
 
 -spec call (dbconnection(), [mongo_protocol:notice()], mongo_protocol:request()) -> mongo_protocol:reply(). % IO throws failure()
 % Synchronous send and reply. Notices are sent right before request in single block. Exclusive access to connection during entire call.
-call ({Db, {Host, VSocket}}, Notices, Request) ->
+call ({Db, Conn = {connection, _Host, VSocket}}, Notices, Request) ->
 	{MessagesBin, RequestId} = messages_binary (Db, Notices ++ [Request]),
 	Call = fun (Socket) ->
 		tcp_send (Socket, MessagesBin),
@@ -83,15 +83,15 @@ call ({Db, {Host, VSocket}}, Notices, Request) ->
 		of ReplyBin ->
 			{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
 			Reply  % ^ ResponseTo must match RequestId
-		catch Reason -> close ({Host, VSocket}), throw ({connection_failure, {Host, VSocket}, Reason}) end.
+		catch Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
 
 -spec send (dbconnection(), [mongo_protocol:notice()]) -> ok. % IO throws failure()
 % Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
-send ({Db, {Host, VSocket}}, Notices) ->
+send ({Db, Conn = {connection, _Host, VSocket}}, Notices) ->
 	{NoticesBin, _} = messages_binary (Db, Notices),
 	Send = fun (Socket) -> tcp_send (Socket, NoticesBin) end,
 	try mvar:with (VSocket, Send)
-		catch Reason -> close ({Host, VSocket}), throw ({connection_failure, {Host, VSocket}, Reason}) end.
+		catch Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
 
 -spec messages_binary (mongo_protocol:db(), [mongo_protocol:message()]) -> {binary(), mongo_protocol:requestid()}.
 % Binary representation of messages
