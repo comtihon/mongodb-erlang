@@ -42,7 +42,7 @@ Remember to close the connection when finished using it via `mongo:disconnect`.
 To connect to a replica set named "rs1" with seed list of members: `localhost:27017` & `localhost:27018`
 
 	> Replset = {<<"rs1">>, [{localhost, 27017}, {localhost, 27018}]}.
-	> {ok, Conn} = mongo:rs_connect (Replset).
+	> Conn = mongo:rs_connect (Replset).
 
 `mongo:do` below will connect to the primary or a secondary in the replica set depending on the read-mode supplied.
 
