@@ -79,11 +79,11 @@ A single (replset-)connection is thread-safe, i.e. multiple `mongo:do` actions c
 
 To create a connection pool of max size 10 to a single Host
 
-	> Pool = pool:new (mongo:connection_factory (Host), 10).
+	> Pool = pool:new (mongo:connect_factory (Host), 10).
 
 To create a rs-connection pool of max size 10 to a Replset
 
-	> Pool = pool:new (mongo:rs_connection_factory (Replset), 10).
+	> Pool = pool:new (mongo:rs_connect_factory (Replset), 10).
 
 To get a (replset-)connection from the pool
 

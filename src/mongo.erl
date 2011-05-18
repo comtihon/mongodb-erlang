@@ -4,10 +4,9 @@
 -export_type ([maybe/1]).
 
 -export_type ([host/0, connection/0]).
--export ([connect/1, disconnect/1, connection_factory/1]).
-
+-export ([connect/1, disconnect/1, connect_factory/1]).
 -export_type ([replset/0, rs_connection/0]).
--export ([rs_connect/1, rs_primary/1, rs_secondary_ok/1, rs_disconnect/1, rs_connection_factory/1]).
+-export ([rs_connect/1, rs_disconnect/1, rs_connect_factory/1]).
 
 -export_type ([action/1, db/0, write_mode/0, read_mode/0, failure/0]).
 -export ([do/5]).
@@ -48,9 +47,9 @@ connect (Host) -> mongo_connect:connect (Host).
 % Close connection to server
 disconnect (Conn) -> mongo_connect:close (Conn).
 
--spec connection_factory (host()) -> pool:factory(connection()).
+-spec connect_factory (host()) -> pool:factory(connection()).
 % Factory for use with a connection pool. See pool module.
-connection_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_connect:is_closed/1}.
+connect_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_connect:is_closed/1}.
 
 % Replica Set %
 
@@ -61,21 +60,13 @@ connection_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_c
 % Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
 rs_connect (Replset) -> mongo_replset:connect (Replset).
 
--spec rs_primary (rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
-% Return connection to current primary in replica set
-rs_primary (ReplsetConn) -> mongo_replset:primary (ReplsetConn).
-
--spec rs_secondary_ok (rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
-% Return connection to a current secondary in replica set or primary if none
-rs_secondary_ok (ReplsetConn) -> mongo_replset:secondary_ok (ReplsetConn).
-
 -spec rs_disconnect (rs_connection()) -> ok. % IO
 % Close cache of replset connections
 rs_disconnect (ReplsetConn) -> mongo_replset:close (ReplsetConn).
 
--spec rs_connection_factory (replset()) -> pool:factory(rs_connection()).
+-spec rs_connect_factory (replset()) -> pool:factory(rs_connection()).
 % Factory for use with a rs_connection pool. See pool module.
-rs_connection_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
+rs_connect_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
 
 % Action %
 
