@@ -1,0 +1,3 @@
+# Generate html docs from src code comment using edoc
+./gen_overview_doc
+erl -pa ../../bson/ebin/ ../../mongodb/ebin -eval 'edoc:application(mongodb, [{index_columns, 1}, {sort_functions, false}, {preprocess, true}]), init:stop()' -noshell
