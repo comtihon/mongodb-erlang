@@ -72,11 +72,13 @@ call ({Db, Conn = {connection, _Host, VSocket}}, Notices, Request) ->
 		tcp_send (Socket, MessagesBin),
 		<<?get_int32 (N)>> = tcp_recv (Socket, 4),
 		tcp_recv (Socket, N-4) end,
-	try mvar:with (VSocket, Call)
-		of ReplyBin ->
+	try mvar:with (VSocket, Call) of
+		ReplyBin ->
 			{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
 			Reply  % ^ ResponseTo must match RequestId
-		catch _:Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
+	catch
+		throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
 
 -spec send (dbconnection(), [mongo_protocol:notice()]) -> ok. % IO throws failure()
 % Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
@@ -84,7 +86,9 @@ send ({Db, Conn = {connection, _Host, VSocket}}, Notices) ->
 	{NoticesBin, _} = messages_binary (Db, Notices),
 	Send = fun (Socket) -> tcp_send (Socket, NoticesBin) end,
 	try mvar:with (VSocket, Send)
-		catch _:Reason -> close (Conn), throw ({connection_failure, Conn, Reason}) end.
+	catch
+		throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
 
 -spec messages_binary (mongo_protocol:db(), [mongo_protocol:message()]) -> {binary(), mongo_protocol:requestid()}.
 % Binary representation of messages

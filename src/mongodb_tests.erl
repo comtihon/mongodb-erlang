@@ -139,7 +139,7 @@ replset_test() -> % TODO: change from connect_test
 
 % Replica set named "rs1" must be running on localhost:27017 & 27018
 mongo_rs_test() ->
-	RsConn = mongo:rs_connect ({<<"rs1">>,[localhost]}),
+	RsConn = mongo:rs_connect ({<<"rs1">>,["127.0.0.1"]}),
 	{ok, {Teams1, Ids1}} = mongo:do (safe, master, RsConn, baseball, fun () ->
 		mongo:delete (team, {}),
 		Teams0 = [

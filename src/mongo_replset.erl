@@ -105,11 +105,17 @@ fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns}) ->
 	{Conn, Info} = until_success (OldHosts_, fun (Host) -> connect_member (ReplConn, Host) end),
 	OldHosts = sets:from_list (OldHosts_),
 	NewHosts = sets:from_list (lists:map (fun mongo_connect:read_host/1, bson:at (hosts, Info))),
+	RemovedHosts = sets:subtract (OldHosts, NewHosts),
+	AddedHosts = sets:subtract (NewHosts, OldHosts),
 	mvar:modify_ (VConns, fun (Dict) ->
-		Dict1 = sets:fold (fun remove_host/2, Dict, sets:subtract (OldHosts, NewHosts)),
-		Dict2 = sets:fold (fun add_host/2, Dict1, sets:subtract (NewHosts, OldHosts)),
+		Dict1 = sets:fold (fun remove_host/2, Dict, RemovedHosts),
+		Dict2 = sets:fold (fun add_host/2, Dict1, AddedHosts),
 		Dict2 end),
-	{Conn, Info}.
+	case sets:is_element (mongo_connect:conn_host (Conn), RemovedHosts) of
+		false -> {Conn, Info};
+		true -> % Conn connected to member but under wrong name (eg. localhost instead of 127.0.0.1) so it was closed and removed because it did not match a host in isMaster info. Reconnect using correct name.
+			Hosts = dict:fetch_keys (mvar:read (VConns)),
+			until_success (Hosts, fun (Host) -> connect_member (ReplConn, Host) end) end.
 
 add_host (Host, Dict) -> dict:store (Host, {}, Dict).
 
