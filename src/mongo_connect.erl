@@ -1,4 +1,4 @@
-% Thread-safe TCP connection to a MongoDB server with synchronous call and asynchronous send interface.
+%@doc Thread-safe TCP connection to a MongoDB server with synchronous call and asynchronous send interface.
 -module (mongo_connect).
 
 -export_type ([host/0, connection/0, dbconnection/0, failure/0]).
@@ -14,23 +14,23 @@
 % Hostname and port. Port defaults to 27017 when missing
 
 -spec host_port (host()) -> host().
-% Port explicitly filled in with defaut if missing
+%@doc Port explicitly filled in with defaut if missing
 host_port ({Hostname, Port}) -> {hostname_string (Hostname), Port};
 host_port (Hostname) -> {hostname_string (Hostname), 27017}.
 
 -spec hostname_string (inet:hostname()) -> string().
-% Convert possible hostname atom to string
+%@doc Convert possible hostname atom to string
 hostname_string (Name) when is_atom (Name) -> atom_to_list (Name);
 hostname_string (Name) -> Name.
 
 -spec show_host (host()) -> bson:utf8().
-% UString representation of host, ie. "Hostname:Port"
+%@doc UString representation of host, ie. "Hostname:Port"
 show_host (Host) ->
 	{Hostname, Port} = host_port (Host),
 	bson:utf8 (Hostname ++ ":" ++ integer_to_list (Port)).
 
 -spec read_host (bson:utf8()) -> host().
-% Interpret ustring as host, ie. "Hostname:Port" -> {Hostname, Port}
+%@doc Interpret ustring as host, ie. "Hostname:Port" -> {Hostname, Port}
 read_host (UString) -> case string:tokens (bson:str (UString), ":") of
 	[Hostname] -> host_port (Hostname);
 	[Hostname, Port] -> {Hostname, list_to_integer (Port)} end.
@@ -43,21 +43,21 @@ read_host (UString) -> case string:tokens (bson:str (UString), ":") of
 % Type not opaque to mongo:connection_mode/2
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
-% Create connection to given MongoDB server or return reason for connection failure.
+%@doc Create connection to given MongoDB server or return reason for connection failure.
 connect (Host) -> try mvar:create (fun () -> tcp_connect (host_port (Host)) end, fun gen_tcp:close/1)
 	of VSocket -> {ok, {connection, host_port (Host), VSocket}}
 	catch Reason -> {error, Reason} end.
 
 -spec conn_host (connection()) -> host().
-% Host this is connected to
+%@doc Host this is connected to
 conn_host ({connection, Host, _VSocket}) -> Host.
 
 -spec close (connection()) -> ok. % IO
-% Close connection.
+%@doc Close connection.
 close ({connection, _Host, VSocket}) -> mvar:terminate (VSocket).
 
 -spec is_closed (connection()) -> boolean(). % IO
-% Has connection been closed?
+%@doc Has connection been closed?
 is_closed ({connection, _, VSocket}) -> mvar:is_terminated (VSocket).
 
 -type dbconnection() :: {mongo_protocol:db(), connection()}.
@@ -65,7 +65,7 @@ is_closed ({connection, _, VSocket}) -> mvar:is_terminated (VSocket).
 -type failure() :: {connection_failure, connection(), reason()}.
 
 -spec call (dbconnection(), [mongo_protocol:notice()], mongo_protocol:request()) -> mongo_protocol:reply(). % IO throws failure()
-% Synchronous send and reply. Notices are sent right before request in single block. Exclusive access to connection during entire call.
+%@doc Synchronous send and reply. Notices are sent right before request in single block. Exclusive access to connection during entire call.
 call ({Db, Conn = {connection, _Host, VSocket}}, Notices, Request) ->
 	{MessagesBin, RequestId} = messages_binary (Db, Notices ++ [Request]),
 	Call = fun (Socket) ->
@@ -81,7 +81,7 @@ call ({Db, Conn = {connection, _Host, VSocket}}, Notices, Request) ->
 		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
 
 -spec send (dbconnection(), [mongo_protocol:notice()]) -> ok. % IO throws failure()
-% Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
+%@doc Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
 send ({Db, Conn = {connection, _Host, VSocket}}, Notices) ->
 	{NoticesBin, _} = messages_binary (Db, Notices),
 	Send = fun (Socket) -> tcp_send (Socket, NoticesBin) end,
@@ -91,7 +91,7 @@ send ({Db, Conn = {connection, _Host, VSocket}}, Notices) ->
 		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
 
 -spec messages_binary (mongo_protocol:db(), [mongo_protocol:message()]) -> {binary(), mongo_protocol:requestid()}.
-% Binary representation of messages
+%@doc Binary representation of messages
 messages_binary (Db, Messages) ->
 	Build = fun (Message, {Bin, _}) -> 
 		RequestId = mongodb_app:next_requestid(),

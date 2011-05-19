@@ -1,4 +1,4 @@
-%% MongoDB wire protocol
+%@doc MongoDB wire protocol
 -module(mongo_protocol).
 
 -export_type ([db/0]).
@@ -6,7 +6,7 @@
 -export_type ([message/0]).
 -export_type ([requestid/0]).
 
--compile (export_all).
+-export ([bit/1, bool/1, dbcoll/2, put_message/3, get_reply/1]).
 
 -include ("mongo_protocol.hrl").
 -include_lib ("bson/include/bson_binary.hrl").
@@ -45,7 +45,7 @@ bool (0) -> false;
 bool (1) -> true.
 
 -spec dbcoll (db(), collection()) -> bson:utf8().
-% Concat db and collection name with period (.) in between
+%@doc Concat db and collection name with period (.) in between
 dbcoll (Db, Coll) -> <<(atom_to_binary (Db, utf8)) /binary, $., (atom_to_binary (Coll, utf8)) /binary>>.
 
 -type message() :: notice() | request().

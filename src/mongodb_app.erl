@@ -1,4 +1,4 @@
-%% Init some internal global variables used by mongodb app
+%@doc Init some internal global variables used by mongodb app
 -module (mongodb_app).
 
 -behaviour (application).
@@ -17,7 +17,7 @@ stop (_) -> ok.
 
 %% Supervisor callbacks
 
-%% Create global vars which will be owned by this supervisor (and die with it)
+%@doc Create global vars which will be owned by this supervisor (and die with it)
 init ([]) ->
 	ets:new (?MODULE, [named_table, public]),
 	ets:insert (?MODULE, [
@@ -29,11 +29,11 @@ init ([]) ->
 %% API functions
 
 -spec next_requestid () -> mongo_protocol:requestid(). % IO
-% Fresh request id
+%@doc Fresh request id
 next_requestid() -> ets:update_counter (?MODULE, requestid_counter, 1).
 
 -spec gen_objectid () -> bson:objectid(). % IO
-% Fresh object id
+%@doc Fresh object id
 gen_objectid() ->
 	Now = bson:unixtime_to_secs (bson:timenow()),
 	MPid = ets:lookup_element (?MODULE, oid_machineprocid, 2),
@@ -41,7 +41,7 @@ gen_objectid() ->
 	bson:objectid (Now, MPid, N).
 
 -spec oid_machineprocid () -> <<_:40>>. % IO
-% Fetch hostname and os pid and compress into a 5 byte id
+%@doc Fetch hostname and os pid and compress into a 5 byte id
 oid_machineprocid() ->
 	OSPid = list_to_integer (os:getpid()),
 	{ok, Hostname} = inet:gethostname(),

@@ -1,4 +1,4 @@
-% Top-level client interface to MongoDB
+%@doc Top-level client interface to MongoDB
 -module (mongo).
 
 -export_type ([maybe/1]).
@@ -40,15 +40,15 @@
 -type connection() :: mongo_connect:connection().
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
-% Connect to given MongoDB server
+%@doc Connect to given MongoDB server
 connect (Host) -> mongo_connect:connect (Host).
 
 -spec disconnect (connection()) -> ok. % IO
-% Close connection to server
+%@doc Close connection to server
 disconnect (Conn) -> mongo_connect:close (Conn).
 
 -spec connect_factory (host()) -> pool:factory(connection()).
-% Factory for use with a connection pool. See pool module.
+%@doc Factory for use with a connection pool. See pool module.
 connect_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_connect:is_closed/1}.
 
 % Replica Set %
@@ -57,15 +57,15 @@ connect_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_conn
 -type rs_connection() :: mongo_replset:rs_connection().
 
 -spec rs_connect (replset()) -> rs_connection(). % IO
-% Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
+%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
 rs_connect (Replset) -> mongo_replset:connect (Replset).
 
 -spec rs_disconnect (rs_connection()) -> ok. % IO
-% Close cache of replset connections
+%@doc Close cache of replset connections
 rs_disconnect (ReplsetConn) -> mongo_replset:close (ReplsetConn).
 
 -spec rs_connect_factory (replset()) -> pool:factory(rs_connection()).
-% Factory for use with a rs_connection pool. See pool module.
+%@doc Factory for use with a rs_connection pool. See pool module.
 rs_connect_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
 
 % Action %
@@ -85,7 +85,7 @@ rs_connect_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok,
 	dbconn :: mongo_connect:dbconnection() }).
 
 -spec do (write_mode(), read_mode(), connection() | rs_connection(), db(), action(A)) -> {ok, A} | {failure, failure()}. % IO
-% Execute mongo action under given write_mode, read_mode, connection, and db. Return action result or failure.
+%@doc Execute mongo action under given write_mode, read_mode, connection, and db. Return action result or failure.
 do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (ReadMode, Connection) of
 	{error, Reason} -> {failure, {connection_failure, Reason}};
 	{ok, Conn} ->
@@ -103,7 +103,7 @@ do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (
 		end end.
 
 -spec connection_mode (read_mode(), connection() | rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
-% For rs_connection return appropriate primary or secondary connection
+%@doc For rs_connection return appropriate primary or secondary connection
 connection_mode (_, Conn = {connection, _, _}) -> {ok, Conn};
 connection_mode (master, RsConn = {rs_connection, _, _}) -> mongo_replset:primary (RsConn);
 connection_mode (slave_ok, RsConn = {rs_connection, _, _}) -> mongo_replset:secondary_ok (RsConn).
@@ -120,7 +120,7 @@ connection_mode (slave_ok, RsConn = {rs_connection, _, _}) -> mongo_replset:seco
 -type error_code() :: integer().
 
 -spec write (mongo_query:write()) -> ok. % Action
-% Do unsafe unacknowledged fast write or safe acknowledged slower write depending on our context. When safe, throw write_failure if acknowledgment (getlasterror) reports error.
+%@doc Do unsafe unacknowledged fast write or safe acknowledged slower write depending on our context. When safe, throw write_failure if acknowledgment (getlasterror) reports error.
 write (Write) ->
 	Context = get (mongo_action_context),
 	case Context #context.write_mode of
@@ -135,38 +135,38 @@ write (Write) ->
 					Code -> throw ({write_failure, Code, String}) end end end.
 
 -spec insert (collection(), bson:document()) -> bson:value(). % Action
-% Insert document into collection. Return its '_id' value, which is auto-generated if missing.
+%@doc Insert document into collection. Return its '_id' value, which is auto-generated if missing.
 insert (Coll, Doc) -> [Value] = insert_all (Coll, [Doc]), Value.
 
 -spec insert_all (collection(), [bson:document()]) -> [bson:value()]. % Action
-% Insert documents into collection. Return their '_id' values, which are auto-generated if missing.
+%@doc Insert documents into collection. Return their '_id' values, which are auto-generated if missing.
 insert_all (Coll, Docs) ->
 	Docs1 = lists:map (fun assign_id/1, Docs),
 	write (#insert {collection = Coll, documents = Docs1}),
 	lists:map (fun (Doc) -> bson:at ('_id', Doc) end, Docs1).
 
 -spec assign_id (bson:document()) -> bson:document(). % IO
-% If doc has no '_id' field then generate a fresh object id for it
+%@doc If doc has no '_id' field then generate a fresh object id for it
 assign_id (Doc) -> case bson:lookup ('_id', Doc) of
 	{_Value} -> Doc;
 	{} -> bson:append ({'_id', mongodb_app:gen_objectid()}, Doc) end.
 
 -spec save (collection(), bson:document()) -> ok. % Action
-% If document has no '_id' field then insert it, otherwise update it and insert only if missing.
+%@doc If document has no '_id' field then insert it, otherwise update it and insert only if missing.
 save (Coll, Doc) -> case bson:lookup ('_id', Doc) of
 	{} -> insert (Coll, Doc);
 	{Id} -> repsert (Coll, {'_id', Id}, Doc) end.
 
 -spec replace (collection(), selector(), bson:document()) -> ok. % Action
-% Replace first document selected with given document.
+%@doc Replace first document selected with given document.
 replace (Coll, Selector, Doc) -> update (false, false, Coll, Selector, Doc).
 
 -spec repsert (collection(), selector(), bson:document()) -> ok. % Action
-% Replace first document selected with given document, or insert it if selection is empty.
+%@doc Replace first document selected with given document, or insert it if selection is empty.
 repsert (Coll, Selector, Doc) -> update (true, false, Coll, Selector, Doc).
 
 -spec modify (collection(), selector(), modifier()) -> ok. % Action
-% Update all documents selected using modifier
+%@doc Update all documents selected using modifier
 modify (Coll, Selector, Mod) -> update (false, true, Coll, Selector, Mod).
 
 -spec update (boolean(), boolean(), collection(), selector(), bson:document()) -> ok. % Action
@@ -174,12 +174,12 @@ update (Upsert, MultiUpdate, Coll, Sel, Doc) ->
 	write (#update {collection = Coll, upsert = Upsert, multiupdate = MultiUpdate, selector = Sel, updater = Doc}).
 
 -spec delete (collection(), selector()) -> ok. % Action
-% Delete selected documents
+%@doc Delete selected documents
 delete (Coll, Selector) ->
 	write (#delete {collection = Coll, singleremove = false, selector = Selector}).
 
 -spec delete_one (collection(), selector()) -> ok. % Action
-% Delete first selected document.
+%@doc Delete first selected document.
 delete_one (Coll, Selector) ->
 	write (#delete {collection = Coll, singleremove = true, selector = Selector}).
 
@@ -196,15 +196,15 @@ slave_ok (#context {read_mode = master}) -> false.
 -type maybe(A) :: {A} | {}.
 
 -spec find_one (collection(), selector()) -> maybe (bson:document()). % Action
-% Return first selected document, if any
+%@doc Return first selected document, if any
 find_one (Coll, Selector) -> find_one (Coll, Selector, []).
 
 -spec find_one (collection(), selector(), projector()) -> maybe (bson:document()). % Action
-% Return projection of first selected document, if any. Empty projection [] means full projection.
+%@doc Return projection of first selected document, if any. Empty projection [] means full projection.
 find_one (Coll, Selector, Projector) -> find_one (Coll, Selector, Projector, 0).
 
 -spec find_one (collection(), selector(), projector(), skip()) -> maybe (bson:document()). % Action
-% Return projection of Nth selected document, if any. Empty projection [] means full projection.
+%@doc Return projection of Nth selected document, if any. Empty projection [] means full projection.
 find_one (Coll, Selector, Projector, Skip) ->
 	Context = get (mongo_action_context),
 	Query = #'query' {
@@ -213,19 +213,19 @@ find_one (Coll, Selector, Projector, Skip) ->
 	mongo_query:find_one (Context #context.dbconn, Query).
 
 -spec find (collection(), selector()) -> cursor(). % Action
-% Return selected documents.
+%@doc Return selected documents.
 find (Coll, Selector) -> find (Coll, Selector, []).
 
 -spec find (collection(), selector(), projector()) -> cursor(). % Action
-% Return projection of selected documents. Empty projection [] means full projection.
+%@doc Return projection of selected documents. Empty projection [] means full projection.
 find (Coll, Selector, Projector) -> find (Coll, Selector, Projector, 0).
 
 -spec find (collection(), selector(), projector(), skip()) -> cursor(). % Action
-% Return projection of selected documents starting from Nth document. Empty projection means full projection.
+%@doc Return projection of selected documents starting from Nth document. Empty projection means full projection.
 find (Coll, Selector, Projector, Skip) -> find (Coll, Selector, Projector, Skip, 0).
 
 -spec find (collection(), selector(), projector(), skip(), batchsize()) -> cursor(). % Action
-% Return projection of selected documents starting from Nth document in batches of batchsize. 0 batchsize means default batch size. Negative batch size means one batch only. Empty projection means full projection.
+%@doc Return projection of selected documents starting from Nth document in batches of batchsize. 0 batchsize means default batch size. Negative batch size means one batch only. Empty projection means full projection.
 find (Coll, Selector, Projector, Skip, BatchSize) ->
 	Context = get (mongo_action_context),
 	Query = #'query' {
@@ -236,23 +236,23 @@ find (Coll, Selector, Projector, Skip, BatchSize) ->
 -type cursor() :: mongo_cursor:cursor().
 
 -spec next (cursor()) -> maybe (bson:document()). % IO throws mongo_connect:failure() & mongo_cursor:expired() (this is a subtype of Action)
-% Return next document in query result cursor, if any.
+%@doc Return next document in query result cursor, if any.
 next (Cursor) -> mongo_cursor:next (Cursor).
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws mongo_connect:failure() & mongo_cursor:expired() (this is a subtype of Action)
-% Return remaining documents in query result cursor.
+%@doc Return remaining documents in query result cursor.
 rest (Cursor) -> mongo_cursor:rest (Cursor).
 
 -spec close_cursor (cursor()) -> ok. % IO (IO is a subtype of Action)
-% Close cursor
+%@doc Close cursor
 close_cursor (Cursor) -> mongo_cursor:close (Cursor).
 
 -spec count (collection(), selector()) -> integer(). % Action
-% Count selected documents
+%@doc Count selected documents
 count (Coll, Selector) -> count (Coll, Selector, 0).
 
 -spec count (collection(), selector(), integer()) -> integer(). % Action
-% Count selected documents up to given max number; 0 means no max. Ie. stops counting when max is reached to save processing time.
+%@doc Count selected documents up to given max number; 0 means no max. Ie. stops counting when max is reached to save processing time.
 count (Coll, Selector, Limit) ->
 	CollStr = atom_to_binary (Coll, utf8),
 	Command = if
@@ -266,7 +266,7 @@ count (Coll, Selector, Limit) ->
 -type command() :: mongo_query:command().
 
 -spec command (command()) -> bson:document(). % Action
-% Execute given MongoDB command and return its result.
+%@doc Execute given MongoDB command and return its result.
 command (Command) ->
 	Context = get (mongo_action_context),
 	mongo_query:command (Context #context.dbconn, Command, slave_ok (Context)).
@@ -277,7 +277,7 @@ command (Command) ->
 % List keys and whether ascending (1) or descending (-1). Eg. {x,1, y,-1}
 
 -spec create_index (collection(), key_order()) -> ok. % Action
-% Create non-unique index on given keys in collection
+%@doc Create non-unique index on given keys in collection
 create_index (Coll, KeyOrder) ->
 	create_index (Coll, KeyOrder, non_unique).
 
@@ -287,7 +287,7 @@ create_index (Coll, KeyOrder) ->
 	unique_dropdups.  % Same as unique, but deletes docs with duplicate index value on index creation
 
 -spec create_index (collection(), key_order(), index_uniqueness()) -> ok. % Action
-% Create index on given keys with given uniqueness
+%@doc Create index on given keys with given uniqueness
 create_index (Coll, KeyOrder, Uniqueness) ->
 	create_index (Coll, KeyOrder, Uniqueness, gen_index_name (KeyOrder)).
 
@@ -302,7 +302,7 @@ gen_index_name (KeyOrder) ->
 	bson:doc_foldl (AsName, <<>>, KeyOrder).
 
 -spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
-% Create index on given keys with given uniqueness and name
+%@doc Create index on given keys with given uniqueness and name
 create_index (Coll, KeyOrder, Uniqueness, IndexName) ->
 	{Db, _} = (get (mongo_action_context)) #context.dbconn,
 	{Unique, DropDups} = case Uniqueness of

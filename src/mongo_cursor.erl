@@ -1,4 +1,4 @@
-% A cursor references pending query results on a server.
+%@doc A cursor references pending query results on a server.
 % TODO: terminate cursor after idle for 10 minutes.
 -module (mongo_cursor).
 
@@ -22,26 +22,26 @@
 -type batch() :: {cursorid(), [bson:document()]}.
 
 -spec cursor (mongo_connect:dbconnection(), collection(), batchsize(), {cursorid(), [bson:document()]}) -> cursor(). % IO
-% Create new cursor from result batch
+%@doc Create new cursor from result batch
 cursor (DbConn, Collection, BatchSize, Batch) ->
 	mvar:new ({{DbConn, Collection, BatchSize}, Batch}, fun finalize/1).
 
 -spec close (cursor()) -> ok. % IO
-% Close cursor
+%@doc Close cursor
 close (Cursor) -> mvar:terminate (Cursor).
 
 -spec is_closed (cursor()) -> boolean(). % IO
-% Is cursor closed
+%@doc Is cursor closed
 is_closed (Cursor) -> mvar:is_terminated (Cursor).
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws expired() & mongo_connect:failure()
-% Return remaining documents in query result
+%@doc Return remaining documents in query result
 rest (Cursor) -> case next (Cursor) of
 	{} -> [];
 	{Doc} -> [Doc | rest (Cursor)] end.
 
 -spec next (cursor()) -> maybe (bson:document()). % IO throws expired() & mongo_connect:failure()
-% Return next document in query result or nothing if finished.
+%@doc Return next document in query result or nothing if finished.
 next (Cursor) ->
 	Next = fun ({Env, Batch}) ->
 		{Batch1, MDoc} = xnext (Env, Batch),
@@ -51,7 +51,7 @@ next (Cursor) ->
 		catch expired -> close (Cursor), throw ({cursor_expired, Cursor}) end.
 
 -spec xnext (env(), batch()) -> {batch(), maybe (bson:document())}. % IO throws expired & mongo_connect:failure()
-% Get next document in cursor, fetching next batch from server if necessary
+%@doc Get next document in cursor, fetching next batch from server if necessary
 xnext (Env = {DbConn, Coll, BatchSize}, {CursorId, Docs}) -> case Docs of
 	[Doc | Docs1] -> {{CursorId, Docs1}, {Doc}};
 	[] -> case CursorId of
@@ -62,7 +62,7 @@ xnext (Env = {DbConn, Coll, BatchSize}, {CursorId, Docs}) -> case Docs of
 			xnext (Env, batch_reply (Reply)) end end.
 
 -spec batch_reply (mongo_protocol:reply()) -> batch(). % IO throws expired
-% Extract next batch of results from reply. Throw expired if cursor not found on server.
+%@doc Extract next batch of results from reply. Throw expired if cursor not found on server.
 batch_reply (#reply {
 	cursornotfound = CursorNotFound, queryerror = false, awaitcapable = _,
 	cursorid = CursorId, startingfrom = _, documents = Docs }) -> if
@@ -70,7 +70,7 @@ batch_reply (#reply {
 		true -> {CursorId, Docs} end.
 
 -spec finalize (state()) -> ok. % IO. Result ignored
-% Kill cursor on server if not already
+%@doc Kill cursor on server if not already
 finalize ({{DbConn, _, _}, {CursorId, _}}) -> case CursorId of
 	0 -> ok;
 	_ -> mongo_connect:send (DbConn, [#killcursor {cursorids = [CursorId]}]) end.

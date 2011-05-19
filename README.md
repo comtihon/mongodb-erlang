@@ -67,7 +67,7 @@ If there are no errors in the sequence of operations then the result of the last
 
 `mongo:find` returns a *cursor* holding the pending list of results, which are accessed using `mongo:next` to get the next result, and `mongo:rest` to get the remaining results. Either one throws `{cursor_expired, Cursor}` if the cursor was idle for more than 10 minutes. This exception is caught by `mongo:do` and returned as `{failure, {cursor_expired, Cursor}}`. `mongo:rest` also closes the cursor, otherwise you should close the cursor when finished using `mongo:close_cursor`.
 
-See the [*mongo* module](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo.erl) for a description of all operations. A type specification is provided with each operation so you know the expected arguments and results. The spec line also has a comment if it performs a side-effect such as IO and what exceptions it may throw. No comment means it is a pure function. Also, see the [*bson* module](http://github.com/TonyGen/bson-erlang/blob/master/src/bson.erl) in the bson application for details on the document type and its value types.
+See the [*mongo*](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo.erl) module for a description of all operations. A type specification is provided with each operation so you know the expected arguments and results. The spec line also has a comment if it performs a side-effect such as IO and what exceptions it may throw. No comment means it is a pure function. Also, see the [*bson* module](http://github.com/TonyGen/bson-erlang/blob/master/src/bson.erl) in the bson application for details on the document type and its value types.
 
 ### Administering
 
