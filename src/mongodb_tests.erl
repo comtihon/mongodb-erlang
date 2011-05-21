@@ -17,7 +17,7 @@ test() -> eunit:test ({setup,
 	 fun app_test/0,
 	 fun connect_test/0,
 	 fun mongo_test/0,
-	 fun pool_test/0
+	 fun resource_pool_test/0
 	]}).
 
 test_rs() -> eunit:test ({setup,
@@ -101,16 +101,16 @@ mongo_test() ->
 	mongo:disconnect (Conn).
 
 % Mongod server must be running on 127.0.0.1:27017
-pool_test() ->
-	Pool = pool:new (mongo:connect_factory ({"127.0.0.1", 27017}), 2),
+resource_pool_test() ->
+	Pool = resource_pool:new (mongo:connect_factory ({"127.0.0.1", 27017}), 2),
 	Do = fun (Conn) -> mongo:do (safe, master, Conn, admin, fun () -> mongo:command ({listDatabases, 1}) end) end,
 	lists:foreach (fun (_) ->
-			{ok, Conn} = pool:get (Pool),
+			{ok, Conn} = resource_pool:get (Pool),
 			{ok, Doc} = Do (Conn),
 			{_} = bson:lookup (databases, Doc) end,
 		lists:seq (1,8)),
-	pool:close (Pool),
-	true = pool:is_closed (Pool).
+	resource_pool:close (Pool),
+	true = resource_pool:is_closed (Pool).
 
 % Replica set named "rs1" must be running on localhost:27017 & 27018
 replset_test() -> % TODO: change from connect_test

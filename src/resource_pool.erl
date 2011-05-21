@@ -1,5 +1,5 @@
 %@doc A set of N resources handed out randomly, and recreated on expiration
--module (pool).
+-module (resource_pool).
 
 -export_type ([factory/1, create/1, expire/1, is_expired/1]).
 -export_type ([pool/1]).
