@@ -75,20 +75,20 @@ This driver does not provide helper functions for commands. Use `mongo:command` 
 
 ### Pooling
 
-A single (replset-)connection is thread-safe, i.e. multiple `mongo:do` actions can access it simultaneously. However, if you want to increase concurrency by using multiple connection simultaneously, you can create a pool of connections using the generic `pool` module with the appropriate factory object supplied by `mongo` module.
+A single (replset-)connection is thread-safe, i.e. multiple `mongo:do` actions can access it simultaneously. However, if you want to increase concurrency by using multiple connection simultaneously, you can create a pool of connections using the generic `resource_pool` module with the appropriate factory object supplied by `mongo` module.
 
 To create a connection pool of max size 10 to a single Host
 
-	> Pool = pool:new (mongo:connect_factory (Host), 10).
+	> Pool = resource_pool:new (mongo:connect_factory (Host), 10).
 
 To create a rs-connection pool of max size 10 to a Replset
 
-	> Pool = pool:new (mongo:rs_connect_factory (Replset), 10).
+	> Pool = resource_pool:new (mongo:rs_connect_factory (Replset), 10).
 
 To get a (replset-)connection from the pool
 
-	> {ok, Conn} = pool:get (Pool).
+	> {ok, Conn} = resource_pool:get (Pool).
 
-`Conn` can then be supplied to `mongo:do`. `pool:get` will return `{error, Reason}` if can't connect.
+`Conn` can then be supplied to `mongo:do`. `resource_pool:get` will return `{error, Reason}` if can't connect.
 
-Close the pool when done using it and all its connection that were handed out via `pool:close`. It will close all its connections, as well as itself.
+Close the pool when done using it and all its connection that were handed out via `resource_pool:close`. It will close all its connections, as well as itself.

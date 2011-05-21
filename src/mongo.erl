@@ -47,8 +47,8 @@ connect (Host) -> mongo_connect:connect (Host).
 %@doc Close connection to server
 disconnect (Conn) -> mongo_connect:close (Conn).
 
--spec connect_factory (host()) -> pool:factory(connection()).
-%@doc Factory for use with a connection pool. See pool module.
+-spec connect_factory (host()) -> resource_pool:factory(connection()).
+%@doc Factory for use with a connection pool. See resource_pool module.
 connect_factory (Host) -> {Host, fun connect/1, fun disconnect/1, fun mongo_connect:is_closed/1}.
 
 % Replica Set %
@@ -64,8 +64,8 @@ rs_connect (Replset) -> mongo_replset:connect (Replset).
 %@doc Close cache of replset connections
 rs_disconnect (ReplsetConn) -> mongo_replset:close (ReplsetConn).
 
--spec rs_connect_factory (replset()) -> pool:factory(rs_connection()).
-%@doc Factory for use with a rs_connection pool. See pool module.
+-spec rs_connect_factory (replset()) -> resource_pool:factory(rs_connection()).
+%@doc Factory for use with a rs_connection pool. See resource_pool module.
 rs_connect_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
 
 % Action %
