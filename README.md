@@ -71,7 +71,7 @@ See the [*mongo*](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo
 
 ### Administering
 
-This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands. A future version will probably include helper functions for the most common commands.
+This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands. A future version may include helper functions for the most common commands.
 
 ### Pooling
 
@@ -91,4 +91,8 @@ To get a (replset-)connection from the pool
 
 `Conn` can then be supplied to `mongo:do`. `resource_pool:get` will return `{error, Reason}` if can't connect.
 
-Close the pool when done using it and all its connection that were handed out via `resource_pool:close`. It will close all its connections, as well as itself.
+Close the pool when done using it and all its connections via `resource_pool:close`.
+
+### More Documentation
+
+[API Docs](http://api.mongodb.org/erlang/mongodb/) - Documentation generated from source code comments

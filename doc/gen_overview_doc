@@ -1,3 +1,0 @@
-#!/bin/sh
-# Generate overview.edoc from README.md using sed script from http://github.com/hdiedrich/markedoc
-sed -E -f ~/markedoc/bin/markedoc.sed ../README.md | sed s/\&/and/g | sed 's|http://github.com/TonyGen/bson-erlang|../bson/index.html|' | sed 's|http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo.erl|mongo.html|' > overview.edoc

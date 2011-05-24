@@ -1,2 +1,2 @@
 #!/bin/sh
-rm *.html edoc-info erlang.png stylesheet.css overview.edoc
+rm *.html edoc-info erlang.png stylesheet.css
