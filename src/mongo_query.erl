@@ -17,9 +17,9 @@
 -type write() :: #insert{} | #update{} | #delete{}.
 
 -type getlasterror_request() :: bson:document().
-% Parameters to getlasterror request.
+% Parameters to getlasterror request. See http://www.mongodb.org/display/DOCS/getLastError+Command.
 -type getlasterror_reply() :: bson:document().
-% Reply to getlasterror request.
+% Reply to getlasterror request. See http://www.mongodb.org/display/DOCS/getLastError+Command.
 
 -spec write (mongo_connect:dbconnection(), write(), getlasterror_request()) -> getlasterror_reply(). % QIO
 %@doc Send write and getlasterror request to mongodb over connection and wait for and return getlasterror reply. Bad getlasterror params are ignored.

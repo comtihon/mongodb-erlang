@@ -114,7 +114,7 @@ connection_mode (slave_ok, RsConn = {rs_connection, _, _}) -> mongo_replset:seco
 % Every write inside an action() will use this write mode.
 % unsafe = asynchronous write (no reply) and hence may silently fail;
 % safe = synchronous write, wait for reply and fail if connection or write failure;
-% {safe, Params} = same as safe but with extra params for getlasterror, see its documentation.
+% {safe, Params} = same as safe but with extra params for getlasterror, see its documentation at http://www.mongodb.org/display/DOCS/getLastError+Command.
 
 -type write_failure() :: {write_failure, error_code(), bson:utf8()}.
 -type error_code() :: integer().
