@@ -34,6 +34,8 @@
 -export_type ([key_order/0, index_uniqueness/0]).
 -export ([create_index/2, create_index/3, create_index/4]).
 
+-export ([copy_database/3, copy_database/5]).
+
 -include ("mongo_protocol.hrl").
 
 -type reason() :: any().
@@ -292,8 +294,8 @@ command (Command) ->
 -spec auth (username(), password()) -> boolean(). % Action
 %@doc Authenticate with the database (if server is running in secure mode). Return whether authentication was successful or not. Reauthentication is required for every new pipe.
 auth (Username, Password) ->
-	Nonce = bson:at (nonce, mongo:command ({getnonce, 1})),
-	try mongo:command ({authenticate, 1, user, Username, nonce, Nonce, key, pw_key (Nonce, Username, Password)})
+	Nonce = bson:at (nonce, command ({getnonce, 1})),
+	try command ({authenticate, 1, user, Username, nonce, Nonce, key, pw_key (Nonce, Username, Password)})
 		of _ -> true
 		catch error:{bad_command, _} -> false end.
 
@@ -349,14 +351,27 @@ gen_index_name (KeyOrder) ->
 -spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
 %@doc Create index on given keys with given uniqueness and name
 create_index (Coll, KeyOrder, Uniqueness, IndexName) ->
-	Db = mongo:this_db (),
+	Db = this_db (),
 	{Unique, DropDups} = case Uniqueness of
 		non_unique -> {false, false};
 		unique -> {true, false};
 		unique_dropdups -> {true, true} end,
-	mongo:insert ('system.indexes', {
+	insert ('system.indexes', {
 		ns, mongo_protocol:dbcoll (Db, Coll),
 		key, KeyOrder,
 		name, IndexName,
 		unique, Unique,
 		dropDups, DropDups}).
+
+% Admin
+
+-spec copy_database (db(), host(), db()) -> bson:document(). % Action
+% Copy database from given host to the server I am connected to. Must be connected to 'admin' database.
+copy_database (FromDb, FromHost, ToDb) ->
+	command ({copydb, 1, fromhost, mongo_connect:show_host (FromHost), fromdb, atom_to_binary (FromDb, utf8), todb, atom_to_binary (ToDb, utf8)}).
+
+-spec copy_database (db(), host(), db(), username(), password()) -> bson:document(). % Action
+% Copy database from given host, authenticating with given username and password, to the server I am connected to. Must be connected to 'admin' database.
+copy_database (FromDb, FromHost, ToDb, Username, Password) ->
+	Nonce = bson:at (nonce, command ({copydbgetnonce, 1, fromhost, mongo_connect:show_host (FromHost)})),
+	command ({copydb, 1, fromhost, mongo_connect:show_host (FromHost), fromdb, atom_to_binary (FromDb, utf8), todb, atom_to_binary (ToDb, utf8), username, Username, nonce, Nonce, key, pw_key (Nonce, Username, Password)}).
