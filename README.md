@@ -71,7 +71,9 @@ See the [*mongo*](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo
 
 ### Administering
 
-This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands. A future version may include helper functions for the most common commands.
+This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands.
+
+There are functions for complex commands like `mongo:auth`, `mongo:add_user`, and `mongo:create_index`.
 
 ### Pooling
 

@@ -9,7 +9,7 @@
 -export ([rs_connect/1, rs_disconnect/1, rs_connect_factory/1]).
 
 -export_type ([action/1, db/0, write_mode/0, read_mode/0, failure/0]).
--export ([do/5]).
+-export ([do/5, this_db/0]).
 
 -export_type ([collection/0, selector/0, projector/0, skip/0, batchsize/0, modifier/0]).
 -export ([insert/2, insert_all/2]).
@@ -24,6 +24,12 @@
 
 -export_type ([command/0]).
 -export ([command/1]).
+
+-export_type ([username/0, password/0]).
+-export ([auth/2]).
+
+-export_type ([permission/0]).
+-export ([add_user/3]).
 
 -export_type ([key_order/0, index_uniqueness/0]).
 -export ([create_index/2, create_index/3, create_index/4]).
@@ -75,8 +81,9 @@ rs_connect_factory (Replset) -> {Replset, fun (RS) -> RC = rs_connect (RS), {ok,
 
 -type failure() ::
 	mongo_connect:failure() |  % thrown by read and safe write
-	mongo_query:not_master() |  % throws by read and safe write
-	write_failure() |  % throws by safe write
+	mongo_query:not_master() |  % thrown by read and safe write
+	mongo_query:unauthorized() |  % thrown by read and safe write
+	write_failure() |  % thrown by safe write
 	mongo_cursor:expired().  % thrown by cursor next/rest
 
 -record (context, {
@@ -96,6 +103,7 @@ do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (
 		catch
 			throw: E = {connection_failure, _, _} -> {failure, E};
 			throw: E = not_master -> {failure, E};
+			throw: E = unauthorized -> {failure, E};
 			throw: E = {write_failure, _, _} -> {failure, E};
 			throw: E = {cursor_expired, _} -> {failure, E}
 		after
@@ -107,6 +115,10 @@ do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (
 connection_mode (_, Conn = {connection, _, _}) -> {ok, Conn};
 connection_mode (master, RsConn = {rs_connection, _, _}) -> mongo_replset:primary (RsConn);
 connection_mode (slave_ok, RsConn = {rs_connection, _, _}) -> mongo_replset:secondary_ok (RsConn).
+
+-spec this_db () -> db(). % Action
+%@doc Current db in context that we are querying
+this_db () -> {Db, _} = (get (mongo_action_context)) #context.dbconn, Db.
 
 % Write %
 
@@ -154,7 +166,7 @@ assign_id (Doc) -> case bson:lookup ('_id', Doc) of
 -spec save (collection(), bson:document()) -> ok. % Action
 %@doc If document has no '_id' field then insert it, otherwise update it and insert only if missing.
 save (Coll, Doc) -> case bson:lookup ('_id', Doc) of
-	{} -> insert (Coll, Doc);
+	{} -> insert (Coll, Doc), ok;
 	{Id} -> repsert (Coll, {'_id', Id}, Doc) end.
 
 -spec replace (collection(), selector(), bson:document()) -> ok. % Action
@@ -271,7 +283,40 @@ command (Command) ->
 	Context = get (mongo_action_context),
 	mongo_query:command (Context #context.dbconn, Command, slave_ok (Context)).
 
-% Administration %
+% Authentication %
+
+-type username() :: bson:utf8().
+-type password() :: bson:utf8().
+-type nonce() :: bson:utf8().
+
+-spec auth (username(), password()) -> boolean(). % Action
+%@doc Authenticate with the database (if server is running in secure mode). Return whether authentication was successful or not. Reauthentication is required for every new pipe.
+auth (Username, Password) ->
+	Nonce = bson:at (nonce, mongo:command ({getnonce, 1})),
+	try mongo:command ({authenticate, 1, user, Username, nonce, Nonce, key, pw_key (Nonce, Username, Password)})
+		of _ -> true
+		catch error:{bad_command, _} -> false end.
+
+-spec pw_key (nonce(), username(), password()) -> bson:utf8().
+pw_key (Nonce, Username, Password) -> bson:utf8 (binary_to_hexstr (crypto:md5 ([Nonce, Username, pw_hash (Username, Password)]))).
+
+-spec pw_hash (username(), password()) -> bson:utf8().
+pw_hash (Username, Password) -> bson:utf8 (binary_to_hexstr (crypto:md5 ([Username, <<":mongo:">>, Password]))).
+
+-spec binary_to_hexstr (binary()) -> string().
+binary_to_hexstr (Bin) ->
+	lists:flatten ([io_lib:format ("~2.16.0b", [X]) || X <- binary_to_list (Bin)]).
+
+-type permission() :: read_write | read_only.
+
+-spec add_user (permission(), username(), password()) -> ok. % Action
+%@doc Add user with given access rights (permission)
+add_user (Permission, Username, Password) ->
+	User = case find_one (system.users, {user, Username}) of {} -> {user, Username}; {Doc} -> Doc end,
+	Rec = {readOnly, case Permission of read_only -> true; read_write -> false end, pwd, pw_hash (Username, Password)},
+	save (system.users, bson:merge (Rec, User)).
+
+% Index %
 
 -type key_order() :: bson:document().
 % List keys and whether ascending (1) or descending (-1). Eg. {x,1, y,-1}
@@ -304,12 +349,12 @@ gen_index_name (KeyOrder) ->
 -spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
 %@doc Create index on given keys with given uniqueness and name
 create_index (Coll, KeyOrder, Uniqueness, IndexName) ->
-	{Db, _} = (get (mongo_action_context)) #context.dbconn,
+	Db = mongo:this_db (),
 	{Unique, DropDups} = case Uniqueness of
 		non_unique -> {false, false};
 		unique -> {true, false};
 		unique_dropdups -> {true, true} end,
-	insert ('system.indexes', {
+	mongo:insert ('system.indexes', {
 		ns, mongo_protocol:dbcoll (Db, Coll),
 		key, KeyOrder,
 		name, IndexName,

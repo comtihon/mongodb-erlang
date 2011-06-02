@@ -3,16 +3,18 @@
 
 -export_type ([write/0, 'query'/0, command/0]).
 -export_type ([getlasterror_request/0, getlasterror_reply/0]).
--export_type ([not_master/0]).
+-export_type ([not_master/0, unauthorized/0]).
 
 -export ([write/3, write/2, find_one/2, find/2, command/3]).
 
 -include ("mongo_protocol.hrl").
 
-% QIO means does IO and may throw mongo_connect:failure() or not_master().
+% QIO means does IO and may throw mongo_connect:failure(), not_master(), unauthorized().
 
 -type not_master() :: not_master.
 % Thrown when attempting to query a slave when the query requires master (slaveok = false).
+-type unauthorized() :: unauthorized.
+% Thrown when attempting to query a db that requires auth but authentication has not been performed yet.
 
 -type write() :: #insert{} | #update{} | #delete{}.
 
@@ -44,7 +46,7 @@ command (DbConn, Command, SlaveOk) ->
 	Query = #'query' {collection = '$cmd', selector = Command, slaveok = SlaveOk},
 	{Doc} = find_one (DbConn, Query),
 	Ok = bson:at (ok, Doc),
-	if Ok == true orelse Ok == 1 -> Doc; true -> erlang:error ({bad_command, Doc}) end.
+	if Ok == true orelse Ok == 1 -> Doc; true -> erlang:error ({bad_command, Doc}) end.  % bad_command parsed by mongo:auth
 
 -type 'query'() :: #'query'{}.
 
@@ -73,4 +75,5 @@ query_reply (#reply {
 			false -> {Cid, Docs};
 			true -> case bson:at (code, hd (Docs)) of
 				13435 -> throw (not_master);
+				10057 -> throw (unauthorized);
 				_ -> erlang:error ({bad_query, hd (Docs)}) end end.
