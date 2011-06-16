@@ -31,8 +31,8 @@
 -export_type ([permission/0]).
 -export ([add_user/3]).
 
--export_type ([key_order/0, index_uniqueness/0]).
--export ([create_index/2, create_index/3, create_index/4]).
+-export_type ([index_spec/0, key_order/0]).
+-export ([create_index/2]).
 
 -export ([copy_database/3, copy_database/5]).
 
@@ -320,23 +320,31 @@ add_user (Permission, Username, Password) ->
 
 % Index %
 
+-type index_spec() :: bson:document().
+% The following fields are required:
+%	key : key_order()
+% The following fields are optional:
+%	name : bson:utf8()
+%	unique : boolean()
+%	dropDups : boolean()
+% Additional fields are allowed specific to the index, for example, when creating a Geo index you may also supply
+% min & max fields. See http://www.mongodb.org/display/DOCS/Geospatial+Indexing for details.
+
 -type key_order() :: bson:document().
-% List keys and whether ascending (1) or descending (-1). Eg. {x,1, y,-1}
+% Fields to index on and whether ascending (1) or descending (-1) or Geo (<<"2d">>). Eg. {x,1, y,-1} or {loc, <<"2d">>}
 
--spec create_index (collection(), key_order()) -> ok. % Action
-%@doc Create non-unique index on given keys in collection
-create_index (Coll, KeyOrder) ->
-	create_index (Coll, KeyOrder, non_unique).
+-spec create_index (collection(), index_spec() | key_order()) -> ok. % Action
+%@doc Create index on collection according to given spec. Allow user to just supply key
+create_index (Coll, IndexSpec) ->
+	Db = this_db (),
+	Index = bson:append ({ns, mongo_protocol:dbcoll (Db, Coll)}, fillout_indexspec (IndexSpec)),
+	insert ('system.indexes', Index).
 
--type index_uniqueness() ::
-	non_unique |  % Multiple docs with same index value allowed
-	unique |  % At most one doc with same index value, index creation fails otherwise
-	unique_dropdups.  % Same as unique, but deletes docs with duplicate index value on index creation
-
--spec create_index (collection(), key_order(), index_uniqueness()) -> ok. % Action
-%@doc Create index on given keys with given uniqueness
-create_index (Coll, KeyOrder, Uniqueness) ->
-	create_index (Coll, KeyOrder, Uniqueness, gen_index_name (KeyOrder)).
+-spec fillout_indexspec (index_spec() | key_order()) -> index_spec().
+% Fill in missing optonal fields with defaults. Allow user to just supply KeyOrder
+fillout_indexspec (IndexSpec) -> case bson:lookup (key, IndexSpec) of
+	{} -> {key, IndexSpec, name, gen_index_name (IndexSpec), unique, false, dropDups, false};
+	{Key} -> bson:merge (IndexSpec, {key, Key, name, gen_index_name (Key), unique, false, dropDups, false}) end.
 
 -spec gen_index_name (key_order()) -> bson:utf8().
 gen_index_name (KeyOrder) ->
@@ -349,21 +357,6 @@ gen_index_name (KeyOrder) ->
 			is_binary (Order) -> Order;
 			true -> <<>> end) /binary >> end,
 	bson:doc_foldl (AsName, <<"i">>, KeyOrder).
-
--spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
-%@doc Create index on given keys with given uniqueness and name
-create_index (Coll, KeyOrder, Uniqueness, IndexName) ->
-	Db = this_db (),
-	{Unique, DropDups} = case Uniqueness of
-		non_unique -> {false, false};
-		unique -> {true, false};
-		unique_dropdups -> {true, true} end,
-	insert ('system.indexes', {
-		ns, mongo_protocol:dbcoll (Db, Coll),
-		key, KeyOrder,
-		name, IndexName,
-		unique, Unique,
-		dropDups, DropDups}).
 
 % Admin
 
