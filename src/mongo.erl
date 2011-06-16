@@ -341,12 +341,14 @@ create_index (Coll, KeyOrder, Uniqueness) ->
 -spec gen_index_name (key_order()) -> bson:utf8().
 gen_index_name (KeyOrder) ->
 	AsName = fun (Label, Order, Name) -> <<
-		$_,
-		Name /binary,
-		(atom_to_binary (Label, utf8)) /binary,
-		$_,
-		(bson:utf8 (integer_to_list (Order))) /binary >> end,
-	bson:doc_foldl (AsName, <<>>, KeyOrder).
+		Name /binary, $_,
+		(atom_to_binary (Label, utf8)) /binary, $_,
+		(if
+			is_integer (Order) -> bson:utf8 (integer_to_list (Order));
+			is_atom (Order) -> atom_to_binary (Order, utf8);
+			is_binary (Order) -> Order;
+			true -> <<>> end) /binary >> end,
+	bson:doc_foldl (AsName, <<"i">>, KeyOrder).
 
 -spec create_index (collection(), key_order(), index_uniqueness(), bson:utf8()) -> ok. % Action
 %@doc Create index on given keys with given uniqueness and name
