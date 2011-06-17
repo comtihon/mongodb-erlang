@@ -341,10 +341,11 @@ create_index (Coll, IndexSpec) ->
 	insert ('system.indexes', Index).
 
 -spec fillout_indexspec (index_spec() | key_order()) -> index_spec().
-% Fill in missing optonal fields with defaults. Allow user to just supply KeyOrder
+% Fill in missing optonal fields with defaults. Allow user to just supply key_order
 fillout_indexspec (IndexSpec) -> case bson:lookup (key, IndexSpec) of
-	{} -> {key, IndexSpec, name, gen_index_name (IndexSpec), unique, false, dropDups, false};
-	{Key} -> bson:merge (IndexSpec, {key, Key, name, gen_index_name (Key), unique, false, dropDups, false}) end.
+	{Key} when is_tuple (Key) -> bson:merge (IndexSpec, {key, Key, name, gen_index_name (Key), unique, false, dropDups, false});
+	{_} -> {key, IndexSpec, name, gen_index_name (IndexSpec), unique, false, dropDups, false}; % 'key' happens to be a user field
+	{} -> {key, IndexSpec, name, gen_index_name (IndexSpec), unique, false, dropDups, false} end.
 
 -spec gen_index_name (key_order()) -> bson:utf8().
 gen_index_name (KeyOrder) ->
