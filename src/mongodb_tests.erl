@@ -1,6 +1,6 @@
 %@doc Unit tests.
-% For test1 to work, a mongodb server must be listening on 127.0.0.1:27017.
-% For test2 to work, a mongodb replica set must be listening on 127.0.0.1:27017 and 127.0.0.1:27018.
+% For test to work, a mongodb server must be listening on 127.0.0.1:27017.
+% For test_rs to work, a mongodb replica set named "rs1" must be listening on 127.0.0.1:27017 and 127.0.0.1:27018.
 -module(mongodb_tests).
 
 -include_lib("eunit/include/eunit.hrl").

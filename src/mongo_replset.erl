@@ -2,7 +2,7 @@
 -module (mongo_replset).
 
 -export_type ([replset/0, rs_connection/0]).
--export ([connect/1, primary/1, secondary_ok/1, close/1, is_closed/1]). % API
+-export ([connect/1, connect/2, primary/1, secondary_ok/1, close/1, is_closed/1]). % API
 
 -type maybe(A) :: {A} | {}.
 -type err_or(A) :: {ok, A} | {error, reason()}.
@@ -35,12 +35,16 @@ rotate (N, List) ->
 
 -spec connect (replset()) -> rs_connection(). % IO
 %@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called.
-connect ({ReplName, Hosts}) ->
-	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
-	{rs_connection, ReplName, mvar:new (Dict)}.
+connect (ReplSet) -> connect (ReplSet, infinity).
 
--opaque rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections())}.
-% Maintains set of connections to some if not all of the replica set members
+-spec connect (replset(), timeout()) -> rs_connection(). % IO
+%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called.
+connect ({ReplName, Hosts}, TimeoutMS) ->
+	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
+	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS}.
+
+-opaque rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections()), timeout()}.
+% Maintains set of connections to some if not all of the replica set members. Opaque except to mongo:connect_mode
 % Type not opaque to mongo:connection_mode/2
 -type connections() :: dict:dictionary (host(), maybe(connection())).
 % All hosts listed in last member_info fetched are keys in dict. Value is {} if no attempt to connect to that host yet
@@ -65,14 +69,14 @@ secondary_ok (ReplConn) -> try
 
 -spec close (rs_connection()) -> ok. % IO
 %@doc Close replset connection
-close ({rs_connection, _, VConns}) ->
+close ({rs_connection, _, VConns, _}) ->
 	CloseConn = fun (_, MCon, _) -> case MCon of {Con} -> mongo_connect:close (Con); {} -> ok end end,
 	mvar:with (VConns, fun (Dict) -> dict:fold (CloseConn, ok, Dict) end),
 	mvar:terminate (VConns).
 
 -spec is_closed (rs_connection()) -> boolean(). % IO
 %@doc Has replset connection been closed?
-is_closed ({rs_connection, _, VConns}) -> mvar:is_terminated (VConns).
+is_closed ({rs_connection, _, VConns, _}) -> mvar:is_terminated (VConns).
 
 % EIO = IO that may throw error of any type
 
@@ -100,7 +104,7 @@ secondary_ok_conn (ReplConn, Hosts) -> try
 
 -spec fetch_member_info (rs_connection()) -> member_info(). % EIO
 %@doc Retrieve isMaster info from a current known member in replica set. Update known list of members from fetched info.
-fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns}) ->
+fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns, _}) ->
 	OldHosts_ = dict:fetch_keys (mvar:read (VConns)),
 	{Conn, Info} = until_success (OldHosts_, fun (Host) -> connect_member (ReplConn, Host) end),
 	OldHosts = sets:from_list (OldHosts_),
@@ -127,11 +131,11 @@ remove_host (Host, Dict) ->
 
 -spec connect_member (rs_connection(), host()) -> member_info(). % EIO
 %@doc Connect to host and verify membership. Cache connection in rs_connection
-connect_member ({rs_connection, ReplName, VConns}, Host) ->
-	Conn = get_connection (VConns, Host),
+connect_member ({rs_connection, ReplName, VConns, TimeoutMS}, Host) ->
+	Conn = get_connection (VConns, Host, TimeoutMS),
 	Info = try get_member_info (Conn) catch _ ->
 		mongo_connect:close (Conn),
-		Conn1 = get_connection (VConns, Host),
+		Conn1 = get_connection (VConns, Host, TimeoutMS),
 		get_member_info (Conn1) end,
 	case bson:at (setName, Info) of
 		ReplName -> {Conn, Info};
@@ -139,14 +143,14 @@ connect_member ({rs_connection, ReplName, VConns}, Host) ->
 			mongo_connect:close (Conn),
 			throw ({not_member, ReplName, Host, Info}) end.
 
-get_connection (VConns, Host) -> mvar:modify (VConns, fun (Dict) ->
+get_connection (VConns, Host, TimeoutMS) -> mvar:modify (VConns, fun (Dict) ->
 	case dict:find (Host, Dict) of
 		{ok, {Conn}} -> case mongo_connect:is_closed (Conn) of
 			false -> {Dict, Conn};
-			true -> new_connection (Dict, Host) end;
-		_ -> new_connection (Dict, Host) end end).
+			true -> new_connection (Dict, Host, TimeoutMS) end;
+		_ -> new_connection (Dict, Host, TimeoutMS) end end).
 
-new_connection (Dict, Host) -> case mongo_connect:connect (Host) of
+new_connection (Dict, Host, TimeoutMS) -> case mongo_connect:connect (Host, TimeoutMS) of
 	{ok, Conn} -> {dict:store (Host, {Conn}, Dict), Conn};
 	{error, Reason} -> throw ({cant_connect, Reason}) end.
 

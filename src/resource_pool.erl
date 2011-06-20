@@ -13,7 +13,7 @@
 trans_error (Act) -> case Act() of {ok, A} -> A; {error, Reason} -> throw (Reason) end.
 
 -type factory(A) :: {any(), create(A), expire(A), is_expired(A)}.
-% Object for creating, destroying, and checking resources.
+% Object for creating, destroying, and checking resources of type A.
 % any() is the input to create(A). kept separate so we can identify the factory when printed.
 -type create(A) :: fun ((any()) -> err_or(A)). % IO
 -type expire(A) :: fun ((A) -> ok). % IO

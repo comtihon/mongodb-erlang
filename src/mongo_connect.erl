@@ -4,7 +4,7 @@
 -export_type ([host/0, connection/0, dbconnection/0, failure/0]).
 
 -export ([host_port/1, read_host/1, show_host/1]).
--export ([connect/1, conn_host/1, close/1, is_closed/1]).
+-export ([connect/1, connect/2, conn_host/1, close/1, is_closed/1]).
 
 -export ([call/3, send/2]). % for mongo_query and mongo_cursor
 
@@ -44,7 +44,11 @@ read_host (UString) -> case string:tokens (bson:str (UString), ":") of
 
 -spec connect (host()) -> {ok, connection()} | {error, reason()}. % IO
 %@doc Create connection to given MongoDB server or return reason for connection failure.
-connect (Host) -> try mvar:create (fun () -> tcp_connect (host_port (Host)) end, fun gen_tcp:close/1)
+connect (Host) -> connect (Host, infinity).
+
+-spec connect (host(), timeout()) -> {ok, connection()} | {error, reason()}. % IO
+%@doc Create connection to given MongoDB server or return reason for connection failure.
+connect (Host, TimeoutMS) -> try mvar:create (fun () -> tcp_connect (host_port (Host), TimeoutMS) end, fun gen_tcp:close/1)
 	of VSocket -> {ok, {connection, host_port (Host), VSocket}}
 	catch Reason -> {error, Reason} end.
 
@@ -101,7 +105,7 @@ messages_binary (Db, Messages) ->
 
 % Util %
 
-tcp_connect ({Hostname, Port}) -> case gen_tcp:connect (Hostname, Port, [binary, {active, false}, {packet, 0}]) of
+tcp_connect ({Hostname, Port}, TimeoutMS) -> case gen_tcp:connect (Hostname, Port, [binary, {active, false}, {packet, 0}], TimeoutMS) of
 	{ok, Socket} -> Socket;
 	{error, Reason} -> throw (Reason) end.
 
