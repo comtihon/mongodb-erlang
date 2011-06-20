@@ -38,7 +38,7 @@ rotate (N, List) ->
 connect (ReplSet) -> connect (ReplSet, infinity).
 
 -spec connect (replset(), timeout()) -> rs_connection(). % IO
-%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called.
+%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called. Timeout used for initial connection and every call.
 connect ({ReplName, Hosts}, TimeoutMS) ->
 	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
 	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS}.

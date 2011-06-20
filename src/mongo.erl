@@ -52,7 +52,7 @@
 connect (Host) -> mongo_connect:connect (Host).
 
 -spec connect (host(), timeout()) -> {ok, connection()} | {error, reason()}. % IO
-%@doc Connect to given MongoDB server
+%@doc Connect to given MongoDB server. Timeout used for initial connection and every query and safe write.
 connect (Host, TimeoutMS) -> mongo_connect:connect (Host, TimeoutMS).
 
 -spec disconnect (connection()) -> ok. % IO
@@ -77,7 +77,7 @@ connect_factory (Host, TimeoutMS) -> {Host, fun (H) -> connect (H, TimeoutMS) en
 rs_connect (Replset) -> mongo_replset:connect (Replset).
 
 -spec rs_connect (replset(), timeout()) -> rs_connection(). % IO
-%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
+%@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called. Timeout used for initial connection and every query and safe write.
 rs_connect (Replset, TimeoutMS) -> mongo_replset:connect (Replset, TimeoutMS).
 
 -spec rs_disconnect (rs_connection()) -> ok. % IO
@@ -130,7 +130,7 @@ do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (
 
 -spec connection_mode (read_mode(), connection() | rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
 %@doc For rs_connection return appropriate primary or secondary connection
-connection_mode (_, Conn = {connection, _, _}) -> {ok, Conn};
+connection_mode (_, Conn = {connection, _, _, _}) -> {ok, Conn};
 connection_mode (master, RsConn = {rs_connection, _, _, _}) -> mongo_replset:primary (RsConn);
 connection_mode (slave_ok, RsConn = {rs_connection, _, _, _}) -> mongo_replset:secondary_ok (RsConn).
 
