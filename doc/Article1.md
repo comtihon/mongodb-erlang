@@ -1,5 +1,5 @@
 # Design of the Erlang MongoDB driver
-### By Tony Hannan, June 2011
+#### By Tony Hannan, June 2011
 
 I am a 10gen employee an author of the official [Erlang MongoDB driver](http://github.com/TonyGen/mongodb-erlang). In Nov 2010, I was assigned the task of ensuring a production quality Erlang driver. At that time, there were a couple of Erlang drivers in the community, [emongo](http://bitbucket.org/rumataestor/emongo) and [Erlmongo](http://github.com/wpntv/erlmongo). I was hoping to pick one and enhance it to become the official driver. However, after reading both of them, I felt neither were elegant enough for my taste. Please don't take this as an insult to those drivers. They are fine pieces of work. It is just that my tastes are very particular, and it was easier for me to start from scratch then to pick one and adapt to it or refactor it.
 
