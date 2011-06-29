@@ -1,7 +1,7 @@
 # Design of the Erlang MongoDB driver
 #### By Tony Hannan, June 2011
 
-I am a 10gen employee an author of the official [Erlang MongoDB driver](http://github.com/TonyGen/mongodb-erlang). In Nov 2010, I was assigned the task of writing a production-quality Erlang driver. Today, I would say the official driver is production-quality. Below I highlight some design decisions. For detailed documentation please see the links at the end of this article.
+I am a 10gen employee an author of the official [Erlang MongoDB driver](http://github.com/TonyGen/mongodb-erlang). In Nov 2010, I was assigned the task of writing a production-quality Erlang driver. Today, I would say the official driver is production-quality. Below I highlight some design decisions. For detailed documentation with code examples please see the links at the end of this article.
 
 ### BSON
 
