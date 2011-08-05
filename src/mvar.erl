@@ -37,7 +37,7 @@ new (Value) -> new (Value, fun (_) -> ok end).
 
 -spec modify (mvar(A), modifier(A,B)) -> B. % IO throws X
 %@doc Atomically modify content and return associated result. Any throw is caught and re-thrown in caller. Errors are not caught and will terminate var and send exit signal to parent.
-modify (Var, Modify) -> case gen_server:call (Var, {modify, Modify}) of
+modify (Var, Modify) -> case gen_server:call (Var, {modify, Modify}, infinity) of
 	{ok, B} -> B;
 	{throw, Thrown} -> throw (Thrown) end.
 
@@ -59,7 +59,7 @@ write (Var, Value) -> modify (Var, fun (A) -> {Value, A} end).
 
 -spec terminate (mvar(_)) -> ok. % IO
 %@doc Terminate mvar. Its finalizer will be executed. Future accesses to this mvar will fail, although repeated termination is fine.
-terminate (Var) -> catch gen_server:call (Var, stop), ok.
+terminate (Var) -> catch gen_server:call (Var, stop, infinity), ok.
 
 -spec is_terminated (mvar(_)) -> boolean(). % IO
 %@doc Has mvar been terminated?
