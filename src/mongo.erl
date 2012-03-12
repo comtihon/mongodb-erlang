@@ -20,7 +20,7 @@
 -export ([count/2, count/3]).
 
 -export_type ([cursor/0]).
--export ([next/1, rest/1, close_cursor/1]).
+-export ([next/1, take/2, rest/1, close_cursor/1]).
 
 -export_type ([command/0]).
 -export ([command/1]).
@@ -155,7 +155,7 @@ write (Write) ->
 	Context = get (mongo_action_context),
 	case Context #context.write_mode of
 		unsafe -> mongo_query:write (Context #context.dbconn, Write);
-		SafeMode -> 
+		SafeMode ->
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 			Ack = mongo_query:write (Context #context.dbconn, Write, Params),
 			case bson:lookup (err, Ack) of
@@ -268,6 +268,15 @@ find (Coll, Selector, Projector, Skip, BatchSize) ->
 -spec next (cursor()) -> maybe (bson:document()). % IO throws mongo_connect:failure() & mongo_cursor:expired() (this is a subtype of Action)
 %@doc Return next document in query result cursor, if any.
 next (Cursor) -> mongo_cursor:next (Cursor).
+
+-spec take(non_neg_integer(), cursor()) -> [bson:document()].
+%%@doc Return at most requested number of documents from query result cursor.
+take(0, _Cursor) -> [];
+take(Limit, Cursor) when Limit > 0 ->
+    case mongo:next(Cursor) of
+        {Doc} -> [Doc|take(Limit - 1, Cursor)];
+        {}    -> []
+    end.
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws mongo_connect:failure() & mongo_cursor:expired() (this is a subtype of Action)
 %@doc Return remaining documents in query result cursor.
