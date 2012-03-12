@@ -19,7 +19,8 @@ trans_error (Act) -> case Act() of {ok, A} -> A; {error, Reason} -> throw (Reaso
 -type expire(A) :: fun ((A) -> ok). % IO
 -type is_expired(A) :: fun ((A) -> boolean()). % IO
 
--opaque pool(A) :: {factory(A), mvar:mvar (array:array (maybe(A)))}.
+%% Note(superbobry): polymorphic opaque types aren't supported by 'dialyzer'.
+-type pool(A) :: {factory(A), mvar:mvar (array:array (maybe(A)))}.
 % Pool of N resources of type A, created on demand, recreated on expiration, and handed out randomly
 
 -spec new (factory(A), integer()) -> pool(A).
