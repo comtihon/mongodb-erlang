@@ -158,6 +158,7 @@ write (Write) ->
 		SafeMode -> 
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 			Ack = mongo_query:write (Context #context.dbconn, Write, Params),
+			put (mongo_lasterror, Ack),
 			case bson:lookup (err, Ack) of
 				{} -> ok; {undefined} -> ok;
 				{String} -> case bson:at (code, Ack) of
