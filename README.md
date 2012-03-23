@@ -2,14 +2,14 @@ This is the MongoDB driver for Erlang. [MongoDB](http://www.mongodb.org) is a do
 
 This version of the driver supports connecting to a single server or replica set, and pooling of both types of connections. Both connection types and pools are thread-safe, i.e. multiple processes can use the same connection/pool simultaneously without interfering with each other.
 
-This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/TonyGen/bson-erlang), which defines the document type and its standard binary representation. You need both of these. Below we describe the mongodb application; you should also see the bson application to understand the document type.
+This driver is implemented as an Erlang application named *mongodb*. It depends on another Erlang library application named [*bson*](http://github.com/mongodb/bson-erlang), which defines the document type and its standard binary representation. You need both of these. Below we describe the mongodb application; you should also see the bson application to understand the document type.
 
 ### Installing
 
 Download and compile each application
 
-	$ git clone git://github.com/TonyGen/bson-erlang.git bson
-	$ git clone git://github.com/TonyGen/mongodb-erlang.git mongodb
+	$ git clone git://github.com/mongodb/bson-erlang.git bson
+	$ git clone git://github.com/mongodb/mongodb-erlang.git mongodb
 	$ cd bson
 	$ erlc -o ebin -I include src/*.erl
 	$ cd ../mongodb
@@ -67,7 +67,7 @@ If there are no errors in the sequence of operations then the result of the last
 
 `mongo:find` returns a *cursor* holding the pending list of results, which are accessed using `mongo:next` to get the next result, and `mongo:rest` to get the remaining results. Either one throws `{cursor_expired, Cursor}` if the cursor was idle for more than 10 minutes. This exception is caught by `mongo:do` and returned as `{failure, {cursor_expired, Cursor}}`. `mongo:rest` also closes the cursor, otherwise you should close the cursor when finished using `mongo:close_cursor`.
 
-See the [*mongo*](http://github.com/TonyGen/mongodb-erlang/blob/master/src/mongo.erl) module for a description of all operations. A type specification is provided with each operation so you know the expected arguments and results. The spec line also has a comment if it performs a side-effect such as IO and what exceptions it may throw. No comment means it is a pure function. Also, see the [*bson* module](http://github.com/TonyGen/bson-erlang/blob/master/src/bson.erl) in the bson application for details on the document type and its value types.
+See the [*mongo*](http://github.com/mongodb/mongodb-erlang/blob/master/src/mongo.erl) module for a description of all operations. A type specification is provided with each operation so you know the expected arguments and results. The spec line also has a comment if it performs a side-effect such as IO and what exceptions it may throw. No comment means it is a pure function. Also, see the [*bson* module](http://github.com/mongodb/bson-erlang/blob/master/src/bson.erl) in the bson application for details on the document type and its value types.
 
 ### Administering
 
