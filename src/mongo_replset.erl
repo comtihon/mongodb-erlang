@@ -43,7 +43,9 @@ connect ({ReplName, Hosts}, TimeoutMS) ->
 	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
 	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS}.
 
--opaque rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections()), timeout()}.
+%% Note(superbobry): having an 'opaque' type here causes 'dialyzer' to
+%% crash (bug reported).
+-type rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections()), timeout()}.
 % Maintains set of connections to some if not all of the replica set members. Opaque except to mongo:connect_mode
 % Type not opaque to mongo:connection_mode/2
 -type connections() :: dict:dictionary (host(), maybe(connection())).
