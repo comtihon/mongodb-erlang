@@ -1,3 +1,5 @@
 deps
 *.swp
 *.swo
+.eunit/
+**/*.beam
