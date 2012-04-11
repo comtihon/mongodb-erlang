@@ -9,7 +9,8 @@
 -behaviour (gen_server).
 -export ([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--type mvar(_) :: pid() | atom().
+%% Note(superbobry): '_' is not a valid type variable.
+-type mvar(_A) :: pid() | atom().
 % Unregistered or registered process holding a value of given paramterized type
 
 -type initializer(A) :: fun (() -> A). % IO throws X
