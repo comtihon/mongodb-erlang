@@ -344,10 +344,10 @@ add_user (Permission, Username, Password) ->
 %	unique : boolean()
 %	dropDups : boolean()
 % Additional fields are allowed specific to the index, for example, when creating a Geo index you may also supply
-% min & max fields. See http://www.mongodb.org/display/DOCS/Geospatial+Indexing for details.
+% min and max fields. See http://www.mongodb.org/display/DOCS/Geospatial+Indexing for details.
 
 -type key_order() :: bson:document().
-% Fields to index on and whether ascending (1) or descending (-1) or Geo (<<"2d">>). Eg. {x,1, y,-1} or {loc, <<"2d">>}
+% Fields to index on and whether ascending (1) or descending (-1) or Geo (`<<"2d">>'). Eg. `{x,1, y,-1}' or `{loc, <<"2d">>}'
 
 -spec create_index (collection(), index_spec() | key_order()) -> ok. % Action
 %@doc Create index on collection according to given spec. Allow user to just supply key
