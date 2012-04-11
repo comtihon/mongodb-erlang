@@ -25,7 +25,7 @@
 
 -spec write (mongo_connect:dbconnection(), write(), getlasterror_request()) -> getlasterror_reply(). % QIO
 %@doc Send write and getlasterror request to mongodb over connection and wait for and return getlasterror reply. Bad getlasterror params are ignored.
-% Caller is responsible for checking for error in reply; if 'err' field is null then success, otherwise it holds error message string.
+% Caller is responsible for checking for error in reply; if 'err' field is undefined then success, otherwise it holds error message string.
 write (DbConn, Write, GetlasterrorParams) ->
 	Query = #'query' {batchsize = -1, collection = '$cmd',
 		selector = bson:append ({getlasterror, 1}, GetlasterrorParams)},
