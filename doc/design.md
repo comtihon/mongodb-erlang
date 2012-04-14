@@ -29,4 +29,5 @@ In addition recent docuemenation on the API will be avaliable on the [mongodb we
 
 Should you wish to generate this from the latest code, you can run:
 
-    $ 
+    $ cd docs
+    $ sh ./gen_docs
