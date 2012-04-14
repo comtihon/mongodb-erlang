@@ -1,3 +1,6 @@
 #!/bin/sh
 # Generate html docs from src code comments using edoc
-erl -pa ../../bson/ebin/ ../../mongodb/ebin -eval 'edoc:application (mongodb, [{index_columns, 1}, {sort_functions, false}, {preprocess, true}]), init:stop()' -noshell
+#
+# Note; this requires you to have already run make
+#
+erl -pa ../deps/bson/ebin ../../mongodb/ebin -eval 'edoc:application (mongodb, [{index_columns, 1}, {sort_functions, false}, {preprocess, true}]), init:stop()' -noshell
