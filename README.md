@@ -15,6 +15,7 @@ Download and compile the application
 Then install them in your standard Erlang library location or include them in your path on startup
 
 	$ erl -pa mongodb/ebin mongodb/deps/*/ebin
+	$ erl -pa ebin deps/*/ebin
 
 ### Starting
 
