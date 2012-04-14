@@ -8,13 +8,25 @@ This driver is implemented as an Erlang application named *mongodb*. It depends 
 
 Download and compile the application
 
-	$ git clone git://github.com/TonyGen/mongodb-erlang.git mongodb
+	$ git clone git://github.com/mongodb/mongodb-erlang.git mongodb
 	$ cd mongodb
 	$ make
 
-Then install them in your standard Erlang library location or include them in your path on startup
+Then you have two choices, either install them in your standard Erlang library location. To find the standard location, perform the following in erl:
 
-	$ erl -pa mongodb/ebin mongodb/deps/*/ebin
+	$ erl
+	1> code:lib_dir().
+	"/usr/local/Cellar/erlang/R15B/lib/erlang/lib"
+
+To copy the libraries:
+
+    $ mkdir <path from above>/mongodb-master
+    $ cp -R deps ebin <path from above>/mongodb-master/
+    
+
+Or alternatively you can include in your path on startup:
+
+	$ erl -pa ebin deps/*/ebin
 
 ### Starting
 
