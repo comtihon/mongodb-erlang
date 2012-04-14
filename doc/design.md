@@ -1,11 +1,11 @@
 # Design of the Erlang MongoDB driver
 #### By Tony Hannan, June 2011
 
-I am a 10gen employee an author of the official [Erlang MongoDB driver](http://github.com/TonyGen/mongodb-erlang). In Nov 2010, I was assigned the task of writing a production-quality Erlang driver. Today, I would say the official driver is production-quality. Below I highlight some design decisions. For detailed documentation with code examples please see the links at the end of this article.
+I am a 10gen employee an author of the official [Erlang MongoDB driver](http://github.com/mongo/mongodb-erlang). In Nov 2010, I was assigned the task of writing a production-quality Erlang driver. Today, I would say the official driver is production-quality. Below I highlight some design decisions. For detailed documentation with code examples please see the links at the end of this article.
 
 ### BSON
 
-At the highest level, the driver is divided into two library applications, [mongodb](http://github.com/TonyGen/mongodb-erlang) and [bson](http://github.com/TonyGen/bson-erlang). Bson is defined independently of MongoDB at [bsonspec.org](http://bsonspec.org). One design decision was how to represent Bson documents in Erlang. Conceptually, a document is a record, but unlike an Erlang record, a Bson document does not have a single type tag. Futhermore, the same MongoDB collection can hold different types of records. So I decided to represent a Bson document as a tuple with labels interleaved with values, as in `{name, Name, address, Address}`. An alternative would have been to represent a document as a list of label-value pairs, but I wanted to reserve lists for Bson arrays.
+At the highest level, the driver is divided into two library applications, [mongodb](http://github.com/mongodb/mongodb-erlang) and [bson](http://github.com/mongodb/bson-erlang). Bson is defined independently of MongoDB at [bsonspec.org](http://bsonspec.org). One design decision was how to represent Bson documents in Erlang. Conceptually, a document is a record, but unlike an Erlang record, a Bson document does not have a single type tag. Futhermore, the same MongoDB collection can hold different types of records. So I decided to represent a Bson document as a tuple with labels interleaved with values, as in `{name, Name, address, Address}`. An alternative would have been to represent a document as a list of label-value pairs, but I wanted to reserve lists for Bson arrays.
 
 A Bson value is one of several types. One of these types is the document type itself, making it recursive. Several value types are not primitive, like objectid and javascript, so I had to create a tagged tuple for each of them. I defined them all to have an odd number of elements to distinguish them from a document which has an even number of elements. Finally, to distinguish between a string and a list of integers, which is indistinguishable in Erlang, I require Bson strings to be binary (UTF-8). Therefore, a plain Erlang string is interpreted as a Bson array of integers, so make sure to always encode your strings, as in `<<"hello">>` or `bson:utf8("hello")`.
 
@@ -23,4 +23,11 @@ You may notice that a DB action is analogous to a DB transaction for a relationa
 
 ### Documentation
 
-Detailed documentation with examples can be found in the ReadMe's of the two libraries, [mongodb](http://github.com/TonyGen/mongodb-erlang) and [bson](http://github.com/TonyGen/bson-erlang), and in their source code comments and test modules.
+Detailed documentation with examples can be found in the ReadMe's of the two libraries, [mongodb](http://github.com/mongodb/mongodb-erlang) and [bson](http://github.com/mongodb/bson-erlang), and in their source code comments and test modules.
+
+In addition recent docuemenation on the API will be avaliable on the [mongodb website](http://api.mongodb.org/erlang/mongodb/).
+
+Should you wish to generate this from the latest code, you can run:
+
+    $ cd docs
+    $ sh ./gen_docs
