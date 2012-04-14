@@ -8,7 +8,7 @@ This driver is implemented as an Erlang application named *mongodb*. It depends 
 
 Download and compile the application
 
-	$ git clone git://github.com/TonyGen/mongodb-erlang.git mongodb
+	$ git clone git://github.com/mongodb/mongodb-erlang.git mongodb
 	$ cd mongodb
 	$ make
 
