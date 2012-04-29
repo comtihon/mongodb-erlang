@@ -5,7 +5,7 @@
 -export_type ([maybe/1]).
 -export_type ([cursor/0, expired/0]).
 
--export ([next/1, rest/1, close/1, is_closed/1]). % API
+-export ([next/1, rest/1, take/2, close/1, is_closed/1]). % API
 -export ([cursor/4]). % for mongo_query
 
 -include ("mongo_protocol.hrl").
@@ -49,6 +49,15 @@ next (Cursor) ->
 	try mvar:modify (Cursor, Next)
 		of {} -> close (Cursor), {}; {Doc} -> {Doc}
 		catch expired -> close (Cursor), throw ({cursor_expired, Cursor}) end.
+
+-spec take (non_neg_integer(), cursor()) -> [bson:document()].
+%%@doc Return at most requested number of documents from query result cursor.
+take (0, _Cursor) -> [];
+take (Limit, Cursor) when Limit > 0 ->
+    case mongo:next(Cursor) of
+        {}    -> [];
+        {Doc} -> [Doc | take (Limit - 1, Cursor)]
+    end.
 
 -spec xnext (env(), batch()) -> {batch(), maybe (bson:document())}. % IO throws expired & mongo_connect:failure()
 %@doc Get next document in cursor, fetching next batch from server if necessary

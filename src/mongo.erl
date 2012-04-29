@@ -270,14 +270,9 @@ find (Coll, Selector, Projector, Skip, BatchSize) ->
 %@doc Return next document in query result cursor, if any.
 next (Cursor) -> mongo_cursor:next (Cursor).
 
--spec take(non_neg_integer(), cursor()) -> [bson:document()].
+-spec take (non_neg_integer(), cursor()) -> [bson:document()].
 %%@doc Return at most requested number of documents from query result cursor.
-take(0, _Cursor) -> [];
-take(Limit, Cursor) when Limit > 0 ->
-    case mongo:next(Cursor) of
-        {Doc} -> [Doc|take(Limit - 1, Cursor)];
-        {}    -> []
-    end.
+take (Limit, Cursor) -> mongo_cursor:take (Limit, Cursor).
 
 -spec rest (cursor()) -> [bson:document()]. % IO throws mongo_connect:failure() & mongo_cursor:expired() (this is a subtype of Action)
 %@doc Return remaining documents in query result cursor.
