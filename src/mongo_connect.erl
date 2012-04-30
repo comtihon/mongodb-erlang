@@ -4,7 +4,7 @@
 -export_type ([host/0, connection/0, dbconnection/0, failure/0]).
 
 -export ([host_port/1, read_host/1, show_host/1]).
--export ([connect/1, connect/2, conn_host/1, close/1, is_closed/1]).
+-export ([connect/1, connect/2, ssl_connect/2, ssl_connect/3, conn_host/1, close/1, is_closed/1]).
 
 -export ([call/3, send/2]). % for mongo_query and mongo_cursor
 
@@ -37,7 +37,7 @@ read_host (UString) -> case string:tokens (bson:str (UString), ":") of
 
 -type reason() :: any().
 
--opaque connection() :: {connection, host(), mvar:mvar (gen_tcp:socket()), timeout()}.
+-opaque connection() :: {connection, host(), mvar:mvar (gen_tcp:socket()), mvar:mvar(ssl:sslsocket()), timeout()}.
 % Thread-safe, TCP connection to a MongoDB server.
 % Passive raw binary socket.
 % Type not opaque to mongo:connection_mode/2
@@ -49,20 +49,38 @@ connect (Host) -> connect (Host, infinity).
 -spec connect (host(), timeout()) -> {ok, connection()} | {error, reason()}. % IO
 %@doc Create connection to given MongoDB server or return reason for connection failure. Timeout is used for initial connection and every call.
 connect (Host, TimeoutMS) -> try mvar:create (fun () -> tcp_connect (host_port (Host), TimeoutMS) end, fun gen_tcp:close/1)
-	of VSocket -> {ok, {connection, host_port (Host), VSocket, TimeoutMS}}
+	of VSocket -> {ok, {connection, host_port (Host), VSocket, false, TimeoutMS}}
+	catch Reason -> {error, Reason} end.
+
+ssl_connect(Host, Options) -> ssl_connect(Host, infinity, Options).
+
+ssl_connect(Host, TimeoutMS, Options) -> try mvar:create(fun() -> tcp_ssl_connect(host_port(Host), TimeoutMS, Options) end, fun ssl:close/1)
+	of SslSocket -> {ok, {connection, host_port(Host), false, SslSocket, TimeoutMS}}
 	catch Reason -> {error, Reason} end.
 
 -spec conn_host (connection()) -> host().
 %@doc Host this is connected to
-conn_host ({connection, Host, _VSocket, _}) -> Host.
+conn_host ({connection, Host, _VSocket, _SslSocket, _}) -> Host.
 
 -spec close (connection()) -> ok. % IO
 %@doc Close connection.
-close ({connection, _Host, VSocket, _}) -> mvar:terminate (VSocket).
+close ({connection, _Host, VSocket, SslSocket, _}) ->
+	case VSocket =/= false of
+		true ->
+			mvar:terminate(VSocket);
+		_ ->
+			mvar:terminate(SslSocket)
+	end.
 
 -spec is_closed (connection()) -> boolean(). % IO
 %@doc Has connection been closed?
-is_closed ({connection, _, VSocket, _}) -> mvar:is_terminated (VSocket).
+is_closed ({connection, _, VSocket, SslSocket, _}) -> 
+	case VSocket =/= false of
+		true ->
+			mvar:is_terminated (VSocket);
+		_ ->
+			mvar:is_terminated(SslSocket)
+	end.
 
 -type dbconnection() :: {mongo_protocol:db(), connection()}.
 
@@ -70,29 +88,55 @@ is_closed ({connection, _, VSocket, _}) -> mvar:is_terminated (VSocket).
 
 -spec call (dbconnection(), [mongo_protocol:notice()], mongo_protocol:request()) -> mongo_protocol:reply(). % IO throws failure()
 %@doc Synchronous send and reply. Notices are sent right before request in single block. Exclusive access to connection during entire call.
-call ({Db, Conn = {connection, _Host, VSocket, TimeoutMS}}, Notices, Request) ->
+call ({Db, Conn = {connection, _Host, VSocket, SslSocket, TimeoutMS}}, Notices, Request) ->
 	{MessagesBin, RequestId} = messages_binary (Db, Notices ++ [Request]),
 	Call = fun (Socket) ->
 		tcp_send (Socket, MessagesBin),
 		<<?get_int32 (N)>> = tcp_recv (Socket, 4, TimeoutMS),
 		tcp_recv (Socket, N-4, TimeoutMS) end,
-	try mvar:with (VSocket, Call) of
-		ReplyBin ->
-			{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
-			Reply  % ^ ResponseTo must match RequestId
-	catch
-		throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
-		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
+	SslCall = fun (Socket) ->
+		tcp_ssl_send (Socket, MessagesBin),
+		<<?get_int32 (N)>> = tcp_ssl_recv (Socket, 4, TimeoutMS),
+		tcp_ssl_recv (Socket, N-4, TimeoutMS) end,
+
+	case VSocket =/= false of
+		true ->
+			try mvar:with (VSocket, Call) of
+				ReplyBin ->
+					{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
+					Reply  % ^ ResponseTo must match RequestId
+			catch
+				throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+				exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end;
+		_ ->
+			try mvar:with (SslSocket, SslCall) of
+				ReplyBin ->
+					{RequestId, Reply, <<>>} = mongo_protocol:get_reply (ReplyBin),
+					Reply  % ^ ResponseTo must match RequestId
+			catch
+				throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+				exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end
+	end.
 
 -spec send (dbconnection(), [mongo_protocol:notice()]) -> ok. % IO throws failure()
 %@doc Asynchronous send (no reply). Don't know if send succeeded. Exclusive access to the connection during send.
-send ({Db, Conn = {connection, _Host, VSocket, _}}, Notices) ->
+send ({Db, Conn = {connection, _Host, VSocket, SslSocket, _}}, Notices) ->
 	{NoticesBin, _} = messages_binary (Db, Notices),
 	Send = fun (Socket) -> tcp_send (Socket, NoticesBin) end,
-	try mvar:with (VSocket, Send)
-	catch
-		throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
-		exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end.
+	SslSend = fun(Socket) -> tcp_ssl_send(Socket, NoticesBin) end,
+
+	case VSocket =/= false of
+		true ->
+			try mvar:with (VSocket, Send)
+			catch
+				throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+				exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end;
+		_ ->
+			try mvar:with (SslSocket, SslSend)
+			catch
+				throw: Reason -> close (Conn), throw ({connection_failure, Conn, Reason});
+				exit: {noproc, _} -> throw ({connection_failure, Conn, closed}) end
+	end.
 
 -spec messages_binary (mongo_protocol:db(), [mongo_protocol:message()]) -> {binary(), mongo_protocol:requestid()}.
 %@doc Binary representation of messages
@@ -105,14 +149,32 @@ messages_binary (Db, Messages) ->
 
 % Util %
 
-tcp_connect ({Hostname, Port}, TimeoutMS) -> case gen_tcp:connect (Hostname, Port, [binary, {active, false}, {packet, 0}], TimeoutMS) of
-	{ok, Socket} -> Socket;
-	{error, Reason} -> throw (Reason) end.
+tcp_connect ({Hostname, Port}, TimeoutMS) ->
+	case gen_tcp:connect (Hostname, Port, [binary, {active, false}, {packet, 0}], TimeoutMS) of
+		{ok, Socket} -> Socket;
+		{error, Reason} -> throw (Reason)
+	end.
+
+tcp_ssl_connect ({Hostname, Port}, TimeoutMS, Options) ->
+	SslOptions =[Options | [binary, {active, false}, {packet, 0}]],
+	ssl:start(),
+	case ssl:connect(Hostname, Port, SslOptions, TimeoutMS) of
+		{ok, SslSocket} -> SslSocket;
+		{error, Reason} -> throw (Reason)
+	end.
 
 tcp_send (Socket, Binary) -> case gen_tcp:send (Socket, Binary) of
+	ok -> ok;
+	{error, Reason} -> throw (Reason) end.
+
+tcp_ssl_send (SslSocket, Binary) -> case ssl:send(SslSocket, Binary) of
 	ok -> ok;
 	{error, Reason} -> throw (Reason) end.
 
 tcp_recv (Socket, N, TimeoutMS) -> case gen_tcp:recv (Socket, N, TimeoutMS) of
 	{ok, Binary} -> Binary;
 	{error, Reason} -> throw (Reason) end.
+
+tcp_ssl_recv(SslSocket, N, TimeoutMS) -> case ssl:recv(SslSocket, N, TimeoutMS) of
+	{ok, Binary} -> Binary;
+	{error, Reason} -> throw(Reason) end.
