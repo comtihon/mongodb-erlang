@@ -5,8 +5,10 @@
 
 -export_type ([host/0, connection/0]).
 -export ([connect/1, connect/2, disconnect/1, connect_factory/1, connect_factory/2]).
+-export([ssl_connect/1, ssl_connect/2, ssl_connect/3, ssl_connect_factory/1, ssl_connect_factory/2, ssl_connect_factory/3]).
 -export_type ([replset/0, rs_connection/0]).
 -export ([rs_connect/1, rs_connect/2, rs_disconnect/1, rs_connect_factory/1, rs_connect_factory/2]).
+-export ([ssl_rs_connect/1, ssl_rs_connect/2, ssl_rs_connect/3, ssl_rs_connect_factory/1, ssl_rs_connect_factory/2, ssl_rs_connect_factory/3]).
 
 -export_type ([action/1, db/0, write_mode/0, read_mode/0, failure/0]).
 -export ([do/5, this_db/0]).
@@ -67,6 +69,7 @@ connect_factory (Host) -> connect_factory (Host, infinity).
 %@doc Factory for use with a connection pool. See resource_pool module.
 connect_factory (Host, TimeoutMS) -> {Host, fun (H) -> connect (H, TimeoutMS) end, fun disconnect/1, fun mongo_connect:is_closed/1}.
 
+
 % Replica Set %
 
 -type replset() :: mongo_replset:replset().
@@ -91,6 +94,59 @@ rs_connect_factory (ReplSet) -> rs_connect_factory (ReplSet, infinity).
 -spec rs_connect_factory (replset(), timeout()) -> resource_pool:factory(rs_connection()).
 %@doc Factory for use with a rs_connection pool. See resource_pool module.
 rs_connect_factory (Replset, TimeoutMS) -> {Replset, fun (RS) -> RC = rs_connect (RS, TimeoutMS), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
+
+% SSL %
+-spec ssl_connect(host()) -> {ok, connection()} | {error, reason()}.
+%@doc Connect to given MongoDB server using SSL.
+ssl_connect(Host) -> ssl_connect(Host, infinity, []).
+
+-spec ssl_connect(host(), timeout()) -> {ok, connection()} | {error, reason()}.
+%@doc Connect to given MongoDB server using SSL.
+ssl_connect(Host, TimeoutMS) -> ssl_connect(Host, TimeoutMS, []).
+
+-spec ssl_connect(host(), timeout(), ssl:ssloption()) -> {ok, connection()} | {error, reason()}.
+%@doc Connect to given MongoDB server with SSL support.
+ssl_connect(Host, TimeoutMS, Options) -> mongo_connect:ssl_connect(Host, TimeoutMS, Options).
+
+
+-spec ssl_connect_factory (host()) -> resource_pool:factory(connection()).
+%@doc Factory for use with a connection pool. See resource_pool module.
+ssl_connect_factory (Host) -> ssl_connect_factory (Host, infinity, []).
+
+-spec ssl_connect_factory (host(), timeout()) -> resource_pool:factory(connection()).
+%@doc Factory for use with a connection pool. See resource_pool module.
+ssl_connect_factory (Host, TimeoutMS) -> ssl_connect_factory (Host, TimeoutMS, []).
+
+-spec ssl_connect_factory (host(), timeout(), ssl:ssloption()) -> resource_pool:factory(connection()).
+%@doc Factory for use with a connection pool. See resource_pool module.
+ssl_connect_factory (Host, TimeoutMS, Options) -> {Host, fun (H) -> ssl_connect (H, TimeoutMS, Options) end, fun disconnect/1, fun mongo_connect:is_closed/1}.
+
+
+-spec ssl_rs_connect (replset()) -> rs_connection(). % IO
+%@doc Create new cache of connections over SSL to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called.
+ssl_rs_connect (Replset) -> mongo_replset:ssl_connect (Replset).
+
+-spec ssl_rs_connect (replset(), timeout()) -> rs_connection(). % IO
+%@doc Create new cache of connections over SSL to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called. Timeout used for initial connection and every query and safe write.
+ssl_rs_connect (Replset, TimeoutMS) -> mongo_replset:ssl_connect (Replset, TimeoutMS).
+
+-spec ssl_rs_connect (replset(), timeout(), ssl:ssloption()) -> rs_connection(). % IO
+%@doc Create new cache of connections over SSL to replica set members starting with seed members. No connection attempted until rs_primary or rs_secondary_ok called. Timeout used for initial connection and every query and safe write.
+ssl_rs_connect (Replset, TimeoutMS, Options) -> mongo_replset:ssl_connect (Replset, TimeoutMS, Options).
+
+
+-spec ssl_rs_connect_factory (replset()) -> resource_pool:factory(rs_connection()).
+%@doc Factory for use with a rs_connection pool over SSL. See resource_pool module.
+ssl_rs_connect_factory (ReplSet) -> ssl_rs_connect_factory (ReplSet, infinity, []).
+
+-spec ssl_rs_connect_factory (replset(), timeout()) -> resource_pool:factory(rs_connection()).
+%@doc Factory for use with a rs_connection pool over SSL. See resource_pool module.
+ssl_rs_connect_factory (ReplSet, TimeoutMS) -> ssl_rs_connect_factory (ReplSet, TimeoutMS, []).
+
+-spec ssl_rs_connect_factory (replset(), timeout(), ssl:ssloption()) -> resource_pool:factory(rs_connection()).
+%@doc Factory for use with a rs_connection pool over SSL. See resource_pool module.
+ssl_rs_connect_factory (Replset, TimeoutMS, Options) -> {Replset, fun (RS) -> RC = ssl_rs_connect (RS, TimeoutMS, Options), {ok, RC} end, fun rs_disconnect/1, fun mongo_replset:is_closed/1}.
+
 
 % Action %
 
@@ -130,9 +186,9 @@ do (WriteMode, ReadMode, Connection, Database, Action) -> case connection_mode (
 
 -spec connection_mode (read_mode(), connection() | rs_connection()) -> {ok, connection()} | {error, reason()}. % IO
 %@doc For rs_connection return appropriate primary or secondary connection
-connection_mode (_, Conn = {connection, _, _, _}) -> {ok, Conn};
-connection_mode (master, RsConn = {rs_connection, _, _, _}) -> mongo_replset:primary (RsConn);
-connection_mode (slave_ok, RsConn = {rs_connection, _, _, _}) -> mongo_replset:secondary_ok (RsConn).
+connection_mode (_, Conn = {connection, _, _, _, _}) -> {ok, Conn};
+connection_mode (master, RsConn = {rs_connection, _, _, _, _}) -> mongo_replset:primary (RsConn);
+connection_mode (slave_ok, RsConn = {rs_connection, _, _, _, _}) -> mongo_replset:secondary_ok (RsConn).
 
 -spec this_db () -> db(). % Action
 %@doc Current db in context that we are querying

@@ -2,7 +2,7 @@
 -module (mongo_replset).
 
 -export_type ([replset/0, rs_connection/0]).
--export ([connect/1, connect/2, primary/1, secondary_ok/1, close/1, is_closed/1]). % API
+-export ([connect/1, connect/2, ssl_connect/1, ssl_connect/2, ssl_connect/3, primary/1, secondary_ok/1, close/1, is_closed/1]). % API
 
 -type maybe(A) :: {A} | {}.
 -type err_or(A) :: {ok, A} | {error, reason()}.
@@ -41,11 +41,25 @@ connect (ReplSet) -> connect (ReplSet, infinity).
 %@doc Create new cache of connections to replica set members starting with seed members. No connection attempted until primary or secondary_ok called. Timeout used for initial connection and every call.
 connect ({ReplName, Hosts}, TimeoutMS) ->
 	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
-	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS}.
+	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS, false}.
+
+-spec ssl_connect(replset()) -> rs_connection().
+%@doc Create new cache of connections with SSL support.
+ssl_connect(ReplSet) -> ssl_connect(ReplSet, infinity, []).
+
+-spec ssl_connect(replset(), timeout()) -> rs_connection().
+%@doc Create new cache of connections with SSL support.
+ssl_connect(ReplSet, TimeoutMS) -> ssl_connect(ReplSet, TimeoutMS, []).
+
+-spec ssl_connect(replset(), timeout(), ssl:ssloption()) -> rs_connection().
+%@doc Create new cache of connections with SSL support.
+ssl_connect({ReplName, Hosts}, TimeoutMS, SslOptions) ->
+	Dict = dict:from_list (lists:map (fun (Host) -> {mongo_connect:host_port (Host), {}} end, Hosts)),
+	{rs_connection, ReplName, mvar:new (Dict), TimeoutMS, SslOptions}.
 
 %% Note(superbobry): having an 'opaque' type here causes 'dialyzer' to
 %% crash (bug reported).
--type rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections()), timeout()}.
+-type rs_connection() :: {rs_connection, rs_name(), mvar:mvar(connections()), timeout(), maybe(list())}.
 % Maintains set of connections to some if not all of the replica set members. Opaque except to mongo:connect_mode
 % Type not opaque to mongo:connection_mode/2
 -type connections() :: dict:dictionary (host(), maybe(connection())).
@@ -71,14 +85,14 @@ secondary_ok (ReplConn) -> try
 
 -spec close (rs_connection()) -> ok. % IO
 %@doc Close replset connection
-close ({rs_connection, _, VConns, _}) ->
+close ({rs_connection, _, VConns, _, _}) ->
 	CloseConn = fun (_, MCon, _) -> case MCon of {Con} -> mongo_connect:close (Con); {} -> ok end end,
 	mvar:with (VConns, fun (Dict) -> dict:fold (CloseConn, ok, Dict) end),
 	mvar:terminate (VConns).
 
 -spec is_closed (rs_connection()) -> boolean(). % IO
 %@doc Has replset connection been closed?
-is_closed ({rs_connection, _, VConns, _}) -> mvar:is_terminated (VConns).
+is_closed ({rs_connection, _, VConns, _, _}) -> mvar:is_terminated (VConns).
 
 % EIO = IO that may throw error of any type
 
@@ -106,7 +120,7 @@ secondary_ok_conn (ReplConn, Hosts) -> try
 
 -spec fetch_member_info (rs_connection()) -> member_info(). % EIO
 %@doc Retrieve isMaster info from a current known member in replica set. Update known list of members from fetched info.
-fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns, _}) ->
+fetch_member_info (ReplConn = {rs_connection, _ReplName, VConns, _, _}) ->
 	OldHosts_ = dict:fetch_keys (mvar:read (VConns)),
 	{Conn, Info} = until_success (OldHosts_, fun (Host) -> connect_member (ReplConn, Host) end),
 	OldHosts = sets:from_list (OldHosts_),
@@ -133,11 +147,11 @@ remove_host (Host, Dict) ->
 
 -spec connect_member (rs_connection(), host()) -> member_info(). % EIO
 %@doc Connect to host and verify membership. Cache connection in rs_connection
-connect_member ({rs_connection, ReplName, VConns, TimeoutMS}, Host) ->
-	Conn = get_connection (VConns, Host, TimeoutMS),
+connect_member ({rs_connection, ReplName, VConns, TimeoutMS, SslOptions}, Host) ->
+	Conn = get_connection (VConns, Host, TimeoutMS, SslOptions),
 	Info = try get_member_info (Conn) catch _ ->
 		mongo_connect:close (Conn),
-		Conn1 = get_connection (VConns, Host, TimeoutMS),
+		Conn1 = get_connection (VConns, Host, TimeoutMS, SslOptions),
 		get_member_info (Conn1) end,
 	case bson:at (setName, Info) of
 		ReplName -> {Conn, Info};
@@ -145,15 +159,25 @@ connect_member ({rs_connection, ReplName, VConns, TimeoutMS}, Host) ->
 			mongo_connect:close (Conn),
 			throw ({not_member, ReplName, Host, Info}) end.
 
-get_connection (VConns, Host, TimeoutMS) -> mvar:modify (VConns, fun (Dict) ->
+get_connection (VConns, Host, TimeoutMS, SslOptions) -> mvar:modify (VConns, fun (Dict) ->
 	case dict:find (Host, Dict) of
 		{ok, {Conn}} -> case mongo_connect:is_closed (Conn) of
 			false -> {Dict, Conn};
-			true -> new_connection (Dict, Host, TimeoutMS) end;
-		_ -> new_connection (Dict, Host, TimeoutMS) end end).
+			true -> new_connection (Dict, Host, TimeoutMS, SslOptions) end;
+		_ -> new_connection (Dict, Host, TimeoutMS, SslOptions) end end).
 
-new_connection (Dict, Host, TimeoutMS) -> case mongo_connect:connect (Host, TimeoutMS) of
-	{ok, Conn} -> {dict:store (Host, {Conn}, Dict), Conn};
-	{error, Reason} -> throw ({cant_connect, Reason}) end.
+new_connection (Dict, Host, TimeoutMS, SslOptions) -> 
+	case SslOptions of
+		false ->
+			case mongo_connect:connect (Host, TimeoutMS) of
+				{ok, Conn} -> {dict:store (Host, {Conn}, Dict), Conn};
+				{error, Reason} -> throw ({cant_connect, Reason}) 
+			end;
+		_ ->
+			case mongo_connect:ssl_connect(Host, TimeoutMS, SslOptions) of
+				{ok, Conn} -> {dict:store (Host, {Conn}, Dict), Conn};
+				{error, Reason} -> throw ({cant_connect, Reason}) 
+			end
+	end.
 
 get_member_info (Conn) -> mongo_query:command ({admin, Conn}, {isMaster, 1}, true).
