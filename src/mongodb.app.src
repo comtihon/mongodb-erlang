@@ -3,6 +3,6 @@
   {vsn, "0.3.2"},
   {modules, []},
   {registered, []},
-  {applications, [kernel, stdlib]},
+  {applications, [kernel, stdlib, crypto, public_key, ssl]},
   {mod, {mongodb_app, []}}
  ]}.
