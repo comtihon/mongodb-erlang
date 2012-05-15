@@ -1,0 +1,8 @@
+{application, mongodb,
+ [{description, "Client interface to MongoDB, also known as the driver. See www.mongodb.org"},
+  {vsn, "0.3.2"},
+  {modules, []},
+  {registered, []},
+  {applications, [kernel, stdlib]},
+  {mod, {mongodb_app, []}}
+ ]}.
