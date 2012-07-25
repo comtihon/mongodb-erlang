@@ -31,8 +31,8 @@ start_link(Server) ->
 start_link(Server, Options) ->
 	gen_server:start_link(?MODULE, [Server, Options], []).
 
-request(Pid, DB, Request) ->
-	gen_server:call(Pid, {DB, Request}, infinity).
+request(Pid, Database, Request) ->
+	gen_server:call(Pid, {request, Database, Request}, infinity).
 
 stop(Pid) ->
 	gen_server:call(Pid, stop).
@@ -53,8 +53,8 @@ init([{Host, Port}, Options]) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, State};
 
-handle_call({Db, Request}, From, State) ->
-	{Packet, Id} = encode_request(Db, Request),
+handle_call({request, Database, Request}, From, State) ->
+	{Packet, Id} = encode_request(Database, Request),
 	case gen_tcp:send(State#state.socket, Packet) of
 		ok when is_record(Request, 'query'); is_record(Request, getmore) ->
 			{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
