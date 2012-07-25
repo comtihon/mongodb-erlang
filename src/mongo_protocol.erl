@@ -59,7 +59,7 @@ put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}, Re
 		(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 		?put_bits32(0,0,0,0,0,0,0, bit(R)),
 		(bson_binary:put_document(Sel))/binary>>;
-put_message(Db, #killcursor{cursorids = Cids}, RequestId) ->
+put_message(_Db, #killcursor{cursorids = Cids}, RequestId) ->
 	<<?put_header(?KillcursorOpcode),
 		?put_int32(0),
 		?put_int32(length(Cids)),
