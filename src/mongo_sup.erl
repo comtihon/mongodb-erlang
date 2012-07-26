@@ -1,7 +1,7 @@
 -module(mongo_sup).
 -export([
 	start_link/0,
-	start_child/2
+	start_cursor/6
 ]).
 
 -behaviour(supervisor).
@@ -17,9 +17,9 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, app).
 
--spec start_child(cursor, [term()]) -> {ok, pid()}.
-start_child(cursor, Args) ->
-	supervisor:start_child(mongo_cursors_sup, [Args]).
+-spec start_cursor(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
+start_cursor(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
+	supervisor:start_child(mongo_cursors_sup, [Connection, Database, Collection, Cursor, BatchSize, Batch]).
 
 
 %% @hidden
