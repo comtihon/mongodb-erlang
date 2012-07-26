@@ -25,7 +25,7 @@
 ]).
 -export ([
 	command/1,
-	create_index/2
+	ensure_index/2
 ]).
 % TODO: add auth/2
 
@@ -162,7 +162,7 @@ count(Coll, Selector) ->
 %@doc Count selected documents up to given max number; 0 means no max.
 %     Ie. stops counting when max is reached to save processing time.
 -spec count(collection(), selector(), integer()) -> integer().
-count (Coll, Selector, Limit) ->
+count(Coll, Selector, Limit) ->
 	CollStr = atom_to_binary(Coll, utf8),
 	Doc = command(case Limit =< 0 of
 		true -> {count, CollStr, 'query', Selector};
@@ -176,8 +176,8 @@ count (Coll, Selector, Limit) ->
 %%      name     :: bson:utf8()
 %%      unique   :: boolean()
 %%      dropDups :: boolean()
--spec create_index (collection(), bson:document()) -> ok.
-create_index(Coll, IndexSpec) ->
+-spec ensure_index (collection(), bson:document()) -> ok.
+ensure_index(Coll, IndexSpec) ->
 	#context{database = Database} = erlang:get(mongo_action_context),
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
