@@ -1,7 +1,7 @@
 -module(mongo_sup).
 -export([
 	start_link/0,
-	start_cursor/6
+	start_cursor/6,
 	start_pool/3,
 	stop_pool/1
 ]).
