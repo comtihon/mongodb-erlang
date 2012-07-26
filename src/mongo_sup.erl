@@ -1,7 +1,7 @@
 -module(mongo_sup).
 -export([
 	start_link/0,
-	start_cursor/6,
+	start_cursor/1,
 	start_pool/3,
 	stop_pool/1
 ]).
@@ -20,9 +20,9 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, app).
 
--spec start_cursor(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
-start_cursor(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	supervisor:start_child(mongo_cursors_sup, [Connection, Database, Collection, Cursor, BatchSize, Batch]).
+-spec start_cursor([term()]) -> pid().
+start_cursor(Args) ->
+	supervisor:start_child(mongo_cursors_sup, [Args]).
 
 -spec start_pool(atom(), pos_integer(), mongo_connection:service()) -> {ok, pid()}.
 start_pool(Name, Size, Service) ->

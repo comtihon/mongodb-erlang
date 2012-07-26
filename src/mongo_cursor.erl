@@ -35,7 +35,7 @@
 
 -spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	{ok, Pid} = mongo_sup:start_cursor(Connection, Database, Collection, Cursor, BatchSize, Batch),
+	{ok, Pid} = mongo_sup:start_cursor([Connection, Database, Collection, Cursor, BatchSize, Batch]),
 	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
