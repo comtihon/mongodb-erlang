@@ -1,6 +1,4 @@
-deps
-*.swp
-*.swo
-.eunit/
-data/
-**/*.beam
+.*
+ebin/
+deps/
+*.beam
