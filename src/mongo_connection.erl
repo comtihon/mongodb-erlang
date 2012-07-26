@@ -5,6 +5,11 @@
 	request/3,
 	stop/1
 ]).
+-export_type([
+	connection/0,
+	service/0,
+	options/0
+]).
 
 -behaviour(gen_server).
 -export([
@@ -23,15 +28,22 @@
 }).
 
 -include("mongo_protocol.hrl").
+-type connection() :: pid().
+-type service()    :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
+-type options()    :: [option()].
+-type option()     :: {timeout, timeout()} | {ssl, boolean()} | ssl.
 
 
-start_link(Server) ->
-	start_link(Server, []).
+-spec start_link(service()) -> {ok, pid()}.
+start_link(Service) ->
+	start_link(Service, []).
 
-start_link(Server, Options) ->
-	gen_server:start_link(?MODULE, [Server, Options], []).
+-spec start_link(service(), options()) -> {ok, pid()}.
+start_link(Service, Options) ->
+	gen_server:start_link(?MODULE, [Service, Options], []).
 
 %-spec request(pid(), mongo:database(), mongo_protocol:request()) -> ok | {mongo_protocol:cursor(), [bson:document()]}.
+-spec request(pid(), atom(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Pid, Database, Request) ->
 	case gen_server:call(Pid, {request, Database, Request}, infinity) of
 		ok ->
@@ -45,6 +57,7 @@ request(Pid, Database, Request) ->
 			erlang:error({bad_cursor, Reply#reply.cursorid})
 	end.
 
+-spec stop(pid()) -> ok.
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
