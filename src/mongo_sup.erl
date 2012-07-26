@@ -1,51 +1,39 @@
--module (mongo_sup).
--export ([
+-module(mongo_sup).
+-export([
 	start_link/0,
-	gen_objectid/0,
-	next_requestid/0
+	start_child/2
 ]).
 
--behaviour (supervisor).
+-behaviour(supervisor).
 -export ([
 	init/1
 ]).
 
+-define(WORKER(M),        {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
+-define(SUPERVISOR(M, T), {M, {supervisor, start_link, [{local, M}, ?MODULE, T]}, permanent, infinity, supervisor, [M]}).
 
+
+-spec start_link() -> {ok, pid()}.
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, app).
 
+-spec start_child(cursor, [term()]) -> {ok, pid()}.
+start_child(cursor, Args) ->
+	supervisor:start_child(mongo_cursors_sup, Args).
 
-%% @doc Fresh request id
--spec next_requestid () -> mongo_protocol:requestid().
-next_requestid() ->
-	ets:update_counter(?MODULE, requestid_counter, 1).
-
-%% @doc Fresh object id
--spec gen_objectid () -> bson:objectid().
-gen_objectid() ->
-	Now = bson:unixtime_to_secs(bson:timenow()),
-	MPid = ets:lookup_element(?MODULE, oid_machineprocid, 2),
-	N = ets:update_counter(?MODULE, oid_counter, 1),
-	bson:objectid(Now, MPid, N).
 
 %% @hidden
-init (app) ->
-	ets:new(?MODULE, [named_table, public]),
-	ets:insert(?MODULE, [
-		{oid_counter, 0},
-		{oid_machineprocid, oid_machineprocid()},
-		{requestid_counter, 0}
-	]),
+init(app) ->
 	{ok, {
 		{one_for_one, 5, 10}, [
+			{mongo_id_server, {mongo_id_server, start_link, []}, temporary, 5000, worker, [mongo_id_server]},
+			?SUPERVISOR(mongo_cursors_sup, cursors)
+		]
+	}};
+
+init(cursors) ->
+	{ok, {
+		{simple_one_for_one, 5, 10}, [
+			{undefined, {mongo_cursor, start_link, []}, temporary, 5000, worker, [mongo_cursor]}
 		]
 	}}.
-
-
-%% @private
--spec oid_machineprocid () -> <<_:40>>.
-oid_machineprocid() ->
-	OSPid = list_to_integer(os:getpid()),
-	{ok, Hostname} = inet:gethostname(),
-	<<MachineId:3/binary, _/binary>> = erlang:md5(Hostname),
-	<<MachineId:3/binary, OSPid:16/big>>.
