@@ -35,7 +35,8 @@
 
 -spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	mongo_sup:start_child(cursor, [Connection, Database, Collection, Cursor, BatchSize, Batch]).
+	{ok, Pid} = mongo_sup:start_child(cursor, [Connection, Database, Collection, Cursor, BatchSize, Batch]),
+	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
 next(Cursor) ->
@@ -51,7 +52,7 @@ take(Cursor, Limit) ->
 
 -spec close(pid()) -> ok.
 close(Cursor) ->
-	catch gen_server:call(Cursor, close),
+	catch gen_server:call(Cursor, stop),
 	ok.
 
 start_link(Args) ->
@@ -71,19 +72,22 @@ init([Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
 
 %% @hidden
 handle_call(next, _From, State) ->
+	%% TODO: exit the process when the cursor is empty
 	{Reply, UpdatedState} = next_i(State),
 	{reply, Reply, UpdatedState};
 
 handle_call(rest, _From, State) ->
+	%% TODO: exit the process when the cursor is empty
 	{Reply, UpdatedState} = rest_i(State, infinity),
 	{reply, Reply, UpdatedState};
 
 handle_call({rest, Limit}, _From, State) ->
+	%% TODO: exit the process when the cursor is empty
 	{Reply, UpdatedState} = rest_i(State, Limit),
 	{reply, Reply, UpdatedState};
 
 handle_call(stop, _From, State) ->
-	{stop, normal, State}.
+	{stop, normal, ok, State}.
 
 %% @hidden
 handle_cast(_, State) ->
@@ -94,8 +98,10 @@ handle_info(_, State) ->
 	{noreply, State}.
 
 %% @hidden
+terminate(_, #state{cursor = 0}) ->
+	ok;
 terminate(_, State) ->
-	ok = mongo_connection:request(State#state.connection, State#state.database, #killcursor{
+	mongo_connection:request(State#state.connection, State#state.database, #killcursor{
 		cursorids = [State#state.cursor]
 	}).
 
