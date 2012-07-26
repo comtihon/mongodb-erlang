@@ -113,7 +113,7 @@ code_change(_Old, State, _Extra) ->
 
 %% @private
 encode_request(Database, Request) ->
-	RequestId = mongo_sup:next_requestid(),
+	RequestId = mongo_id_server:request_id(),
 	Payload = mongo_protocol:put_message(Database, Request, RequestId),
 	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
 
