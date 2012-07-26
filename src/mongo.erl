@@ -27,11 +27,7 @@
 	command/1,
 	create_index/2
 ]).
-
-%-export ([auth/2]).
-%-export ([add_user/3]).
-%-export ([create_index/2]).
-%-export ([copy_database/3, copy_database/5]).
+% TODO: add auth/2
 
 -include("mongo_protocol.hrl").
 
@@ -175,11 +171,17 @@ count (Coll, Selector, Limit) ->
 	trunc(bson:at(n, Doc)). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
-%%      Allow user to just supply key
+%%      The key specification is a bson documents with the following fields:
+%%      key      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
+%%      name     :: bson:utf8()
+%%      unique   :: boolean()
+%%      dropDups :: boolean()
 -spec create_index (collection(), bson:document()) -> ok.
 create_index(Coll, IndexSpec) ->
 	#context{database = Database} = erlang:get(mongo_action_context),
-	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), make_index(IndexSpec)),
+	Key = bson:at(key, IndexSpec),
+	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
+	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), bson:merge(IndexSpec, Defaults)),
 	insert('system.indexes', Index).
 
 %% @doc Execute given MongoDB command and return its result.
@@ -201,32 +203,24 @@ command(Command) ->
 assign_id(Doc) ->
 	case bson:lookup('_id', Doc) of
 		{_Value} -> Doc;
-		{} -> bson:update('_id', mongo_sup:gen_objectid(), Doc)
+		{} -> bson:update('_id', mongo_id_server:object_id(), Doc)
 	end.
 
 %% @private
-make_index(IndexSpec) ->
-	case bson:lookup (key, IndexSpec) of
-		{Key} when is_tuple (Key) ->
-			bson:merge(IndexSpec, {key, Key, name, make_index_name(Key), unique, false, dropDups, false});
-		{_} ->
-			{key, IndexSpec, name, make_index_name(IndexSpec), unique, false, dropDups, false};
-		{} ->
-			{key, IndexSpec, name, make_index_name(IndexSpec), unique, false, dropDups, false}
-	end.
+gen_index_name(KeyOrder) ->
+	bson:doc_foldl(fun(Label, Order, Acc) ->
+		<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
+	end, <<"i">>, KeyOrder).
 
 %% @private
-make_index_name (KeyOrder) ->
-	AsName = fun(Label, Order, Name) ->
-		<<Name /binary, $_, (atom_to_binary (Label, utf8))/binary, $_,
-		(if
-			is_integer (Order) -> bson:utf8 (integer_to_list (Order));
-			is_atom (Order) -> atom_to_binary (Order, utf8);
-			is_binary (Order) -> Order;
-			true -> <<>>
-		end)/binary>>
-	end,
-	bson:doc_foldl(AsName, <<"i">>, KeyOrder).
+value_to_binary(Value) when is_integer(Value) ->
+	bson:utf8(integer_to_list(Value));
+value_to_binary(Value) when is_atom(Value) ->
+	atom_to_binary(Value, utf8);
+value_to_binary(Value) when is_binary(Value) ->
+	Value;
+value_to_binary(_Value) ->
+	<<>>.
 
 %% @private
 write(Request) ->
@@ -255,59 +249,26 @@ write(Connection, Database, Request) ->
 %% @private
 write(Connection, Database, Request, GetLastErrorParams) ->
 	ok = mongo_connection:request(Connection, Database, Request),
-	Reply = mongo_connection:request(Connection, Database, #'query'{
+	{0, [Doc | _]} = mongo_connection:request(Connection, Database, #'query'{
 		batchsize = -1,
 		collection = '$cmd',
 		selector = bson:append({getlasterror, 1}, GetLastErrorParams)
 	}),
-	{0, [Doc | _]} = process_reply(Reply),
 	Doc.
 
 %% @private
 read(Request) ->
 	#context{connection = Connection, database = Database, read_mode = ReadMode} = erlang:get(mongo_action_context),
 	#'query'{collection = Collection, batchsize = BatchSize} = Request,
-	Reply = mongo_connection:request(Connection, Database, Request#'query'{slaveok = ReadMode =:= slave_ok}),
-	mongo_cursor:create(Connection, Database, Collection, BatchSize, process_reply(Reply)).
+	{Cursor, Batch} = mongo_connection:request(Connection, Database, Request#'query'{slaveok = ReadMode =:= slave_ok}),
+	mongo_cursor:create(Connection, Database, Collection, Cursor, BatchSize, Batch).
 
 %% @private
 read_one(Request) ->
 	#context{connection = Connection, database = Database, read_mode = ReadMode} = erlang:get(mongo_action_context),
-	Reply = mongo_connection:request(Connection, Database, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
-	{0, Docs} = process_reply(Reply),
+	{0, Docs} = mongo_connection:request(Connection, Database, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
 	case Docs of
 		[] -> {};
 		[Doc | _] -> {Doc}
 	end.
 
-
-%% @private
-process_reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
-	{Reply#reply.cursorid, Reply#reply.documents};
-process_reply(#reply{cursornotfound = false, queryerror = true} = Reply) ->
-	[Doc | _] = Reply#reply.documents,
-	process_reply_error(bson:at(code, Doc), Doc).
-
-%% @private
-process_reply_error(13435, _) ->
-	erlang:error(not_master);
-process_reply_error(10057, _) ->
-	erlang:error(unauthorized);
-process_reply_error(_, Doc) ->
-	erlang:error({bad_query, Doc}).
-
-
-
-
-% Admin
-
-%-spec copy_database (db(), host(), db()) -> bson:document(). % Action
-%% Copy database from given host to the server I am connected to. Must be connected to 'admin' database.
-%copy_database (FromDb, FromHost, ToDb) ->
-%	command ({copydb, 1, fromhost, mongo_connect:show_host (FromHost), fromdb, atom_to_binary (FromDb, utf8), todb, atom_to_binary (ToDb, utf8)}).
-%
-%-spec copy_database (db(), host(), db(), username(), password()) -> bson:document(). % Action
-%% Copy database from given host, authenticating with given username and password, to the server I am connected to. Must be connected to 'admin' database.
-%copy_database (FromDb, FromHost, ToDb, Username, Password) ->
-%	Nonce = bson:at (nonce, command ({copydbgetnonce, 1, fromhost, mongo_connect:show_host (FromHost)})),
-%	command ({copydb, 1, fromhost, mongo_connect:show_host (FromHost), fromdb, atom_to_binary (FromDb, utf8), todb, atom_to_binary (ToDb, utf8), username, Username, nonce, Nonce, key, pw_key (Nonce, Username, Password)}).
