@@ -31,12 +31,31 @@ start_link(Server) ->
 start_link(Server, Options) ->
 	gen_server:start_link(?MODULE, [Server, Options], []).
 
+%-spec request(pid(), mongo:database(), mongo_protocol:request()) -> ok | {mongo_protocol:cursor(), [bson:document()]}.
 request(Pid, Database, Request) ->
-	gen_server:call(Pid, {request, Database, Request}, infinity).
+	case gen_server:call(Pid, {request, Database, Request}, infinity) of
+		ok ->
+			ok;
+		#reply{cursornotfound = false, queryerror = false} = Reply ->
+			{Reply#reply.cursorid, Reply#reply.documents};
+		#reply{cursornotfound = false, queryerror = true} = Reply ->
+			[Doc | _] = Reply#reply.documents,
+			process_error(bson:at(code, Doc), Doc);
+		#reply{cursornotfound = true, queryerror = false} = Reply ->
+			erlang:error({bad_cursor, Reply#reply.cursorid})
+	end.
 
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
+
+%% @private
+process_error(13435, _) ->
+	erlang:error(not_master);
+process_error(10057, _) ->
+	erlang:error(unauthorized);
+process_error(_, Doc) ->
+	erlang:error({bad_query, Doc}).
 
 %% @hidden
 init([{Host, Port}, Options]) ->
