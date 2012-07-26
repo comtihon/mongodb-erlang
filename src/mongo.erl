@@ -193,7 +193,7 @@ command(Command) ->
 	}),
 	case bson:at(ok, Doc) of
 		true -> Doc;
-		1 -> Doc;
+		N when N == 1 -> Doc;
 		_ -> erlang:error({bad_command, Doc}, [Command])
 	end.
 
