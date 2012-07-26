@@ -121,11 +121,14 @@ encode_request(Database, Request) ->
 decode_responses(Data) ->
 	decode_responses(Data, []).
 
-decode_responses(<<Length:32/signed-little, Payload:Length/binary, Rest/binary>>, Acc) ->
+%% @private
+decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->
+	PayloadLength = Length - 4,
+	<<Payload:PayloadLength/binary, Rest/binary>> = Data,
 	{Id, Response, <<>>} = mongo_protocol:get_reply(Payload),
 	decode_responses(Rest, [{Id, Response} | Acc]);
-decode_responses(<<Rest/binary>>, Acc) ->
-	{lists:reverse(Acc), Rest}.
+decode_responses(Data, Acc) ->
+	{lists:reverse(Acc), Data}.
 
 %% @private
 process_responses([], Requests) ->
