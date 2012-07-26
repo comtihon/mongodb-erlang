@@ -70,7 +70,7 @@ init([{Host, Port}, Options]) ->
 
 %% @hidden
 handle_call(stop, _From, State) ->
-	{stop, normal, State};
+	{stop, normal, ok, State};
 
 handle_call({request, Database, Request}, From, State) ->
 	{Packet, Id} = encode_request(Database, Request),
