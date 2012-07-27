@@ -41,15 +41,27 @@ create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
 
 -spec next(pid()) -> {} | {bson:document()}.
 next(Cursor) ->
-	gen_server:call(Cursor, next).
+	try gen_server:call(Cursor, next) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> {}
+	end.
 
 -spec rest(pid()) -> [bson:document()].
 rest(Cursor) ->
-	gen_server:call(Cursor, rest).
+	try gen_server:call(Cursor, rest) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> []
+	end.
 
 -spec take(pid(), non_neg_integer()) -> [bson:document()].
 take(Cursor, Limit) ->
-	gen_server:call(Cursor, {rest, Limit}).
+	try gen_server:call(Cursor, {rest, Limit}) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> []
+	end.
 
 -spec close(pid()) -> ok.
 close(Cursor) ->
@@ -74,19 +86,24 @@ init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
 
 %% @hidden
 handle_call(next, _From, State) ->
-	%% TODO: exit the process when the cursor is empty
-	{Reply, UpdatedState} = next_i(State),
-	{reply, Reply, UpdatedState};
+	case next_i(State) of
+		{Reply, #state{cursor = 0} = UpdatedState} ->
+			{stop, normal, Reply, UpdatedState};
+		{Reply, UpdatedState} ->
+			{reply, Reply, UpdatedState}
+	end;
 
 handle_call(rest, _From, State) ->
-	%% TODO: exit the process when the cursor is empty
 	{Reply, UpdatedState} = rest_i(State, infinity),
-	{reply, Reply, UpdatedState};
+	{stop, normal, Reply, UpdatedState};
 
 handle_call({rest, Limit}, _From, State) ->
-	%% TODO: exit the process when the cursor is empty
-	{Reply, UpdatedState} = rest_i(State, Limit),
-	{reply, Reply, UpdatedState};
+	case rest_i(State, Limit) of
+		{Reply, #state{cursor = 0} = UpdatedState} ->
+			{stop, normal, Reply, UpdatedState};
+		{Reply, UpdatedState} ->
+			{reply, Reply, UpdatedState}
+	end;
 
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State}.
