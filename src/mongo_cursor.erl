@@ -27,7 +27,8 @@
 	collection  :: atom(),
 	cursor      :: integer(),
 	batchsize   :: integer(),
-	batch       :: [bson:document()]
+	batch       :: [bson:document()],
+	monitor     :: reference
 }).
 
 -include ("mongo_protocol.hrl").
@@ -35,7 +36,7 @@
 
 -spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	{ok, Pid} = mongo_sup:start_cursor([Connection, Database, Collection, Cursor, BatchSize, Batch]),
+	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Database, Collection, Cursor, BatchSize, Batch]),
 	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
@@ -60,14 +61,15 @@ start_link(Args) ->
 
 
 %% @hidden
-init([Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
+init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
 	{ok, #state{
 		connection = Connection,
 		database = Database,
 		collection = Collection,
 		cursor = Cursor,
 		batchsize = BatchSize,
-		batch = Batch
+		batch = Batch,
+		monitor = erlang:monitor(process, Owner)
 	}}.
 
 %% @hidden
@@ -94,6 +96,9 @@ handle_cast(_, State) ->
 	{noreply, State}.
 
 %% @hidden
+handle_info({'DOWN', Monitor, process, _, _}, #state{monitor = Monitor} = State) ->
+	{stop, normal, State};
+
 handle_info(_, State) ->
 	{noreply, State}.
 
