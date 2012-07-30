@@ -182,7 +182,8 @@ ensure_index(Coll, IndexSpec) ->
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
 	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), bson:merge(IndexSpec, Defaults)),
-	insert('system.indexes', Index).
+	insert('system.indexes', Index),
+	ok.
 
 %% @doc Execute given MongoDB command and return its result.
 -spec command (bson:document()) -> bson:document(). % Action
