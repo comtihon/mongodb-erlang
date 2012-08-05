@@ -41,7 +41,7 @@ create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
 
 -spec next(pid()) -> {} | {bson:document()}.
 next(Cursor) ->
-	try gen_server:call(Cursor, next) of
+	try gen_server:call(Cursor, next, infinity) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> {}
@@ -49,7 +49,7 @@ next(Cursor) ->
 
 -spec rest(pid()) -> [bson:document()].
 rest(Cursor) ->
-	try gen_server:call(Cursor, rest) of
+	try gen_server:call(Cursor, rest, infinity) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> []
@@ -57,7 +57,7 @@ rest(Cursor) ->
 
 -spec take(pid(), non_neg_integer()) -> [bson:document()].
 take(Cursor, Limit) ->
-	try gen_server:call(Cursor, {rest, Limit}) of
+	try gen_server:call(Cursor, {rest, Limit}, infinity) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> []
