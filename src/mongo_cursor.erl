@@ -1,85 +1,161 @@
-%@doc A cursor references pending query results on a server.
-% TODO: terminate cursor after idle for 10 minutes.
--module (mongo_cursor).
+-module(mongo_cursor).
+-export([
+	create/6,
+	next/1,
+	rest/1,
+	take/2,
+	close/1
+]).
 
--export_type ([maybe/1]).
--export_type ([cursor/0, expired/0]).
+-export([
+	start_link/1
+]).
 
--export ([next/1, rest/1, take/2, close/1, is_closed/1]). % API
--export ([cursor/4]). % for mongo_query
+-behaviour(gen_server).
+-export([
+	init/1,
+	handle_call/3,
+	handle_cast/2,
+	handle_info/2,
+	terminate/2,
+	code_change/3
+]).
+
+-record(state, {
+	connection  :: mongo_connection:connection(),
+	database    :: atom(),
+	collection  :: atom(),
+	cursor      :: integer(),
+	batchsize   :: integer(),
+	batch       :: [bson:document()],
+	monitor     :: reference
+}).
 
 -include ("mongo_protocol.hrl").
 
--type maybe(A) :: {A} | {}.
 
--opaque cursor() :: mvar:mvar (state()).
-% Thread-safe cursor, ie. access to query results
+-spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
+create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
+	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Database, Collection, Cursor, BatchSize, Batch]),
+	Pid.
 
--type expired() :: {cursor_expired, cursor()}.
+-spec next(pid()) -> {} | {bson:document()}.
+next(Cursor) ->
+	try gen_server:call(Cursor, next, infinity) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> {}
+	end.
 
--type state() :: {env(), batch()}.
--type env() :: {mongo_connect:dbconnection(), collection(), batchsize()}.
--type batch() :: {cursorid(), [bson:document()]}.
+-spec rest(pid()) -> [bson:document()].
+rest(Cursor) ->
+	try gen_server:call(Cursor, rest, infinity) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> []
+	end.
 
--spec cursor (mongo_connect:dbconnection(), collection(), batchsize(), {cursorid(), [bson:document()]}) -> cursor(). % IO
-%@doc Create new cursor from result batch
-cursor (DbConn, Collection, BatchSize, Batch) ->
-	mvar:new ({{DbConn, Collection, BatchSize}, Batch}, fun finalize/1).
+-spec take(pid(), non_neg_integer()) -> [bson:document()].
+take(Cursor, Limit) ->
+	try gen_server:call(Cursor, {rest, Limit}, infinity) of
+		Result -> Result
+	catch
+		exit:{noproc, _} -> []
+	end.
 
--spec close (cursor()) -> ok. % IO
-%@doc Close cursor
-close (Cursor) -> mvar:terminate (Cursor).
+-spec close(pid()) -> ok.
+close(Cursor) ->
+	catch gen_server:call(Cursor, stop),
+	ok.
 
--spec is_closed (cursor()) -> boolean(). % IO
-%@doc Is cursor closed
-is_closed (Cursor) -> mvar:is_terminated (Cursor).
+start_link(Args) ->
+	gen_server:start_link(?MODULE, Args, []).
 
--spec rest (cursor()) -> [bson:document()]. % IO throws expired() & mongo_connect:failure()
-%@doc Return remaining documents in query result
-rest (Cursor) -> case next (Cursor) of
-	{} -> [];
-	{Doc} -> [Doc | rest (Cursor)] end.
 
--spec next (cursor()) -> maybe (bson:document()). % IO throws expired() & mongo_connect:failure()
-%@doc Return next document in query result or nothing if finished.
-next (Cursor) ->
-	Next = fun ({Env, Batch}) ->
-		{Batch1, MDoc} = xnext (Env, Batch),
-		{{Env, Batch1}, MDoc} end,
-	try mvar:modify (Cursor, Next)
-		of {} -> close (Cursor), {}; {Doc} -> {Doc}
-		catch expired -> close (Cursor), throw ({cursor_expired, Cursor}) end.
+%% @hidden
+init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
+	{ok, #state{
+		connection = Connection,
+		database = Database,
+		collection = Collection,
+		cursor = Cursor,
+		batchsize = BatchSize,
+		batch = Batch,
+		monitor = erlang:monitor(process, Owner)
+	}}.
 
--spec take (non_neg_integer(), cursor()) -> [bson:document()].
-%%@doc Return at most requested number of documents from query result cursor.
-take (0, _Cursor) -> [];
-take (Limit, Cursor) when Limit > 0 ->
-    case mongo:next(Cursor) of
-        {}    -> [];
-        {Doc} -> [Doc | take (Limit - 1, Cursor)]
-    end.
+%% @hidden
+handle_call(next, _From, State) ->
+	case next_i(State) of
+		{Reply, #state{cursor = 0} = UpdatedState} ->
+			{stop, normal, Reply, UpdatedState};
+		{Reply, UpdatedState} ->
+			{reply, Reply, UpdatedState}
+	end;
 
--spec xnext (env(), batch()) -> {batch(), maybe (bson:document())}. % IO throws expired & mongo_connect:failure()
-%@doc Get next document in cursor, fetching next batch from server if necessary
-xnext (Env = {DbConn, Coll, BatchSize}, {CursorId, Docs}) -> case Docs of
-	[Doc | Docs1] -> {{CursorId, Docs1}, {Doc}};
-	[] -> case CursorId of
-		0 -> {{0, []}, {}};
-		_ ->
-			Getmore = #getmore {collection = Coll, batchsize = BatchSize, cursorid = CursorId},
-			Reply = mongo_connect:call (DbConn, [], Getmore),
-			xnext (Env, batch_reply (Reply)) end end.
+handle_call(rest, _From, State) ->
+	{Reply, UpdatedState} = rest_i(State, infinity),
+	{stop, normal, Reply, UpdatedState};
 
--spec batch_reply (mongo_protocol:reply()) -> batch(). % IO throws expired
-%@doc Extract next batch of results from reply. Throw expired if cursor not found on server.
-batch_reply (#reply {
-	cursornotfound = CursorNotFound, queryerror = false, awaitcapable = _,
-	cursorid = CursorId, startingfrom = _, documents = Docs }) -> if
-		CursorNotFound -> throw (expired);
-		true -> {CursorId, Docs} end.
+handle_call({rest, Limit}, _From, State) ->
+	case rest_i(State, Limit) of
+		{Reply, #state{cursor = 0} = UpdatedState} ->
+			{stop, normal, Reply, UpdatedState};
+		{Reply, UpdatedState} ->
+			{reply, Reply, UpdatedState}
+	end;
 
--spec finalize (state()) -> ok. % IO. Result ignored
-%@doc Kill cursor on server if not already
-finalize ({{DbConn, _, _}, {CursorId, _}}) -> case CursorId of
-	0 -> ok;
-	_ -> mongo_connect:send (DbConn, [#killcursor {cursorids = [CursorId]}]) end.
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State}.
+
+%% @hidden
+handle_cast(_, State) ->
+	{noreply, State}.
+
+%% @hidden
+handle_info({'DOWN', Monitor, process, _, _}, #state{monitor = Monitor} = State) ->
+	{stop, normal, State};
+
+handle_info(_, State) ->
+	{noreply, State}.
+
+%% @hidden
+terminate(_, #state{cursor = 0}) ->
+	ok;
+terminate(_, State) ->
+	mongo_connection:request(State#state.connection, State#state.database, #killcursor{
+		cursorids = [State#state.cursor]
+	}).
+
+%% @hidden
+code_change(_Old, State, _Extra) ->
+	{ok, State}.
+
+%% @private
+next_i(#state{batch = [Doc | Rest]} = State) ->
+	{{Doc}, State#state{batch = Rest}};
+next_i(#state{batch = [], cursor = 0} = State) ->
+	{{}, State};
+next_i(#state{batch = []} = State) ->
+	{Cursor, Batch} = mongo_connection:request(State#state.connection, State#state.database, #getmore{
+		collection = State#state.collection,
+		batchsize = State#state.batchsize,
+		cursorid = State#state.cursor
+	}),
+	next_i(State#state{cursor = Cursor, batch = Batch}).
+
+%% @private
+rest_i(State, infinity) ->
+	rest_i(State, -1);
+rest_i(State, Limit) ->
+	{Docs, UpdatedState} = rest_i(State, [], Limit),
+	{lists:reverse(Docs), UpdatedState}.
+
+%% @private
+rest_i(State, Acc, 0) ->
+	{Acc, State};
+rest_i(State, Acc, Limit) ->
+	case next_i(State) of
+		{{}, UpdatedState} -> {Acc, UpdatedState};
+		{{Doc}, UpdatedState} -> rest_i(UpdatedState, [Doc | Acc], Limit - 1)
+	end.
