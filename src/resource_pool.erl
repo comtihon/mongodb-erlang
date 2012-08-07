@@ -42,9 +42,9 @@ get ({{Input,Create,_,IsExpired}, VResources}) ->
 
 -spec close (pool(_)) -> ok. % IO
 %@doc Close pool and all its resources
-close ({{_,_,Expire,_}, VResources}) ->
+close ({{_,_,Expire,IsExpired}, VResources}) ->
 	mvar:with (VResources, fun (Array) ->
-		array:map (fun (_I, MRes) -> case MRes of {Res} -> Expire (Res); {} -> ok end end, Array) end),
+		array:map (fun (_I, MRes) -> case MRes of {Res} -> case IsExpired (Res) of false -> Expire (Res); true -> ok end; {} -> ok end end, Array) end),
 	mvar:terminate (VResources).
 
 -spec is_closed (pool(_)) -> boolean(). % IO
