@@ -74,7 +74,7 @@ process_error(_, Doc) ->
 init([{Host, Port}, Options]) ->
 	Timeout = proplists:get_value(timeout, Options, infinity),
 	_SSL = proplists:get_bool(ssl, Options),
-	case gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, 0}, {nodelay, true}], Timeout) of
+	case gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout) of
 		{ok, Socket} ->
 			{ok, #state{socket = Socket, requests = [], buffer = <<>>}};
 		{error, Reason} ->
@@ -89,6 +89,7 @@ handle_call({request, Database, Request}, From, State) ->
 	{Packet, Id} = encode_request(Database, Request),
 	case gen_tcp:send(State#state.socket, Packet) of
 		ok when is_record(Request, 'query'); is_record(Request, getmore) ->
+			inet:setopts(State#state.socket, [{active, once}]),
 			{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
 		ok ->
 			{reply, ok, State};
@@ -105,7 +106,13 @@ handle_info({tcp, _Socket, Data}, State) ->
 	Buffer = <<(State#state.buffer)/binary, Data/binary>>,
 	{Responses, Pending} = decode_responses(Buffer),
 	{noreply, State#state{
-		requests = process_responses(Responses, State#state.requests),
+		requests = case process_responses(Responses, State#state.requests) of
+			[] ->
+				[];
+			Requests ->
+				inet:setopts(State#state.socket, [{active, once}]),
+				Requests
+		end,
 		buffer = Pending
 	}};
 
