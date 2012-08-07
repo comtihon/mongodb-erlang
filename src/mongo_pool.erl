@@ -51,15 +51,15 @@ handle_call(get, _From, #state{connections = Connections} = State) ->
 	Index = random:uniform(array:size(Connections)) - 1,
 	case array:get(Index, Connections) of
 		undefined ->
-			try supervisor:start_child(State#state.supervisor, []) of
+			case supervisor:start_child(State#state.supervisor, []) of
 				{ok, Connection} ->
 					Monitor = erlang:monitor(process, Connection),
 					{reply, {ok, Connection}, State#state{
 						connections = array:set(Index, Connection, Connections),
 						monitors = orddict:store(Monitor, Index, State#state.monitors)
-					}}
-			catch
-				_:Error -> {reply, {error, Error}, State}
+					}};
+				{error, Error} ->
+					{reply, {error, Error}, State}
 			end;
 		Connection ->
 			{reply, {ok, Connection}, State}
