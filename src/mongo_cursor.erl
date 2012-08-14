@@ -4,6 +4,7 @@
 	next/1,
 	rest/1,
 	take/2,
+	foldl/4,
 	close/1
 ]).
 
@@ -61,6 +62,18 @@ take(Cursor, Limit) ->
 		Result -> Result
 	catch
 		exit:{noproc, _} -> []
+	end.
+
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer()) -> term().
+foldl(_Fun, Acc, _Cursor, 0) ->
+	Acc;
+foldl(Fun, Acc, Cursor, Max0) ->
+	case next(Cursor) of
+		{} -> Acc;
+		{Doc} when Max0 =/= infinity ->
+			foldl(Fun, Fun(Doc, Acc), Cursor, Max0 - 1);
+		{Doc} ->
+			foldl(Fun, Fun(Doc, Acc), Cursor, Max0)
 	end.
 
 -spec close(pid()) -> ok.
