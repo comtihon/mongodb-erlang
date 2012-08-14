@@ -87,7 +87,7 @@ init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
 %% @hidden
 handle_call(next, _From, State) ->
 	case next_i(State) of
-		{Reply, #state{cursor = 0} = UpdatedState} ->
+		{Reply, #state{cursor = 0, batch = []} = UpdatedState} ->
 			{stop, normal, Reply, UpdatedState};
 		{Reply, UpdatedState} ->
 			{reply, Reply, UpdatedState}
