@@ -4,6 +4,8 @@
 	next/1,
 	rest/1,
 	take/2,
+	foldl/4,
+	map/3,
 	close/1
 ]).
 
@@ -62,6 +64,23 @@ take(Cursor, Limit) ->
 	catch
 		exit:{noproc, _} -> []
 	end.
+
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer()) -> term().
+foldl(_Fun, Acc, _Cursor, 0) ->
+	Acc;
+foldl(Fun, Acc, Cursor, infinity) ->
+	lists:foldl(Fun, Acc, rest(Cursor));
+foldl(Fun, Acc, Cursor, Max) ->
+	case next(Cursor) of
+		{} -> Acc;
+		{Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1)
+	end.
+
+-spec map(fun((bson:document()) -> term()), pid(), non_neg_integer()) -> [term()].
+map(Fun, Cursor, Max) ->
+	lists:reverse(foldl(fun(Doc, Acc) ->
+		[Fun(Doc) | Acc]
+	end, [], Cursor, Max)).
 
 -spec close(pid()) -> ok.
 close(Cursor) ->
