@@ -20,7 +20,7 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, app).
 
--spec start_cursor([term()]) -> pid().
+-spec start_cursor([term()]) -> {ok, pid()}.
 start_cursor(Args) ->
 	supervisor:start_child(mongo_cursors_sup, [Args]).
 
