@@ -232,13 +232,12 @@ write(Request) ->
 		SafeMode ->
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 			Ack = write(Context#context.connection, Context#context.database, Request, Params),
-			case bson:lookup(err, Ack) of
-				{} -> ok;
-				{undefined} -> ok;
-				{String} ->
+			case bson:lookup(err, Ack, undefined) of
+				undefined -> ok;
+				String ->
 					case bson:at(code, Ack) of
-						10058 -> erlang:error(not_master);
-						Code -> erlang:error({write_failure, Code, String})
+						10058 -> erlang:exit(not_master);
+						Code -> erlang:exit({write_failure, Code, String})
 					end
 			end
 	end.
