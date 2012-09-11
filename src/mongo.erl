@@ -15,7 +15,7 @@
 
 -export_type ([collection/0, selector/0, projector/0, skip/0, batchsize/0, modifier/0]).
 -export ([insert/2, insert_all/2]).
--export ([save/2, replace/3, repsert/3, modify/3]).
+-export ([save/2, replace/3, repsert/3, modify/3, update/5]).
 -export ([delete/2, delete_one/2]).
 -export ([find_one/2, find_one/3, find_one/4]).
 -export ([find/2, find/3, find/4, find/5]).
