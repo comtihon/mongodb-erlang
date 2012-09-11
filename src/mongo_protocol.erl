@@ -46,7 +46,9 @@ bool (1) -> true.
 
 -spec dbcoll (db(), collection()) -> bson:utf8().
 %@doc Concat db and collection name with period (.) in between
-dbcoll (Db, Coll) -> <<(atom_to_binary (Db, utf8)) /binary, $., (atom_to_binary (Coll, utf8)) /binary>>.
+dbcoll (<<Db/binary>>, <<Coll/binary>>) -> <<Db/binary, $., Coll/binary>>;
+dbcoll (Db, Coll) when is_atom(Db) -> dbcoll (atom_to_binary (Db, utf8), Coll);
+dbcoll (Db, Coll) when is_atom(Coll) -> dbcoll (Db, atom_to_binary (Coll, utf8)).
 
 -type message() :: notice() | request().
 
