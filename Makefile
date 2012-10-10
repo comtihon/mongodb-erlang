@@ -34,7 +34,7 @@ eunit:
 	@$(REBAR) eunit skip_deps=true
 
 ct:
-	@$(REBAR) ct skip_deps=true suites=gen_process
+	@$(REBAR) ct skip_deps=true
 
 # Dialyzer.
 build-plt:
