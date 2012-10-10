@@ -73,7 +73,7 @@ insert_and_delete(Config) ->
 	Database   = ?config(database, Config),
 	Collection = ?config(collection, Config),
 	mongo:do(safe, master, Connection, Database, fun () ->
-		Teams = mongo:insert(Collection, [
+		_Teams = mongo:insert(Collection, [
 			{name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
 			{name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
 			{name, <<"Phillies">>, home, {city, <<"Philadelphia">>, state, <<"PA">>}, league, <<"National">>},
