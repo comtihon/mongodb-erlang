@@ -17,7 +17,8 @@
 	find/2,
 	find/3,
 	find/4,
-	find/5
+	find/5,
+	find/6
 ]).
 -export([
 	count/2,
@@ -146,7 +147,15 @@ find(Coll, Selector, Projector, Skip) ->
 %%      Empty projection means full projection.
 -spec find (collection(), selector(), projector(), skip(), batchsize()) -> cursor(). % Action
 find(Coll, Selector, Projector, Skip, BatchSize) ->
+	find(Coll, Selector, Projector, Skip, BatchSize, []).
+
+-spec find (collection(), selector(), projector(), skip(), batchsize(), [find_option()]) -> cursor(). % Action
+-type find_option() :: no_timeout | tail.
+find(Coll, Selector, Projector, Skip, BatchSize, Options) ->
 	read(#'query'{
+		tailablecursor = lists:member(tail, Options),
+		nocursortimeout = lists:member(no_timeout, Options),
+		awaitdata = lists:member(tail, Options),
 		collection = Coll,
 		selector = Selector,
 		projector = Projector,
