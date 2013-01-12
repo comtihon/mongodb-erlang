@@ -83,6 +83,12 @@ This driver does not provide helper functions for commands. Use `mongo:command` 
 
 There are functions for complex commands like `mongo:auth`, `mongo:add_user`, and `mongo:create_index`.
 
+### Authentication
+
+To authenticate use function `mongo:auth`.
+
+Plain Erlang string is interpreted as a BSON array of integers, so **make sure** to always encode your strings, as in `<<"hello">>` or `bson:utf8("hello")`.
+
 ### Pooling
 
 A single (replset-)connection is thread-safe, i.e. multiple `mongo:do` actions can access it simultaneously. However, if you want to increase concurrency by using multiple connection simultaneously, you can create a pool of connections using the generic `resource_pool` module with the appropriate factory object supplied by `mongo` module.
