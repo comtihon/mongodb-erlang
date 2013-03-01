@@ -118,7 +118,7 @@ handle_call(rest, _From, State) ->
 
 handle_call({rest, Limit}, _From, State) ->
 	case rest_i(State, Limit) of
-		{Reply, #state{cursor = 0} = UpdatedState} ->
+		{Reply, #state{cursor = 0, batch = []} = UpdatedState} ->
 			{stop, normal, Reply, UpdatedState};
 		{Reply, UpdatedState} ->
 			{reply, Reply, UpdatedState}
