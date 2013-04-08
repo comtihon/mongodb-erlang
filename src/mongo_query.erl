@@ -76,4 +76,5 @@ query_reply (#reply {
 			true -> case bson:at (code, hd (Docs)) of
 				13435 -> throw (not_master);
 				10057 -> throw (unauthorized);
+				16550 -> throw (unauthorized);
 				_ -> erlang:error ({bad_query, hd (Docs)}) end end.
