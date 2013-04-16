@@ -42,7 +42,7 @@ init([Size, Sup]) ->
 	random:seed(erlang:now()),
 	{ok, #state{
 		supervisor = Sup,
-		connections = array:new(Size, [{fixed, false}, {default, undefined}]),
+		connections = array:new(Size, [{fixed, true}, {default, undefined}]),
 		monitors = orddict:new()
 	}}.
 
