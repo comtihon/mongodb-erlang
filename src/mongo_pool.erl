@@ -74,7 +74,7 @@ handle_info({'DOWN', Monitor, process, _Pid, _}, #state{monitors = Monitors} = S
 	{ok, Index} = orddict:find(Monitor, Monitors),
 	{noreply, State#state{
 		connections = array:set(Index, undefined, State#state.connections),
-		monitors = orddict:erase(Index, Monitors)
+		monitors = orddict:erase(Monitor, Monitors)
 	}};
 
 handle_info(_, State) ->
