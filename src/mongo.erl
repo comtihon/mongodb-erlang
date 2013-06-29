@@ -391,9 +391,9 @@ binary_to_hexstr (Bin) ->
 -spec add_user (permission(), username(), password()) -> ok. % Action
 %@doc Add user with given access rights (permission)
 add_user (Permission, Username, Password) ->
-	User = case find_one (system.users, {user, Username}) of {} -> {user, Username}; {Doc} -> Doc end,
+	User = case find_one ('system.users', {user, Username}) of {} -> {user, Username}; {Doc} -> Doc end,
 	Rec = {readOnly, case Permission of read_only -> true; read_write -> false end, pwd, pw_hash (Username, Password)},
-	save (system.users, bson:merge (Rec, User)).
+	save ('system.users', bson:merge (Rec, User)).
 
 % Index %
 
