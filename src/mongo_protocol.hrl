@@ -40,7 +40,7 @@
 	selector :: selector(),
 	projector = [] :: projector() }).
 
--type projector() :: bson:document().
+-type projector() :: bson:document() | [].
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 
