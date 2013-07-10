@@ -28,6 +28,13 @@
 	command/1,
 	ensure_index/2
 ]).
+
+-export_type([
+	write_mode/0,
+	read_mode/0,
+	action/1
+]).
+
 % TODO: add auth/2
 
 -include("mongo_protocol.hrl").

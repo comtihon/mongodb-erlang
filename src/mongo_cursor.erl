@@ -30,7 +30,7 @@
 	cursor      :: integer(),
 	batchsize   :: integer(),
 	batch       :: [bson:document()],
-	monitor     :: reference
+	monitor     :: reference()
 }).
 
 -include ("mongo_protocol.hrl").
