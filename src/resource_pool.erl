@@ -31,7 +31,28 @@ new (Factory, MaxSize) -> {Factory, mvar:new (array:new (MaxSize, [{fixed, false
 %@doc Return a random resource from the pool, creating one if necessary. Error if failed to create
 get ({{Input,Create,_,IsExpired}, VResources}) ->
 	New = fun (Array, I) -> Res = trans_error (fun () -> Create (Input) end), {array:set (I, {Res}, Array), Res} end,
-	Check = fun (Array, I, Res) -> case IsExpired (Res) of true -> New (Array, I); false -> {Array, Res} end end,
+	Check = fun (Array, I, Res) -> case IsExpired (Res) of
+                                       true ->
+                                           New (Array, I);
+                                       false ->
+                                           CheckTcpConnection = fun (Socket) ->
+                                                                        case gen_tcp:recv(Socket, 0, 0) of 
+                                                                            {ok, B} -> B;
+                                                                            {error, Reason} -> throw (Reason)
+                                                                        end
+                                                                end,
+                                           {connection, _Host, VSocket, SslSocket, TimeoutMS} = Res,
+                                           
+                                           try mvar:with(VSocket, CheckTcpConnection) of
+                                               ReplyBin ->
+                                                   {Array, Res}
+                                           catch
+                                               throw:timeout -> {Array, Res};
+                                               _:_ -> mvar:terminate(VSocket),
+                                                      New (Array, I)
+                                           end
+                                   end
+            end,
 	try mvar:modify (VResources, fun (Array) ->
 		R = random:uniform (array:size (Array)) - 1,
 		case array:get (R, Array) of
