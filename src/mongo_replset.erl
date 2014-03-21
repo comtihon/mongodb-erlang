@@ -149,14 +149,14 @@ remove_host (Host, Dict) ->
 %@doc Connect to host and verify membership. Cache connection in rs_connection
 connect_member ({rs_connection, ReplName, VConns, TimeoutMS, SslOptions}, Host) ->
 	Conn = get_connection (VConns, Host, TimeoutMS, SslOptions),
-	Info = try get_member_info (Conn) catch _ ->
-		mongo_connect:close (Conn),
-		Conn1 = get_connection (VConns, Host, TimeoutMS, SslOptions),
-		get_member_info (Conn1) end,
+	{Conn2, Info} = try {Conn, get_member_info(Conn)} catch _ ->
+                        mongo_connect:close(Conn),
+                        Conn1 = get_connection(VConns, Host, TimeoutMS, SslOptions),
+                        {Conn1, get_member_info(Conn1)} end,
 	case bson:at (setName, Info) of
-		ReplName -> {Conn, Info};
+		ReplName -> {Conn2, Info};
 		_ ->
-			mongo_connect:close (Conn),
+			mongo_connect:close (Conn2),
 			throw ({not_member, ReplName, Host, Info}) end.
 
 get_connection (VConns, Host, TimeoutMS, SslOptions) -> mvar:modify (VConns, fun (Dict) ->
