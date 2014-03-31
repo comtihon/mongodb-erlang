@@ -9,6 +9,8 @@
 
 -export ([gen_objectid/0, next_requestid/0]). % API
 
+-define (MAX_INT32, 2147483647).
+
 %% Behaviour callbacks
 
 start (_, []) -> supervisor:start_link ({local, ?MODULE}, ?MODULE, []).
@@ -30,7 +32,7 @@ init ([]) ->
 
 -spec next_requestid () -> mongo_protocol:requestid(). % IO
 %@doc Fresh request id
-next_requestid() -> ets:update_counter (?MODULE, requestid_counter, 1).
+next_requestid() -> ets:update_counter (?MODULE, requestid_counter, {2, 1, ?MAX_INT32, 0}).
 
 -spec gen_objectid () -> bson:objectid(). % IO
 %@doc Fresh object id
