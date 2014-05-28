@@ -28,11 +28,9 @@
 }).
 
 -include("mongo_protocol.hrl").
--type connection() :: pid().
 -type service() :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
 -type options() :: [option()].
 -type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl.
-
 
 -spec start_link(service()) -> {ok, pid()}.
 start_link(Service) ->

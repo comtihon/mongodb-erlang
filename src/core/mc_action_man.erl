@@ -14,12 +14,6 @@
 %% API
 -export([write/2, read/2, read_one/2, do/5]).
 
--type connection() :: pid().
--type database() :: atom().
--type write_mode() :: unsafe | safe | {safe, bson:document()}.
--type read_mode() :: master | slave_ok.
--type action(A) :: fun (() -> A).
-
 %% @doc Execute mongo action under given write_mode, read_mode, connection, and database.
 -spec do(write_mode(), read_mode(), connection(), database(), action(A)) -> A.
 do(WriteMode, ReadMode, Connection, Database, Action) ->
@@ -41,7 +35,7 @@ do(WriteMode, ReadMode, Connection, Database, Action) ->
 		end
 	end.
 
--spec write(Connection :: pid() | term(), Request) -> any().
+-spec write(Connection :: pid() | term(), Request :: term()) -> any().
 write(Connection, Request) ->
 	Context = erlang:get(mongo_action_context), %TODO remove process dictionary usage
 	case Context#context.write_mode of
