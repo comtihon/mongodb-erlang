@@ -1,4 +1,4 @@
--module(mongo_connection).
+-module(mongo_connection_worker).
 -export([
 	start_link/1,
 	start_link/2,
@@ -42,33 +42,13 @@ start_link(Service) ->
 start_link(Service, Options) ->
 	gen_server:start_link(?MODULE, [Service, Options], []).
 
-%-spec request(pid(), mongo:database(), mongo_protocol:request()) -> ok | {mongo_protocol:cursor(), [bson:document()]}.
 -spec request(pid(), atom(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Pid, Database, Request) ->
-	case gen_server:call(Pid, {request, Database, Request}, infinity) of
-		ok ->
-			ok;
-		#reply{cursornotfound = false, queryerror = false} = Reply ->
-			{Reply#reply.cursorid, Reply#reply.documents};
-		#reply{cursornotfound = false, queryerror = true} = Reply ->
-			[Doc | _] = Reply#reply.documents,
-			process_error(bson:at(code, Doc), Doc);
-		#reply{cursornotfound = true, queryerror = false} = Reply ->
-			erlang:error({bad_cursor, Reply#reply.cursorid})
-	end.
+	mc_connection_man:reply(gen_server:call(Pid, {request, Database, Request}, infinity)).
 
 -spec stop(pid()) -> ok.
 stop(Pid) ->
 	gen_server:call(Pid, stop).
-
-
-%% @private
-process_error(13435, _) ->
-	erlang:error(not_master);
-process_error(10057, _) ->
-	erlang:error(unauthorized);
-process_error(_, Doc) ->
-	erlang:error({bad_query, Doc}).
 
 %% @hidden
 init([{Host, Port}, Options]) ->
@@ -105,20 +85,19 @@ handle_cast(_, State) ->
 handle_info({tcp, _Socket, Data}, State) ->
 	Buffer = <<(State#state.buffer)/binary, Data/binary>>,
 	{Responses, Pending} = decode_responses(Buffer),
-	{noreply, State#state{
-		requests = case process_responses(Responses, State#state.requests) of
-			           [] ->
-				           [];
-			           Requests ->
-				           inet:setopts(State#state.socket, [{active, once}]),
-				           Requests
-		           end,
-		buffer = Pending
-	}};
-
+	{noreply,
+		State#state{
+			requests = case process_responses(Responses, State#state.requests) of
+				           [] ->
+					           [];
+				           Requests ->
+					           inet:setopts(State#state.socket, [{active, once}]),
+					           Requests
+			           end,
+			buffer = Pending
+		}};
 handle_info({tcp_closed, _Socket}, State) ->
 	{stop, tcp_closed, State};
-
 handle_info({tcp_error, _Socket, Reason}, State) ->
 	{stop, Reason, State}.
 

@@ -30,7 +30,7 @@ end_per_suite(_Config) ->
 	ok.
 
 init_per_testcase(Case, Config) ->
-	{ok, Connection} = mongo_connection:start_link({"127.0.0.1", 27017}, []),
+	{ok, Connection} = mongo_connection_worker:start_link({"127.0.0.1", 27017}, []),
 	[{connection, Connection}, {collection, collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->

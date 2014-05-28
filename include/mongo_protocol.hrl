@@ -56,3 +56,11 @@
 	cursorid :: cursorid(),
 	startingfrom :: integer(),
 	documents :: [bson:document()] }).
+
+% TODO when proc.dictionary will be removed, move me to mc_action_man
+-record(context, {
+	write_mode :: write_mode(),
+	read_mode :: read_mode(),
+	connection :: mongo_connection_worker:connection(),
+	database :: database()
+}).
