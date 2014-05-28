@@ -25,7 +25,7 @@ request_id() ->
 	ets:update_counter(?MODULE, requestid_counter, 1).
 
 %% @doc Fresh object id
--spec object_id () -> bson:objectid().
+-spec object_id() -> bson:objectid().
 object_id() ->
 	Now = bson:unixtime_to_secs(bson:timenow()),
 	MPid = ets:lookup_element(?MODULE, oid_machineprocid, 2),

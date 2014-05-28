@@ -24,16 +24,16 @@
 ]).
 
 -record(state, {
-	connection  :: mongo_connection:connection(),
-	database    :: atom(),
-	collection  :: atom(),
-	cursor      :: integer(),
-	batchsize   :: integer(),
-	batch       :: [bson:document()],
-	monitor     :: reference
+	connection :: mongo_connection:connection(),
+	database :: atom(),
+	collection :: atom(),
+	cursor :: integer(),
+	batchsize :: integer(),
+	batch :: [bson:document()],
+	monitor :: reference
 }).
 
--include ("mongo_protocol.hrl").
+-include("mongo_protocol.hrl").
 
 
 -spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().

@@ -7,13 +7,13 @@
 ]).
 
 -behaviour(supervisor).
--export ([
+-export([
 	init/1
 ]).
 
--define(SUPERVISOR(Id, Tag),       {Id, {supervisor, start_link, [?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
+-define(SUPERVISOR(Id, Tag), {Id, {supervisor, start_link, [?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
 -define(SUPERVISOR(Id, Name, Tag), {Id, {supervisor, start_link, [{local, Name}, ?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
--define(WORKER(M, F, A, R),        {M,  {M, F, A}, R, 5000, worker, [M]}).
+-define(WORKER(M, F, A, R), {M, {M, F, A}, R, 5000, worker, [M]}).
 
 
 -spec start_link() -> {ok, pid()}.

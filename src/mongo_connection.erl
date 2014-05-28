@@ -22,16 +22,16 @@
 ]).
 
 -record(state, {
-	socket    :: gen_tcp:socket(),
-	requests  :: orddict:orddict(),
-	buffer    :: binary()
+	socket :: gen_tcp:socket(),
+	requests :: orddict:orddict(),
+	buffer :: binary()
 }).
 
 -include("mongo_protocol.hrl").
 -type connection() :: pid().
--type service()    :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
--type options()    :: [option()].
--type option()     :: {timeout, timeout()} | {ssl, boolean()} | ssl.
+-type service() :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
+-type options() :: [option()].
+-type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl.
 
 
 -spec start_link(service()) -> {ok, pid()}.
@@ -107,12 +107,12 @@ handle_info({tcp, _Socket, Data}, State) ->
 	{Responses, Pending} = decode_responses(Buffer),
 	{noreply, State#state{
 		requests = case process_responses(Responses, State#state.requests) of
-			[] ->
-				[];
-			Requests ->
-				inet:setopts(State#state.socket, [{active, once}]),
-				Requests
-		end,
+			           [] ->
+				           [];
+			           Requests ->
+				           inet:setopts(State#state.socket, [{active, once}]),
+				           Requests
+		           end,
 		buffer = Pending
 	}};
 

@@ -23,7 +23,7 @@
 	count/2,
 	count/3
 ]).
--export ([
+-export([
 	command/1,
 	ensure_index/2
 ]).
@@ -32,17 +32,17 @@
 -include("mongo_protocol.hrl").
 
 -type connection() :: pid().
--type database()   :: atom().
--type cursor()     :: pid().
+-type database() :: atom().
+-type cursor() :: pid().
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
--type read_mode()  :: master | slave_ok.
--type action(A)    :: fun (() -> A).
+-type read_mode() :: master | slave_ok.
+-type action(A) :: fun (() -> A).
 
 -record(context, {
 	write_mode :: write_mode(),
-	read_mode  :: read_mode(),
+	read_mode :: read_mode(),
 	connection :: mongo_connection:connection(),
-	database   :: database()
+	database :: database()
 }).
 
 
@@ -94,12 +94,12 @@ update(Coll, Selector, Doc, Upsert, MultiUpdate) ->
 	write(#update{collection = Coll, selector = Selector, updater = Doc, upsert = Upsert, multiupdate = MultiUpdate}).
 
 %% @doc Delete selected documents
--spec delete (collection(), selector()) -> ok.
+-spec delete(collection(), selector()) -> ok.
 delete(Coll, Selector) ->
 	write(#delete{collection = Coll, singleremove = false, selector = Selector}).
 
 %% @doc Delete first selected document.
--spec delete_one (collection(), selector()) -> ok.
+-spec delete_one(collection(), selector()) -> ok.
 delete_one(Coll, Selector) ->
 	write(#delete{collection = Coll, singleremove = true, selector = Selector}).
 
@@ -114,7 +114,7 @@ find_one(Coll, Selector, Projector) ->
 	find_one(Coll, Selector, Projector, 0).
 
 %% @doc Return projection of Nth selected document, if any. Empty projection [] means full projection.
--spec find_one (collection(), selector(), projector(), skip()) -> {} | {bson:document()}.
+-spec find_one(collection(), selector(), projector(), skip()) -> {} | {bson:document()}.
 find_one(Coll, Selector, Projector, Skip) ->
 	read_one(#'query'{
 		collection = Coll,
@@ -124,19 +124,19 @@ find_one(Coll, Selector, Projector, Skip) ->
 	}).
 
 %% @doc Return selected documents.
--spec find (collection(), selector()) -> cursor().
+-spec find(collection(), selector()) -> cursor().
 find(Coll, Selector) ->
 	find(Coll, Selector, []).
 
 %% @doc Return projection of selected documents.
 %%      Empty projection [] means full projection.
--spec find (collection(), selector(), projector()) -> cursor().
+-spec find(collection(), selector(), projector()) -> cursor().
 find(Coll, Selector, Projector) ->
 	find(Coll, Selector, Projector, 0).
 
 %% @doc Return projection of selected documents starting from Nth document.
 %%      Empty projection means full projection.
--spec find (collection(), selector(), projector(), skip()) -> cursor().
+-spec find(collection(), selector(), projector(), skip()) -> cursor().
 find(Coll, Selector, Projector, Skip) ->
 	find(Coll, Selector, Projector, Skip, 0).
 
@@ -144,7 +144,7 @@ find(Coll, Selector, Projector, Skip) ->
 %%      0 batchsize means default batch size.
 %%      Negative batch size means one batch only.
 %%      Empty projection means full projection.
--spec find (collection(), selector(), projector(), skip(), batchsize()) -> cursor(). % Action
+-spec find(collection(), selector(), projector(), skip(), batchsize()) -> cursor(). % Action
 find(Coll, Selector, Projector, Skip, BatchSize) ->
 	read(#'query'{
 		collection = Coll,
@@ -155,7 +155,7 @@ find(Coll, Selector, Projector, Skip, BatchSize) ->
 	}).
 
 %@doc Count selected documents
--spec count (collection(), selector()) -> integer().
+-spec count(collection(), selector()) -> integer().
 count(Coll, Selector) ->
 	count(Coll, Selector, 0).
 
@@ -165,9 +165,9 @@ count(Coll, Selector) ->
 count(Coll, Selector, Limit) ->
 	CollStr = atom_to_binary(Coll, utf8),
 	Doc = command(case Limit =< 0 of
-		true -> {count, CollStr, 'query', Selector};
-		false -> {count, CollStr, 'query', Selector, limit, Limit}
-	end),
+		              true -> {count, CollStr, 'query', Selector};
+		              false -> {count, CollStr, 'query', Selector, limit, Limit}
+	              end),
 	trunc(bson:at(n, Doc)). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
@@ -176,7 +176,7 @@ count(Coll, Selector, Limit) ->
 %%      name     :: bson:utf8()
 %%      unique   :: boolean()
 %%      dropDups :: boolean()
--spec ensure_index (collection(), bson:document()) -> ok.
+-spec ensure_index(collection(), bson:document()) -> ok.
 ensure_index(Coll, IndexSpec) ->
 	#context{database = Database} = erlang:get(mongo_action_context),
 	Key = bson:at(key, IndexSpec),
@@ -186,7 +186,7 @@ ensure_index(Coll, IndexSpec) ->
 	ok.
 
 %% @doc Execute given MongoDB command and return its result.
--spec command (bson:document()) -> bson:document(). % Action
+-spec command(bson:document()) -> bson:document(). % Action
 command(Command) ->
 	{Doc} = read_one(#'query'{
 		collection = '$cmd',
