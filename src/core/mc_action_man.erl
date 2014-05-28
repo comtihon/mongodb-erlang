@@ -12,35 +12,32 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([write/2, read/2, read_one/2, do/5]).
+-export([write/2, read/2, read_one/2, do/5, request/3, request/2]).
+
+request(Connection, Params) -> % default request
+	request(Connection, request, Params).
+
+-spec request(pid() | term(), atom(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
+request({pool, PoolName}, Command, Params) ->
+	mc_connection_man:request(Command, PoolName, Params);
+request(Connection, Command, Params) ->
+	mc_connection_man:reply(gen_server:call(Connection, {Command, Params}, infinity)).
 
 %% @doc Execute mongo action under given write_mode, read_mode, connection, and database.
--spec do(write_mode(), read_mode(), connection(), database(), action(A)) -> A.
-do(WriteMode, ReadMode, Connection, Database, Action) ->
-	PrevContext = erlang:get(mongo_action_context),
-	erlang:put(mongo_action_context, #context{  %TODO remove process dictionary usage
-		write_mode = WriteMode,
-		read_mode = ReadMode,
-		connection = Connection,
-		database = Database
-	}),
-	try Action() of
-		Result -> Result
-	after
-		case PrevContext of
-			undefined ->
-				erlang:erase(mongo_action_context);
-			_ ->
-				erlang:put(mongo_action_context, PrevContext)
-		end
-	end.
+-spec do(connection(), write_mode(), read_mode(), database(), action(A)) -> A.
+do({pool, PoolName}, WriteMode, ReadMode, Database, Action) ->
+	Worker = mc_connection_man:request_worker(PoolName),
+	catch do(Worker, WriteMode, ReadMode, Database, Action),
+	mc_connection_man:free_worker(PoolName, Worker);
+do(Connection, WriteMode, ReadMode, Database, Action) ->
+	gen_server:call(Connection, {update, [{database, Database}, {write_mode, WriteMode}, {read_mode, ReadMode}]}),
+	Action(Connection).
 
 -spec write(Connection :: pid() | term(), Request :: term()) -> any().
 write(Connection, Request) ->
-	Context = erlang:get(mongo_action_context), %TODO remove process dictionary usage
 	case Context#context.write_mode of
 		unsafe ->
-			write(Context#context.connection, Context#context.database, Request);
+			write(Context#context.connection, Context#context.database, Request); %TODO move me to mc_worker
 		SafeMode ->
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 			Ack = write(Connection, Context#context.database, Request, Params),
@@ -58,7 +55,7 @@ write(Connection, Request) ->
 write({pool, PoolName}, Database, Request) ->
 	mc_connection_man:request(PoolName, Database, Request);
 write(Connection, Database, Request) ->
-	mongo_connection_worker:request(Connection, Database, Request).
+	mc_worker:request(Connection, Database, Request).
 
 %% @private
 write({pool, PoolName}, Database, Request, GetLastErrorParams) -> %TODO remove code duplicates
@@ -70,8 +67,8 @@ write({pool, PoolName}, Database, Request, GetLastErrorParams) -> %TODO remove c
 	}),
 	Doc;
 write(Connection, Database, Request, GetLastErrorParams) ->
-	ok = mongo_connection_worker:request(Connection, Database, Request),
-	{0, [Doc | _]} = mongo_connection_worker:request(Connection, Database, #'query'{
+	ok = mc_worker:request(Connection, Database, Request),
+	{0, [Doc | _]} = mc_worker:request(Connection, Database, #'query'{
 		batchsize = -1,
 		collection = '$cmd',
 		selector = bson:append({getlasterror, 1}, GetLastErrorParams)
@@ -86,7 +83,7 @@ read({pool, PoolName}, Request) ->
 read(Connection, Request) ->
 	#context{database = Database, read_mode = ReadMode} = erlang:get(mongo_action_context), %TODO get rid of process dict
 	#'query'{collection = Collection, batchsize = BatchSize} = Request,
-	{Cursor, Batch} = mongo_connection_worker:request(Connection, Database, Request#'query'{slaveok = ReadMode =:= slave_ok}),
+	{Cursor, Batch} = mc_worker:request(Connection, Database, Request#'query'{slaveok = ReadMode =:= slave_ok}),
 	mongo_cursor:create(Connection, Database, Collection, Cursor, BatchSize, Batch).
 
 read_one({pool, PoolName}, Request) ->
@@ -98,7 +95,7 @@ read_one({pool, PoolName}, Request) ->
 	end;
 read_one(Connection, Request) ->
 	#context{database = Database, read_mode = ReadMode} = erlang:get(mongo_action_context), %TODO get rid of process dict
-	{0, Docs} = mongo_connection_worker:request(Connection, Database, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
+	{0, Docs} = mc_worker:request(Connection, Database, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
 	case Docs of
 		[] -> {};
 		[Doc | _] -> {Doc}

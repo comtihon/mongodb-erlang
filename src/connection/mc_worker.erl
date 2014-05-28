@@ -1,0 +1,159 @@
+-module(mc_worker).
+-behaviour(gen_server).
+
+-include("mongo_protocol.hrl").
+
+-export([start_link/2]).
+-export([
+	init/1,
+	handle_call/3,
+	handle_cast/2,
+	handle_info/2,
+	terminate/2,
+	code_change/3
+]).
+
+-export_type([connection/0, service/0, options/0]).
+
+-record(state, {
+	socket :: gen_tcp:socket(),
+	requests :: orddict:orddict(),
+	buffer :: binary(),
+	write_mode :: write_mode(),
+	read_mode :: read_mode(),
+	database :: database()
+}).
+
+-type connection() :: pid().
+-type database() :: atom().
+-type write_mode() :: unsafe | safe | {safe, bson:document()}.
+-type read_mode() :: master | slave_ok.
+-type action(A) :: fun (() -> A).
+-type service() :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
+-type options() :: [option()].
+-type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl | {database, database()} | {read_mode, read_mode()} | {write_mode, write_mode()}.
+
+-spec start_link(service(), options()) -> {ok, pid()}.
+start_link(Service, Options) ->
+	gen_server:start_link(?MODULE, [Service, Options], []).
+
+%% @hidden
+init([{Host, Port}, Options]) ->
+	{ok, Socket} = connect_to_database(Host, Port, Options),
+	State = fill_config(#state, Options),
+	{ok, State#state{socket = Socket, requests = [], buffer = <<>>}}.
+
+%% @hidden
+handle_call({update, Params}, _From, State = #state{database = Db, write_mode = Wm, read_mode = Rm}) ->  % update state, return old
+	OldState = [{database, Db}, {write_mode, Wm}, {read_mode, Rm}], %TODO record_to_proplist?
+	{reply, {ok, OldState}, fill_config(State, Params)};
+handle_call({ensure_index, {Coll, IndexSpec}}, _From, State = #state{database = Database}) -> % ensure index request with insert request
+	Key = bson:at(key, IndexSpec),
+	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
+	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), bson:merge(IndexSpec, Defaults)),
+	mc_action_man:request(self(), {'system.indexes', Index}),
+	{reply, ok, State};
+handle_call({request, Database, Request}, From, State = #state{socket = Socket}) -> % ordinary requests
+	{Packet, Id} = encode_request(Database, Request),
+	case gen_tcp:send(Socket, Packet) of
+		ok when is_record(Request, 'query'); is_record(Request, getmore) ->
+			inet:setopts(Socket, [{active, once}]),
+			{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
+		ok ->
+			{reply, ok, State};
+		{error, Reason} ->
+			{stop, Reason, State}
+	end;
+handle_call({stop, _}, _From, State) -> % stop request
+	{stop, normal, ok, State}.
+
+%% @hidden
+handle_cast(_, State) ->
+	{noreply, State}.
+
+%% @hidden
+handle_info({tcp, _Socket, Data}, State) ->
+	Buffer = <<(State#state.buffer)/binary, Data/binary>>,
+	{Responses, Pending} = decode_responses(Buffer),
+	{noreply,
+		State#state{
+			requests = case process_responses(Responses, State#state.requests) of
+				           [] ->
+					           [];
+				           Requests ->
+					           inet:setopts(State#state.socket, [{active, once}]),
+					           Requests
+			           end,
+			buffer = Pending
+		}};
+handle_info({tcp_closed, _Socket}, State) ->
+	{stop, tcp_closed, State};
+handle_info({tcp_error, _Socket, Reason}, State) ->
+	{stop, Reason, State}.
+
+%% @hidden
+terminate(_, State) ->
+	catch gen_tcp:close(State#state.socket).
+
+%% @hidden
+code_change(_Old, State, _Extra) ->
+	{ok, State}.
+
+
+%% @private
+encode_request(Database, Request) ->
+	RequestId = mongo_id_server:request_id(),
+	Payload = mongo_protocol:put_message(Database, Request, RequestId),
+	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
+
+%% @private
+decode_responses(Data) -> %TODO move me to mc_connection_man?
+	decode_responses(Data, []).
+
+%% @private
+decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->
+	PayloadLength = Length - 4,
+	<<Payload:PayloadLength/binary, Rest/binary>> = Data,
+	{Id, Response, <<>>} = mongo_protocol:get_reply(Payload),
+	decode_responses(Rest, [{Id, Response} | Acc]);
+decode_responses(Data, Acc) ->
+	{lists:reverse(Acc), Data}.
+
+%% @private
+process_responses([], Requests) -> Requests;
+process_responses([{Id, Response} | RemainingResponses], Requests) ->
+	case lists:keytake(Id, 1, Requests) of
+		false ->
+			% TODO: close any cursor that might be linked to this request ?
+			process_responses(RemainingResponses, Requests);
+		{value, {_Id, From}, RemainingRequests} ->
+			gen_server:reply(From, Response),
+			process_responses(RemainingResponses, RemainingRequests)
+	end.
+
+fill_config(State, Params) ->
+	Database = proplists:get_value(database, Params),
+	RMode = proplists:get_value(read_mode, Params),
+	WMode = proplists:get_value(write_mode, Params),
+	State#state{database = Database, read_mode = RMode, write_mode = WMode}.
+
+%% @private
+connect_to_database(Port, Host, Options) ->
+	Timeout = proplists:get_value(timeout, Options, infinity),
+	gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout).
+
+%% @private
+gen_index_name(KeyOrder) ->
+	bson:doc_foldl(fun(Label, Order, Acc) ->
+		<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
+	end, <<"i">>, KeyOrder).
+
+%% @private
+value_to_binary(Value) when is_integer(Value) ->
+	bson:utf8(integer_to_list(Value));
+value_to_binary(Value) when is_atom(Value) ->
+	atom_to_binary(Value, utf8);
+value_to_binary(Value) when is_binary(Value) ->
+	Value;
+value_to_binary(_Value) ->
+	<<>>.

@@ -1,4 +1,9 @@
 -module(mongo_cursor).
+
+-behaviour(gen_server).
+
+-include("mongo_protocol.hrl").
+
 -export([
 	create/6,
 	next/1,
@@ -13,7 +18,6 @@
 	start_link/1
 ]).
 
--behaviour(gen_server).
 -export([
 	init/1,
 	handle_call/3,
@@ -24,7 +28,7 @@
 ]).
 
 -record(state, {
-	connection :: mongo_connection_worker:connection(),
+	connection :: mc_worker:connection(),
 	database :: atom(),
 	collection :: atom(),
 	cursor :: integer(),
@@ -33,9 +37,7 @@
 	monitor :: reference
 }).
 
--include("mongo_protocol.hrl").
-
--spec create(mongo_connection_worker:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
+-spec create(mc_worker:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
 	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Database, Collection, Cursor, BatchSize, Batch]),
 	Pid.
@@ -141,7 +143,7 @@ handle_info(_, State) ->
 terminate(_, #state{cursor = 0}) ->
 	ok;
 terminate(_, State) ->
-	mongo_connection_worker:request(State#state.connection, State#state.database, #killcursor{
+	mc_worker:request(State#state.connection, State#state.database, #killcursor{
 		cursorids = [State#state.cursor]
 	}).
 
@@ -155,7 +157,7 @@ next_i(#state{batch = [Doc | Rest]} = State) ->
 next_i(#state{batch = [], cursor = 0} = State) ->
 	{{}, State};
 next_i(#state{batch = []} = State) ->
-	{Cursor, Batch} = mongo_connection_worker:request(State#state.connection, State#state.database, #getmore{
+	{Cursor, Batch} = mc_worker:request(State#state.connection, State#state.database, #getmore{
 		collection = State#state.collection,
 		batchsize = State#state.batchsize,
 		cursorid = State#state.cursor

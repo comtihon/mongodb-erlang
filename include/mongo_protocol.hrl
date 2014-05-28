@@ -56,17 +56,3 @@
 	cursorid :: cursorid(),
 	startingfrom :: integer(),
 	documents :: [bson:document()] }).
-
-% TODO when proc.dictionary will be removed, move me out of here
--type connection() :: pid().
--type database() :: atom().
--type write_mode() :: unsafe | safe | {safe, bson:document()}.
--type read_mode() :: master | slave_ok.
--type action(A) :: fun (() -> A).
-
--record(context, {
-	write_mode :: write_mode(),
-	read_mode :: read_mode(),
-	connection :: mongo_connection_worker:connection(),
-	database :: database()
-}).

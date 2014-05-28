@@ -12,12 +12,18 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([request/3, reply/1]).
+-export([request/3, reply/1, request_worker/1, free_worker/2]).
+%request to pool
+request(Command, PoolName, Params) ->
+	reply(poolboy:transaction(PoolName,
+		fun(Worker) ->
+			gen_server:call(Worker, {Command, Params}, infinity)
+		end)).
 
-request(PoolName, Database, Request) ->
-	reply(poolboy:transaction(PoolName, fun(Worker) ->
-		gen_server:call(Worker, {request, Database, Request}, infinity)
-	end)).
+request_worker(PoolName) ->
+	poolboy:checkout(PoolName).
+free_worker(PoolName, Worker) ->
+	poolboy:checkin(PoolName, Worker).
 
 reply(ok) -> ok;
 reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->

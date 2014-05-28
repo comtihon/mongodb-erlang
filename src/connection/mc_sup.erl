@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 28. май 2014 17:21
 %%%-------------------------------------------------------------------
--module(mongo_connection_sup).
+-module(mc_sup).
 -author("tihon").
 
 -behaviour(supervisor).
@@ -54,7 +54,7 @@ start_link() ->
 %%        {port, 5432},
 %%        {user, "user"},
 %%        {password, "password"},
-%%        {database, "database"}
+%%        {database, "database"},
 %%      ]
 %%    ]
 %% }

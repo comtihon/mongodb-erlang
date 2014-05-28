@@ -1,4 +1,7 @@
 -module(mongo_id_server).
+
+-behaviour(gen_server).
+
 -export([
 	request_id/0,
 	object_id/0
@@ -8,7 +11,6 @@
 	start_link/0
 ]).
 
--behaviour(gen_server).
 -export([
 	init/1,
 	handle_call/3,

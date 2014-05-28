@@ -1,10 +1,11 @@
 -module(mongo_sup).
+-behaviour(supervisor).
+
 -export([
 	start_link/0,
 	start_cursor/1
 ]).
 
--behaviour(supervisor).
 -export([
 	init/1
 ]).
@@ -12,7 +13,6 @@
 -define(SUPERVISOR(Id, Tag), {Id, {supervisor, start_link, [?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
 -define(SUPERVISOR(Id, Name, Tag), {Id, {supervisor, start_link, [{local, Name}, ?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
 -define(WORKER(M, F, A, R), {M, {M, F, A}, R, 5000, worker, [M]}).
-
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->

@@ -4,6 +4,7 @@
 -module(mongo).
 -export([
 	connect/2,
+	connect/3,
 	insert/3,
 	update/4,
 	update/5,
@@ -38,14 +39,18 @@
 %% @doc Make one connection to server, return its pid
 -spec connect(Host :: inet:ip_address() | inet:hostname(), Port :: inet:port_number()) -> Pid :: pid().
 connect(Host, Port) ->
-	mongo_connection_worker:start_link({Host, Port}).
+	connect(Host, Port, []).
+-spec connect(Host :: inet:ip_address() | inet:hostname(), Port :: inet:port_number(), Opts :: proplists:proplist()) -> Pid :: pid().
+connect(Host, Port, Opts) ->
+	mc_worker:start_link({Host, Port}, Opts).
+
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid()|term(), collection(), A) -> A.
-insert(Coll, Doc, Connection) when is_tuple(Doc) ->
-	hd(insert(Coll, [Doc], Connection));
-insert(Coll, Docs, Connection) ->
+insert(Connection, Coll, Doc) when is_tuple(Doc) ->
+	hd(insert(Connection, Coll, [Doc]));
+insert(Connection, Coll, Docs) ->
 	Docs1 = [assign_id(Doc) || Doc <- Docs],
 	mc_action_man:write(Connection, #insert{collection = Coll, documents = Docs1}),
 	Docs1.
@@ -150,12 +155,7 @@ count(Connection, Coll, Selector, Limit) ->
 %%      dropDups :: boolean()
 -spec ensure_index(pid() | term(), collection(), bson:document()) -> ok.
 ensure_index(Connection, Coll, IndexSpec) ->
-	#context{database = Database} = erlang:get(mongo_action_context),
-	Key = bson:at(key, IndexSpec),
-	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
-	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), bson:merge(IndexSpec, Defaults)),
-	insert(Connection, 'system.indexes', Index),
-	ok.
+	mc_action_man:request(Connection, ensure_index, {Coll, IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid() | term(), bson:document()) -> bson:document(). % Action
@@ -178,19 +178,3 @@ assign_id(Doc) ->
 		{_Value} -> Doc;
 		{} -> bson:update('_id', mongo_id_server:object_id(), Doc)
 	end.
-
-%% @private
-gen_index_name(KeyOrder) ->
-	bson:doc_foldl(fun(Label, Order, Acc) ->
-		<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
-	end, <<"i">>, KeyOrder).
-
-%% @private
-value_to_binary(Value) when is_integer(Value) ->
-	bson:utf8(integer_to_list(Value));
-value_to_binary(Value) when is_atom(Value) ->
-	atom_to_binary(Value, utf8);
-value_to_binary(Value) when is_binary(Value) ->
-	Value;
-value_to_binary(_Value) ->
-	<<>>.
