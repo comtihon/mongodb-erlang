@@ -3,7 +3,6 @@
 
 -module(mongo).
 -export([
-	do/5,
 	connect/2,
 	insert/3,
 	update/4,
@@ -34,33 +33,7 @@
 
 -include("mongo_protocol.hrl").
 
--type connection() :: pid().
--type database() :: atom().
 -type cursor() :: pid().
--type write_mode() :: unsafe | safe | {safe, bson:document()}.
--type read_mode() :: master | slave_ok.
--type action(A) :: fun (() -> A).
-
-%% @doc Execute mongo action under given write_mode, read_mode, connection, and database.
--spec do(write_mode(), read_mode(), connection(), database(), action(A)) -> A.
-do(WriteMode, ReadMode, Connection, Database, Action) ->
-	PrevContext = erlang:get(mongo_action_context),
-	erlang:put(mongo_action_context, #context{  %TODO remove process dictionary usage
-		write_mode = WriteMode,
-		read_mode = ReadMode,
-		connection = Connection,
-		database = Database
-	}),
-	try Action() of
-		Result -> Result
-	after
-		case PrevContext of
-			undefined ->
-				erlang:erase(mongo_action_context);
-			_ ->
-				erlang:put(mongo_action_context, PrevContext)
-		end
-	end.
 
 %% @doc Make one connection to server, return its pid
 -spec connect(Host :: inet:ip_address() | inet:hostname(), Port :: inet:port_number()) -> Pid :: pid().
