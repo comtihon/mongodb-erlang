@@ -79,9 +79,13 @@ handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#c
 	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
 	ok = gen_tcp:send(Socket, Packet),
 	{reply, ok, State};
-handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState, ets = Ets})
-	when is_record(Request, 'query'); is_record(Request, getmore) ->                             % read requests
-	{ok, Id} = make_request(Socket, ConnState#conn_state.database, Request),
+handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState, ets = Ets, conn_state = CS}) % read requests
+	when is_record(Request, 'query'); is_record(Request, getmore) ->
+	UpdReq = case is_record(Request, 'query') of
+		         true -> Request#'query'{slaveok = CS#conn_state.read_mode =:= slave_ok};
+		         false -> Request
+	         end,
+	{ok, Id} = make_request(Socket, ConnState#conn_state.database, UpdReq), %TODO cursor?
 	inet:setopts(Socket, [{active, once}]),
 	true = ets:insert_new(Ets, {Id, From}),
 	{noreply, State};

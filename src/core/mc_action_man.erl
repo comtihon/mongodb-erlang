@@ -27,14 +27,11 @@ do(Connection, WriteMode, ReadMode, Database, Action) ->
 	gen_server:call(Connection, #conn_state{database = Database, write_mode = WriteMode, read_mode = ReadMode}),
 	Action(Connection).
 
-read(Connection, Request) ->%TODO
-	#context{database = Database, read_mode = ReadMode} = erlang:get(mongo_action_context), %TODO get rid of process dict
-	#'query'{collection = Collection, batchsize = BatchSize} = Request,
+read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize} ) ->
 	{Cursor, Batch} = mc_connection_man:request(Connection, Request#'query'{slaveok = ReadMode =:= slave_ok}),
 	mongo_cursor:create(Connection, Database, Collection, Cursor, BatchSize, Batch).  %TODO when pool Coonection will be {atom, PoolName}!! Resolv me
-
+%TODO cursor, what is it 0_o
 read_one(Connection, Request) ->
-	#context{read_mode = ReadMode} = erlang:get(mongo_action_context), %TODO get rid of process dict
 	{0, Docs} = mc_connection_man:request(Connection, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
 	case Docs of
 		[] -> {};
