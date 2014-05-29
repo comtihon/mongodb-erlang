@@ -41,7 +41,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% PoolSpecs example:
+%% Example:
 %% {
 %%    db_pool, % pool for working with database
 %%    [
@@ -61,14 +61,16 @@ start_link() ->
 %%  see https://github.com/devinus/poolboy poolboy.app for more complete example
 %% @end
 %%--------------------------------------------------------------------
--spec(init(PoolSpecs :: term()) ->
+-spec(init(Conf :: term()) ->
 	{ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
 		MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
 		[ChildSpec :: supervisor:child_spec()]
 	}} |
 	ignore |
 	{error, Reason :: term()}).
-init(PoolSpecs) ->
+init({Name, [SizeArgs, WorkerArgs]}) ->
+	PoolArgs = [{name, {local, Name}}, {worker_module, mc_worker}] ++ SizeArgs,
+	PoolSpecs = [poolboy:child_spec(Name, PoolArgs, WorkerArgs)],
 	{ok, {{one_for_one, 10, 10}, PoolSpecs}}.
 
 %%%===================================================================

@@ -12,13 +12,19 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([request/3, reply/1, request_worker/1, free_worker/2]).
-%request to pool
-request(Command, PoolName, Params) ->
+-export([request/3, reply/1, request_worker/1, free_worker/2, request/2]).
+
+request(Connection, Params) -> % default request
+	request(Connection, request, Params).
+
+-spec request(pid() | term(), atom(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
+request({pool, PoolName}, Command, Params) -> %request to pool
 	reply(poolboy:transaction(PoolName,
 		fun(Worker) ->
 			gen_server:call(Worker, {Command, Params}, infinity)
-		end)).
+		end));
+request(Connection, Command, Params) ->  %request to worker
+	reply(gen_server:call(Connection, {Command, Params}, infinity)).
 
 request_worker(PoolName) ->
 	poolboy:checkout(PoolName).
