@@ -19,9 +19,7 @@
 	socket :: gen_tcp:socket(),
 	requests :: orddict:orddict(),
 	buffer :: binary(),
-	write_mode :: write_mode(),
-	read_mode :: read_mode(),
-	database :: database()
+	conn_state
 }).
 
 -type connection() :: pid().
@@ -40,30 +38,34 @@ start_link(Service, Options) ->
 %% @hidden
 init([{Host, Port}, Options]) ->
 	{ok, Socket} = connect_to_database(Host, Port, Options),
-	State = fill_config(#state, Options),
-	{ok, State#state{socket = Socket, requests = [], buffer = <<>>}}.
+	State = proplists:get_value(state, Options),
+	process_flag(trap_exit, true),
+	{ok, #state{socket = Socket, requests = [], buffer = <<>>, conn_state = State}}.
 
 %% @hidden
-handle_call({update, Params}, _From, State = #state{database = Db, write_mode = Wm, read_mode = Rm}) ->  % update state, return old
-	OldState = [{database, Db}, {write_mode, Wm}, {read_mode, Rm}], %TODO record_to_proplist?
-	{reply, {ok, OldState}, fill_config(State, Params)};
-handle_call({ensure_index, {Coll, IndexSpec}}, _From, State = #state{database = Database}) -> % ensure index request with insert request
+handle_call(NewState = #conn_state, _, State = #state{conn_state = OldState}) ->  % update state, return old
+	{reply, {ok, OldState}, State#state{conn_state = NewState}};
+handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState}) -> % ensure index request with insert request
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
-	Index = bson:update(ns, mongo_protocol:dbcoll(Database, Coll), bson:merge(IndexSpec, Defaults)),
-	mc_action_man:request(self(), {'system.indexes', Index}),
+	Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
+	mc_connection_man:request(self(), {'system.indexes', Index}), % TODO what request type?
 	{reply, ok, State};
-handle_call({request, Database, Request}, From, State = #state{socket = Socket}) -> % ordinary requests
-	{Packet, Id} = encode_request(Database, Request),
-	case gen_tcp:send(Socket, Packet) of
-		ok when is_record(Request, 'query'); is_record(Request, getmore) ->
-			inet:setopts(Socket, [{active, once}]),
-			{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
-		ok ->
-			{reply, ok, State};
-		{error, Reason} ->
-			{stop, Reason, State}
-	end;
+handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState})
+	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
+	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
+	ok = gen_tcp:send(Socket, Packet),
+	{reply, ok, State};
+handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState})
+	when is_record(Request, 'query'); is_record(Request, getmore) ->                           % read requests
+	{Packet, Id} = encode_request(ConnState#conn_state.database, Request),
+	ok = gen_tcp:send(Socket, Packet),
+	inet:setopts(Socket, [{active, once}]),
+	{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
+handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests
+	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
+	ok = gen_tcp:send(Socket, Packet),
+	{reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
 	{stop, normal, ok, State}.
 
@@ -75,17 +77,14 @@ handle_cast(_, State) ->
 handle_info({tcp, _Socket, Data}, State) ->
 	Buffer = <<(State#state.buffer)/binary, Data/binary>>,
 	{Responses, Pending} = decode_responses(Buffer),
-	{noreply,
-		State#state{
-			requests = case process_responses(Responses, State#state.requests) of
-				           [] ->
-					           [];
-				           Requests ->
-					           inet:setopts(State#state.socket, [{active, once}]),
-					           Requests
-			           end,
-			buffer = Pending
-		}};
+	Request = case process_responses(Responses, State#state.requests) of
+		          [] ->
+			          [];
+		          Requests ->
+			          inet:setopts(State#state.socket, [{active, once}]),
+			          Requests
+	          end,
+	{noreply, State#state{requests = Request, buffer = Pending}};
 handle_info({tcp_closed, _Socket}, State) ->
 	{stop, tcp_closed, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
@@ -103,7 +102,7 @@ code_change(_Old, State, _Extra) ->
 %% @private
 encode_request(Database, Request) ->
 	RequestId = mongo_id_server:request_id(),
-	Payload = mongo_protocol:put_message(Database, Request, RequestId),
+	Payload = mongo_protocol:put_message(Database, Request),
 	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
 
 %% @private
@@ -130,12 +129,6 @@ process_responses([{Id, Response} | RemainingResponses], Requests) ->
 			gen_server:reply(From, Response),
 			process_responses(RemainingResponses, RemainingRequests)
 	end.
-
-fill_config(State, Params) ->
-	Database = proplists:get_value(database, Params),
-	RMode = proplists:get_value(read_mode, Params),
-	WMode = proplists:get_value(write_mode, Params),
-	State#state{database = Database, read_mode = RMode, write_mode = WMode}.
 
 %% @private
 connect_to_database(Port, Host, Options) ->

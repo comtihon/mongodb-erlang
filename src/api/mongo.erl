@@ -155,7 +155,7 @@ count(Connection, Coll, Selector, Limit) ->
 %%      dropDups :: boolean()
 -spec ensure_index(pid() | term(), collection(), bson:document()) -> ok.
 ensure_index(Connection, Coll, IndexSpec) ->
-	mc_connection_man:request(Connection, ensure_index, {Coll, IndexSpec}).
+	mc_connection_man:request(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid() | term(), bson:document()) -> bson:document(). % Action

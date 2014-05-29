@@ -2,7 +2,7 @@
 %%% @author tihon
 %%% @copyright (C) 2014, <COMPANY>
 %%% @doc  mongo connection action manager.
-%%% it process write|read requests to pool, if pool is used, or to standalone worker, if connection specified.
+%%% It processes all write|read|other requests from mongo api
 %%% @end
 %%% Created : 28. май 2014 18:27
 %%%-------------------------------------------------------------------
@@ -24,17 +24,17 @@ do({pool, PoolName}, WriteMode, ReadMode, Database, Action) ->
 	end;
 
 do(Connection, WriteMode, ReadMode, Database, Action) ->
-	gen_server:call(Connection, {update, [{database, Database}, {write_mode, WriteMode}, {read_mode, ReadMode}]}),
+	gen_server:call(Connection, #conn_state{database = Database, write_mode = WriteMode, read_mode = ReadMode}),
 	Action(Connection).
 
 -spec write(Connection :: pid() | term(), Request :: term()) -> any().
 write(Connection, Request) ->
 	case Context#context.write_mode of
 		unsafe ->
-			write(Context#context.connection, Context#context.database, Request); %TODO move me to mc_worker
+			mc_connection_man:request(Connection, write, Request);
 		SafeMode ->
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
-			Ack = write(Connection, Context#context.database, Request, Params),
+			Ack = write(Connection, Request, Params),
 			case bson:lookup(err, Ack, undefined) of
 				undefined -> ok;
 				String ->
@@ -46,12 +46,8 @@ write(Connection, Request) ->
 	end.
 
 %% @private
-write(Connection, Database, Request) ->
-	mc_connection_man:request(Connection, Request).
-
-%% @private
-write(Connection, Database, Request, GetLastErrorParams) ->
-	ok = mc_connection_man:request(Connection,  Request),
+write(Connection, Request, GetLastErrorParams) ->
+	ok = mc_connection_man:request(Connection, Request),
 	{0, [Doc | _]} = mc_connection_man:request(Connection, #'query'{
 		batchsize = -1,
 		collection = '$cmd',

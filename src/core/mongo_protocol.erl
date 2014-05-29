@@ -1,7 +1,7 @@
 -module(mongo_protocol).
 -export([
 	dbcoll/2,
-	put_message/3,
+	put_message/2,
 	get_reply/1
 ]).
 -export_type([db/0]).
@@ -40,32 +40,32 @@
 %@doc Concat db and collection name with period (.) in between
 dbcoll(Db, Coll) -> <<(atom_to_binary(Db, utf8))/binary, $., (atom_to_binary(Coll, utf8))/binary>>.
 
--spec put_message(db(), message(), requestid()) -> binary().
-put_message(Db, #insert{collection = Coll, documents = Docs}, RequestId) ->
+-spec put_message(db(), message()) -> binary().
+put_message(Db, #insert{collection = Coll, documents = Docs}) ->
 	<<?put_header(?InsertOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	<<<<(bson_binary:put_document(Doc))/binary>> || Doc <- Docs>>/binary>>;
-put_message(Db, #update{collection = Coll, upsert = U, multiupdate = M, selector = Sel, updater = Up}, RequestId) ->
+put_message(Db, #update{collection = Coll, upsert = U, multiupdate = M, selector = Sel, updater = Up}) ->
 	<<?put_header(?UpdateOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	?put_bits32(0, 0, 0, 0, 0, 0, bit(M), bit(U)),
 	(bson_binary:put_document(Sel))/binary,
 	(bson_binary:put_document(Up))/binary>>;
-put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}, RequestId) ->
+put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}) ->
 	<<?put_header(?DeleteOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	?put_bits32(0, 0, 0, 0, 0, 0, 0, bit(R)),
 	(bson_binary:put_document(Sel))/binary>>;
-put_message(_Db, #killcursor{cursorids = Cids}, RequestId) ->
+put_message(_Db, #killcursor{cursorids = Cids}) ->
 	<<?put_header(?KillcursorOpcode),
 	?put_int32(0),
 	?put_int32(length(Cids)),
 	<<<<?put_int64(Cid)>> || Cid <- Cids>>/binary>>;
 put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = NCT, awaitdata = AD,
-	collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}, RequestId) ->
+	collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}) ->
 	<<?put_header(?QueryOpcode),
 	?put_bits32(0, 0, bit(AD), bit(NCT), 0, bit(SOK), bit(TC), 0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
@@ -73,7 +73,7 @@ put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = N
 	?put_int32(Batch),
 	(bson_binary:put_document(Sel))/binary,
 	(case Proj of [] -> <<>>; _ -> bson_binary:put_document(Proj) end)/binary>>;
-put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, RequestId) ->
+put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}) ->
 	<<?put_header(?GetmoreOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
