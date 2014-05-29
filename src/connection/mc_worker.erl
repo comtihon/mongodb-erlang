@@ -17,7 +17,7 @@
 
 -record(state, {
 	socket :: gen_tcp:socket(),
-	requests :: orddict:orddict(),
+	requests :: orddict:orddict(),  %TODO ets me?
 	buffer :: binary(),
 	conn_state
 }).
@@ -49,22 +49,42 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State =
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
 	Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-	mc_connection_man:request(self(), {'system.indexes', Index}), % TODO what request type?
+	mc_connection_man:request(self(), {'system.indexes', Index}), % TODO what request type?  %TODO deadlock?
 	{reply, ok, State};
-handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState})
-	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
+handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#conn_state{write_mode = unsafe}})
+	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write unsafe requests
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
+	{reply, ok, State};
+handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#conn_state{write_mode = SafeMode}})
+	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write safe requests
+	Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
+
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
+	{0, [Ack | _]}, %TODO
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, #'query'{
+		batchsize = -1,
+		collection = '$cmd',
+		selector = bson:append({getlasterror, 1}, Params)
+	}),
+
+	case bson:lookup(err, Ack, undefined) of  %TODO
+		undefined -> ok;
+		String ->
+			case bson:at(code, Ack) of
+				10058 -> erlang:exit(not_master);
+				Code -> erlang:exit({write_failure, Code, String})
+			end
+	end,
 	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
 	ok = gen_tcp:send(Socket, Packet),
 	{reply, ok, State};
 handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState})
 	when is_record(Request, 'query'); is_record(Request, getmore) ->                           % read requests
-	{Packet, Id} = encode_request(ConnState#conn_state.database, Request),
-	ok = gen_tcp:send(Socket, Packet),
+	{ok, Id} = make_request(Socket, ConnState#conn_state.database, Request),  %TODO how to get data from mongo?
 	inet:setopts(Socket, [{active, once}]),
-	{noreply, State#state{requests = [{Id, From} | State#state.requests]}};
+	{noreply, State#state{requests = [{Id, From} | State#state.requests]}}; % TODO saving big data in record? %TODO why only read?
 handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests
-	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
-	ok = gen_tcp:send(Socket, Packet),
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
 	{reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
 	{stop, normal, ok, State}.
@@ -150,3 +170,7 @@ value_to_binary(Value) when is_binary(Value) ->
 	Value;
 value_to_binary(_Value) ->
 	<<>>.
+
+make_request(Socket, Database, Request) ->
+	{Packet, Id} = encode_request(Database, Request),
+	{gen_tcp:send(Socket, Packet), Id}.

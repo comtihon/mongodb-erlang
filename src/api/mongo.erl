@@ -52,7 +52,7 @@ insert(Connection, Coll, Doc) when is_tuple(Doc) ->
 	hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
 	Docs1 = [assign_id(Doc) || Doc <- Docs],
-	mc_action_man:write(Connection, #insert{collection = Coll, documents = Docs1}),
+	mc_connection_man:request(Connection, #insert{collection = Coll, documents = Docs1}),
 	Docs1.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
@@ -68,17 +68,17 @@ update(Connection, Coll, Selector, Doc, Upsert) ->
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid()|term(), collection(), selector(), bson:document(), boolean(), boolean()) -> ok.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
-	mc_action_man:write(Connection, #update{collection = Coll, selector = Selector, updater = Doc, upsert = Upsert, multiupdate = MultiUpdate}).
+	mc_connection_man:request(Connection, #update{collection = Coll, selector = Selector, updater = Doc, upsert = Upsert, multiupdate = MultiUpdate}).
 
 %% @doc Delete selected documents
 -spec delete(pid()|term(), collection(), selector()) -> ok.
 delete(Connection, Coll, Selector) ->
-	mc_action_man:write(Connection, #delete{collection = Coll, singleremove = false, selector = Selector}).
+	mc_connection_man:request(Connection, #delete{collection = Coll, singleremove = false, selector = Selector}).
 
 %% @doc Delete first selected document.
 -spec delete_one(pid()|term(), collection(), selector()) -> ok.
 delete_one(Connection, Coll, Selector) ->
-	mc_action_man:write(Connection, #delete{collection = Coll, singleremove = true, selector = Selector}).
+	mc_connection_man:request(Connection, #delete{collection = Coll, singleremove = true, selector = Selector}).
 
 %% @doc Return first selected document, if any
 -spec find_one(pid() | term(), collection(), selector()) -> {} | {bson:document()}.
