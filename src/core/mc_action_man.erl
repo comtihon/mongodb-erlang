@@ -28,11 +28,11 @@ do(Connection, WriteMode, ReadMode, Database, Action) ->
 	Action(Connection).
 
 read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize} ) ->
-	{Cursor, Batch} = mc_connection_man:request(Connection, Request#'query'{slaveok = ReadMode =:= slave_ok}),
+	{Cursor, Batch} = mc_connection_man:request(Connection, Request),
 	mongo_cursor:create(Connection, Database, Collection, Cursor, BatchSize, Batch).  %TODO when pool Coonection will be {atom, PoolName}!! Resolv me
 %TODO cursor, what is it 0_o
 read_one(Connection, Request) ->
-	{0, Docs} = mc_connection_man:request(Connection, Request#'query'{batchsize = -1, slaveok = ReadMode =:= slave_ok}),
+	{0, Docs} = mc_connection_man:request(Connection, Request#'query'{batchsize = -1}),
 	case Docs of
 		[] -> {};
 		[Doc | _] -> {Doc}
