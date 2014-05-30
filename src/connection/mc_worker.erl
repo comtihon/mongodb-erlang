@@ -40,7 +40,7 @@ init([{Host, Port}, Options]) ->
 	{ok, Socket} = connect_to_database(Host, Port, Options),
 	State = proplists:get_value(state, Options),
 	process_flag(trap_exit, true),
-	RequestStorage = ets:new(requests, [private]),
+	RequestStorage = ets:new(requests, [private]),  %TODO heir me!
 	{ok, #state{socket = Socket, ets = RequestStorage, buffer = <<>>, conn_state = State}}.
 
 %% @hidden
@@ -56,28 +56,28 @@ handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#c
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write unsafe requests
 	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
 	{reply, ok, State};
-handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#conn_state{write_mode = SafeMode}})
+handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState#conn_state{write_mode = SafeMode}, ets = Ets})
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write safe requests
 	Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
 
-	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
-	{0, [Ack | _]}, %TODO
-	{ok, _} = make_request(Socket, ConnState#conn_state.database, #'query'{
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request), % ordinary write request
+
+	RespFun = fun({0, [Ack | _]}) ->
+		case bson:lookup(err, Ack, undefined) of
+			undefined -> gen_server:reply(From, ok);
+			String ->
+				case bson:at(code, Ack) of
+					10058 -> gen_server:reply(From, {error, {not_master, 10058}});
+					Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
+				end
+		end
+	end,
+	{ok, Id} = make_request(Socket, ConnState#conn_state.database, #'query'{ % check-write read request
 		batchsize = -1,
 		collection = '$cmd',
 		selector = bson:append({getlasterror, 1}, Params)
 	}),
-
-	case bson:lookup(err, Ack, undefined) of  %TODO
-		undefined -> ok;
-		String ->
-			case bson:at(code, Ack) of
-				10058 -> erlang:exit(not_master);
-				Code -> erlang:exit({write_failure, Code, String})
-			end
-	end,
-	{Packet, _Id} = encode_request(ConnState#conn_state.database, Request),
-	ok = gen_tcp:send(Socket, Packet),
+	true = ets:insert_new(Ets, {Id, RespFun}),  % save function, which will be called on response
 	{reply, ok, State};
 handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState, ets = Ets, conn_state = CS}) % read requests
 	when is_record(Request, 'query'); is_record(Request, getmore) ->
@@ -87,9 +87,10 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
 	         end,
 	{ok, Id} = make_request(Socket, ConnState#conn_state.database, UpdReq), %TODO cursor?
 	inet:setopts(Socket, [{active, once}]),
-	true = ets:insert_new(Ets, {Id, From}),
+	RespFun = fun(Response) -> gen_server:reply(From, Response) end,  % save function, which will be called on response
+	true = ets:insert_new(Ets, {Id, RespFun}),
 	{noreply, State};
-handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests
+handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests %TODO what are they?
 	{ok, _} = make_request(Socket, ConnState#conn_state.database, Request),
 	{reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
@@ -106,7 +107,7 @@ handle_info({tcp, _Socket, Data}, State = #state{ets = Ets}) ->
 	process_responses(Responses, Ets),
 	case proplists:get_value(size, ets:info(Ets)) of
 		0 -> ok;
-		_ -> inet:setopts(State#state.socket, [{active, once}])
+		_ -> inet:setopts(State#state.socket, [{active, once}]) %TODO why not always active true?
 	end,
 	{noreply, State#state{buffer = Pending}};
 handle_info({tcp_closed, _Socket}, State) ->
@@ -121,7 +122,6 @@ terminate(_, State) ->
 %% @hidden
 code_change(_Old, State, _Extra) ->
 	{ok, State}.
-
 
 %% @private
 encode_request(Database, Request) ->
@@ -149,9 +149,9 @@ process_responses(Responses, Ets) ->
 			case ets:lookup(Ets, Id) of
 				[] -> % TODO: close any cursor that might be linked to this request ?
 					ok;
-				[{Id, From}] ->
+				[{Id, Fun}] ->
 					ets:delete(Ets, Id),
-					gen_server:reply(From, Response)
+					catch Fun(Response) % call on-response function
 			end
 		end, Responses).
 
@@ -176,6 +176,7 @@ value_to_binary(Value) when is_binary(Value) ->
 value_to_binary(_Value) ->
 	<<>>.
 
+%% @private
 make_request(Socket, Database, Request) ->
 	{Packet, Id} = encode_request(Database, Request),
 	{gen_tcp:send(Socket, Packet), Id}.
