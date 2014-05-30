@@ -46,11 +46,11 @@ init([{Host, Port}, Options]) ->
 %% @hidden
 handle_call(NewState = #conn_state, _, State = #state{conn_state = OldState}) ->  % update state, return old
 	{reply, {ok, OldState}, State#state{conn_state = NewState}};
-handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState}) -> % ensure index request with insert request
+handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState, socket = Socket}) -> % ensure index request with insert request
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, gen_index_name(Key), unique, false, dropDups, false},
 	Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-	mc_connection_man:request(self(), {'system.indexes', Index}), % TODO what request type?  %TODO deadlock?
+	{ok, _} = make_request(Socket, ConnState#conn_state.database, #insert{collection = 'system.indexes', documents = Index}),
 	{reply, ok, State};
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState#conn_state{write_mode = unsafe}})
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write unsafe requests
