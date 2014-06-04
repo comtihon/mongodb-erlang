@@ -8,6 +8,14 @@
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 -type modifier() :: bson:document().
+-type connection() :: pid().
+-type database() :: atom().
+-type write_mode() :: unsafe | safe | {safe, bson:document()}.
+-type read_mode() :: master | slave_ok.
+-type action(A) :: fun (() -> A).
+-type service() :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
+-type options() :: [option()].
+-type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl | {database, database()} | {read_mode, read_mode()} | {write_mode, write_mode()}.
 
 %% write
 -record(insert, {

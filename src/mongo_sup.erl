@@ -20,7 +20,7 @@ start_link() ->
 
 -spec start_cursor([term()]) -> {ok, pid()}.
 start_cursor(Args) ->
-	supervisor:start_child(mongo_cursors_sup, [Args]).
+	supervisor:start_child(?MODULE, [Args]).
 
 %% @hidden
 init(cursors) ->

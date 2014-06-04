@@ -5,7 +5,7 @@
 -include("mongo_protocol.hrl").
 
 -export([
-	create/6,
+	create/5,
 	next/1,
 	rest/1,
 	take/2,
@@ -37,9 +37,9 @@
 	monitor :: reference
 }).
 
--spec create(mc_worker:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
-create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Database, Collection, Cursor, BatchSize, Batch]),
+-spec create(mc_worker:connection(), atom(), integer(), integer(), [bson:document()]) -> pid().
+create(Connection, Collection, Cursor, BatchSize, Batch) ->
+	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
 	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
@@ -143,9 +143,7 @@ handle_info(_, State) ->
 terminate(_, #state{cursor = 0}) ->
 	ok;
 terminate(_, State) ->
-	mc_worker:request(State#state.connection, State#state.database, #killcursor{
-		cursorids = [State#state.cursor]
-	}).
+	gen_server:call(State#state.connection, #killcursor{cursorids = [State#state.cursor]}).
 
 %% @hidden
 code_change(_Old, State, _Extra) ->
@@ -157,7 +155,7 @@ next_i(#state{batch = [Doc | Rest]} = State) ->
 next_i(#state{batch = [], cursor = 0} = State) ->
 	{{}, State};
 next_i(#state{batch = []} = State) ->
-	{Cursor, Batch} = mc_worker:request(State#state.connection, State#state.database, #getmore{
+	{Cursor, Batch} = gen_server:call(State#state.connection, #getmore{
 		collection = State#state.collection,
 		batchsize = State#state.batchsize,
 		cursorid = State#state.cursor

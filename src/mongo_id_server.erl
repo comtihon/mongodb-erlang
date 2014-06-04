@@ -24,7 +24,7 @@
 %% @doc Fresh request id
 -spec request_id() -> pos_integer().
 request_id() ->
-	ets:update_counter(?MODULE, requestid_counter, 1).  %TODO non distributed
+	ets:update_counter(?MODULE, requestid_counter, 1).
 
 %% @doc Fresh object id
 -spec object_id() -> bson:objectid().
