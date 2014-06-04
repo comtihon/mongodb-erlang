@@ -3,8 +3,8 @@
 
 -module(mongo).
 -export([
-	connect/2,
-	connect/3,
+	connect/4,
+	connect/6,
 	insert/3,
 	update/4,
 	update/5,
@@ -37,12 +37,13 @@
 -type cursor() :: pid().
 
 %% @doc Make one connection to server, return its pid
--spec connect(Host :: inet:ip_address() | inet:hostname(), Port :: inet:port_number()) -> Pid :: pid().
-connect(Host, Port) ->
-	connect(Host, Port, []).
--spec connect(Host :: inet:ip_address() | inet:hostname(), Port :: inet:port_number(), Opts :: proplists:proplist()) -> Pid :: pid().
-connect(Host, Port, Opts) ->
-	mc_worker:start_link({Host, Port}, Opts).
+-spec connect(Host :: string(), Port :: integer(), Database :: string(), Opts :: proplists:proplist()) -> Pid :: pid().
+connect(Host, Port, Database, Opts) ->
+	mc_worker:start_link({Host, Port, #conn_state{database = Database}}, Opts).
+-spec connect(Host :: string(), Port :: integer(), Database :: string(),
+		Wmode :: write_mode(), Rmode :: read_mode(), Opts :: proplists:proplist()) -> Pid :: pid().
+connect(Host, Port, Database, Wmode, Rmode, Opts) ->
+	mc_worker:start_link({Host, Port, #conn_state{database = Database, write_mode = Wmode, read_mode = Rmode}}, Opts).
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.

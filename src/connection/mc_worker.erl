@@ -27,9 +27,8 @@ start_link(Service, Options) ->
 	gen_server:start_link(?MODULE, [Service, Options], []).
 
 %% @hidden
-init([{Host, Port}, Options]) ->
+init([{Host, Port, State}, Options]) ->
 	{ok, Socket} = connect_to_database(Host, Port, Options),
-	State = proplists:get_value(state, Options),
 	process_flag(trap_exit, true),
 	RequestStorage = ets:new(requests, [private]),  %TODO heir me? (in case of fall one request - others to be saved)
 	{ok, #state{socket = Socket, ets = RequestStorage, buffer = <<>>, conn_state = State}}.
@@ -68,7 +67,8 @@ handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state
 	         end,
 	{ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
 	inet:setopts(Socket, [{active, once}]),
-	RespFun = fun(Response) -> gen_server:reply(From, Response) end,  % save function, which will be called on response %TODO cursor?
+	RespFun = fun(Response) ->
+		gen_server:reply(From, Response) end,  % save function, which will be called on response %TODO cursor?
 	true = ets:insert_new(Ets, {Id, RespFun}),
 	{noreply, State};
 handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests %TODO what are they? (killcursor)
@@ -105,6 +105,6 @@ code_change(_Old, State, _Extra) ->
 	{ok, State}.
 
 %% @private
-connect_to_database(Port, Host, Options) ->
+connect_to_database(Host, Port, Options) ->
 	Timeout = proplists:get_value(timeout, Options, infinity),
 	gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout).

@@ -63,8 +63,8 @@
 }).
 
 -record(conn_state, {
-	write_mode :: write_mode(),
-	read_mode :: read_mode(),
+	write_mode = unsafe :: write_mode(),
+	read_mode = master :: read_mode(),
 	database :: database()
 }).
 
