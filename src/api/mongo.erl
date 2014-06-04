@@ -44,7 +44,6 @@ connect(Host, Port) ->
 connect(Host, Port, Opts) ->
 	mc_worker:start_link({Host, Port}, Opts).
 
-
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid()|term(), collection(), A) -> A.
@@ -169,7 +168,6 @@ command(Connection, Command) ->
 		N when N == 1 -> Doc;
 		_ -> erlang:error({bad_command, Doc}, [Command])
 	end.
-
 
 %% @private
 -spec assign_id(bson:document()) -> bson:document().
