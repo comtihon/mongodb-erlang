@@ -23,8 +23,11 @@ request({pool, PoolName}, Request) -> %request to pool
 request(Connection, Request) ->  %request to worker
 	reply(gen_server:call(Connection, Request, infinity)).
 
+-spec request_worker(PoolName :: atom()) -> pid().
 request_worker(PoolName) ->
 	poolboy:checkout(PoolName).
+
+-spec free_worker(PoolName :: atom(), Worker :: pid()) -> ok.
 free_worker(PoolName, Worker) ->
 	poolboy:checkin(PoolName, Worker).
 

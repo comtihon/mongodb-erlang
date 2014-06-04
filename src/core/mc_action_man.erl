@@ -16,14 +16,13 @@
 
 %% @doc Execute mongo action under given write_mode, read_mode, connection, and database.
 -spec do(connection(), write_mode(), read_mode(), database(), action(A)) -> A.
-do({pool, PoolName}, WriteMode, ReadMode, Database, Action) ->
-	Worker = mc_connection_man:request_worker(PoolName),
+do({pool, PoolName}, WriteMode, ReadMode, Database, Action) ->  %in case of pool
+	Worker = mc_connection_man:request_worker(PoolName),  %request worker from pool (for not loading him with other task)
 	try
 		do(Worker, WriteMode, ReadMode, Database, Action)
-	after mc_connection_man:free_worker(PoolName, Worker)
+	after mc_connection_man:free_worker(PoolName, Worker) %return worker from pool
 	end;
-
-do(Connection, WriteMode, ReadMode, Database, Action) ->
+do(Connection, WriteMode, ReadMode, Database, Action) ->  %in case of standalone worker just work
 	gen_server:call(Connection, #conn_state{database = Database, write_mode = WriteMode, read_mode = ReadMode}),
 	Action(Connection).
 
