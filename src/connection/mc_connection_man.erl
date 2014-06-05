@@ -12,7 +12,7 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([reply/1, request/2]).
+-export([reply/1, request/2, pw_key/3, process_reply/2]).
 
 -spec request(pid(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Connection, Request) ->  %request to worker
@@ -27,9 +27,27 @@ reply(#reply{cursornotfound = false, queryerror = true} = Reply) ->
 reply(#reply{cursornotfound = true, queryerror = false} = Reply) ->
 	erlang:error({bad_cursor, Reply#reply.cursorid}).
 
+process_reply(Doc, Command) ->
+	case bson:lookup(ok, Doc) of
+		{N} when N == 1 -> {true, bson:exclude([ok], Doc)};   %command succeed
+		{N} when N == 0 -> {false, bson:exclude([ok], Doc)};  %command failed
+		_Res -> erlang:error({bad_command, Doc}, [Command]) %unknown result
+	end.
+
 process_error(13435, _) ->
 	erlang:error(not_master);
 process_error(10057, _) ->
 	erlang:error(unauthorized);
 process_error(_, Doc) ->
 	erlang:error({bad_query, Doc}).
+
+pw_key(Nonce, Username, Password) ->
+	bson:utf8(binary_to_hexstr(crypto:hash(md5, [Nonce, Username, pw_hash(Username, Password)]))).
+
+%% @private
+pw_hash(Username, Password) ->
+	bson:utf8(binary_to_hexstr(crypto:hash(md5, [Username, <<":mongo:">>, Password]))).
+
+%% @private
+binary_to_hexstr(Bin) ->
+	lists:flatten([io_lib:format("~2.16.0b", [X]) || X <- binary_to_list(Bin)]).

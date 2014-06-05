@@ -3,6 +3,7 @@
 
 -module(mongo).
 -export([
+	auth/3,
 	connect/3,
 	connect/4,
 	connect/6,  %TODO disconnect?
@@ -31,7 +32,6 @@
 	command/2,
 	ensure_index/3
 ]).
-% TODO: add auth/2
 
 -include("mongo_protocol.hrl").
 
@@ -48,6 +48,13 @@ connect(Host, Port, Database, Opts) ->
 		Wmode :: write_mode(), Rmode :: read_mode(), Opts :: proplists:proplist()) -> Pid :: pid().
 connect(Host, Port, Database, Wmode, Rmode, Opts) ->
 	mc_worker:start_link({Host, Port, #conn_state{database = Database, write_mode = Wmode, read_mode = Rmode}}, Opts).
+
+%% @doc Auth to MongoDB
+-spec auth(Connection :: pid(), bson:utf8(), bson:utf8()) -> bson:document().
+auth(Connection, Username, Password) ->
+	{true, Res} = command(Connection, {getnonce, 1}),
+	Nonce = bson:at(nonce, Res),
+	command(Connection, {authenticate, 1, user, Username, nonce, Nonce, key, mc_connection_man:pw_key(Nonce, Username, Password)}).
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
@@ -145,10 +152,10 @@ count(Connection, Coll, Selector) ->
 -spec count(pid() | term(), collection(), selector(), integer()) -> integer().
 count(Connection, Coll, Selector, Limit) ->
 	CollStr = atom_to_binary(Coll, utf8),
-	Doc = command(Connection, case Limit =< 0 of
-		                          true -> {count, CollStr, 'query', Selector};
-		                          false -> {count, CollStr, 'query', Selector, limit, Limit}
-	                          end),
+	{true, Doc} = command(Connection, case Limit =< 0 of
+		                                  true -> {count, CollStr, 'query', Selector};
+		                                  false -> {count, CollStr, 'query', Selector, limit, Limit}
+	                                  end),
 	trunc(bson:at(n, Doc)). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
@@ -168,11 +175,8 @@ command(Connection, Command) ->
 		collection = '$cmd',
 		selector = Command
 	}),
-	case bson:at(ok, Doc) of
-		true -> Doc;
-		N when N == 1 -> Doc;
-		_ -> erlang:error({bad_command, Doc}, [Command])
-	end.
+	mc_connection_man:process_reply(Doc, Command).
+
 
 %% @private
 -spec assign_id(bson:document()) -> bson:document().

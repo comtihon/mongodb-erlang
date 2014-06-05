@@ -80,6 +80,11 @@ This driver does not provide helper functions for commands. Use `mongo:command` 
 
 To authenticate use function `mongo:auth`.
 
+    >  mongo:auth(C, <<"admin">>, <<"123456">>).
+The return values will be:  
+
+* `{false,{errmsg,<<"auth failed">>,code,18}}` in case of failure   
+* `{true,{dbname,<<"test">>,user,<<"admin">>}}` in case of success.  
 Plain Erlang string is interpreted as a BSON array of integers, so **make sure** to always encode your strings, as in `<<"hello">>` or `bson:utf8("hello")`.
 
 ### Pooling
