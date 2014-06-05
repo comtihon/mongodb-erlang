@@ -3,8 +3,9 @@
 
 -module(mongo).
 -export([
+	connect/3,
 	connect/4,
-	connect/6,
+	connect/6,  %TODO disconnect?
 	insert/3,
 	update/4,
 	update/5,
@@ -37,6 +38,9 @@
 -type cursor() :: pid().
 
 %% @doc Make one connection to server, return its pid
+-spec connect(Host :: string(), Port :: integer(), Database :: string()) -> {ok, Pid :: pid()}.
+connect(Host, Port, Database) ->
+	mc_worker:start_link({Host, Port, #conn_state{database = Database}}, []).
 -spec connect(Host :: string(), Port :: integer(), Database :: string(), Opts :: proplists:proplist()) -> {ok, Pid :: pid()}.
 connect(Host, Port, Database, Opts) ->
 	mc_worker:start_link({Host, Port, #conn_state{database = Database}}, Opts).
@@ -52,7 +56,6 @@ insert(Connection, Coll, Doc) when is_tuple(Doc) ->
 	hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
 	Docs1 = [assign_id(Doc) || Doc <- Docs],
-	io:format("Updated ~p~n", [Docs1]),
 	mc_connection_man:request(Connection, #insert{collection = Coll, documents = Docs1}),
 	Docs1.
 

@@ -12,24 +12,11 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([reply/1, request_worker/1, free_worker/2, request/2]).
+-export([reply/1, request/2]).
 
--spec request(pid() | term(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
-request({pool, PoolName}, Request) -> %request to pool
-	reply(poolboy:transaction(PoolName,
-		fun(Worker) ->
-			gen_server:call(Worker, Request, infinity)
-		end));
+-spec request(pid(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Connection, Request) ->  %request to worker
 	reply(gen_server:call(Connection, Request, infinity)).
-
--spec request_worker(PoolName :: atom()) -> pid().
-request_worker(PoolName) ->
-	poolboy:checkout(PoolName).
-
--spec free_worker(PoolName :: atom(), Worker :: pid()) -> ok.
-free_worker(PoolName, Worker) ->
-	poolboy:checkin(PoolName, Worker).
 
 reply(ok) -> ok;
 reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
