@@ -52,6 +52,7 @@ insert(Connection, Coll, Doc) when is_tuple(Doc) ->
 	hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
 	Docs1 = [assign_id(Doc) || Doc <- Docs],
+	io:format("Updated ~p~n", [Docs1]),
 	mc_connection_man:request(Connection, #insert{collection = Coll, documents = Docs1}),
 	Docs1.
 

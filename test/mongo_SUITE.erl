@@ -49,10 +49,13 @@ insert_and_find(Config) ->
 		{name, <<"Red Sox">>, home, {city, <<"Boston">>, state, <<"MA">>}, league, <<"American">>}
 	]),
 	4 = mongo:count(Connection, Collection, {}),
-	Teams = find(Connection, Collection, {}),
+	Teams2 = find(Connection, Collection, {}),
+	true = match_bson(Teams, Teams2),
 
 	NationalTeams = [Team || Team <- Teams, bson:at(league, Team) == <<"National">>],
-	NationalTeams = find(Connection, Collection, {league, <<"National">>}),
+	NationalTeams2 = find(Connection, Collection, {league, <<"National">>}),
+	true = match_bson(NationalTeams, NationalTeams2),
+
 	2 = mongo:count(Connection, Collection, {league, <<"National">>}),
 
 	TeamNames = [bson:include([name], Team) || Team <- Teams],
@@ -60,7 +63,8 @@ insert_and_find(Config) ->
 
 
 	BostonTeam = lists:last(Teams),
-	{BostonTeam} = mongo:find_one(Connection, Collection, {home, {city, <<"Boston">>, state, <<"MA">>}}).
+	{BostonTeam2} = mongo:find_one(Connection, Collection, {home, {city, <<"Boston">>, state, <<"MA">>}}),
+	true = match_bson([BostonTeam], [BostonTeam2]).
 
 insert_and_delete(Config) ->
 	Connection = ?config(connection, Config),
@@ -97,3 +101,16 @@ collection(Case) ->
 now_to_seconds({Mega, Sec, _}) ->
 	(Mega * 1000000) + Sec.
 
+match_bson(Tuple1, Tuple2) when length(Tuple1) /= length(Tuple2) -> false;
+match_bson(Tuple1, Tuple2) ->
+	try
+		lists:foldr(
+			fun(Elem, Num) ->
+				Elem2 = lists:nth(Num, Tuple2),
+				Sorted = lists:sort(bson:fields(Elem)),
+				Sorted = lists:sort(bson:fields(Elem2))
+			end, 1, Tuple1)
+	catch
+		_:_ -> false
+	end,
+	true.

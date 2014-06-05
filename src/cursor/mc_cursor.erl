@@ -173,5 +173,6 @@ rest_i(State, Acc, 0) ->
 rest_i(State, Acc, Limit) ->
 	case next_i(State) of
 		{{}, UpdatedState} -> {Acc, UpdatedState};
-		{{Doc}, UpdatedState} -> rest_i(UpdatedState, [Doc | Acc], Limit - 1)
+		{{Doc}, UpdatedState} ->
+			rest_i(UpdatedState, [Doc | Acc], Limit - 1)
 	end.
