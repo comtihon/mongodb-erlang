@@ -24,7 +24,7 @@
 
 
 % RequestId expected to be in scope at call site
--define(put_header(Opcode), ?put_int32(RequestId), ?put_int32(0), ?put_int32(Opcode)).
+-define(put_header(Opcode), ?put_int32(_RequestId), ?put_int32(0), ?put_int32(Opcode)).
 -define(get_header(Opcode, ResponseTo), ?get_int32(_RequestId), ?get_int32(ResponseTo), ?get_int32(Opcode)).
 
 -define(ReplyOpcode, 1).
@@ -38,34 +38,35 @@
 
 -spec dbcoll(db(), collection()) -> bson:utf8().
 %@doc Concat db and collection name with period (.) in between
-dbcoll(Db, Coll) -> <<(atom_to_binary(Db, utf8))/binary, $., (atom_to_binary(Coll, utf8))/binary>>.
+dbcoll(Db, Coll) ->
+	<<(atom_to_binary(Db, utf8))/binary, $., (atom_to_binary(Coll, utf8))/binary>>.
 
 -spec put_message(db(), message(), requestid()) -> binary().
-put_message(Db, #insert{collection = Coll, documents = Docs}, RequestId) ->
+put_message(Db, #insert{collection = Coll, documents = Docs}, _RequestId) ->
 	<<?put_header(?InsertOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	<<<<(bson_binary:put_document(Doc))/binary>> || Doc <- Docs>>/binary>>;
-put_message(Db, #update{collection = Coll, upsert = U, multiupdate = M, selector = Sel, updater = Up}, RequestId) ->
+put_message(Db, #update{collection = Coll, upsert = U, multiupdate = M, selector = Sel, updater = Up}, _RequestId) ->
 	<<?put_header(?UpdateOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	?put_bits32(0, 0, 0, 0, 0, 0, bit(M), bit(U)),
 	(bson_binary:put_document(Sel))/binary,
 	(bson_binary:put_document(Up))/binary>>;
-put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}, RequestId) ->
+put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}, _RequestId) ->
 	<<?put_header(?DeleteOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
 	?put_bits32(0, 0, 0, 0, 0, 0, 0, bit(R)),
 	(bson_binary:put_document(Sel))/binary>>;
-put_message(_Db, #killcursor{cursorids = Cids}, RequestId) ->
+put_message(_Db, #killcursor{cursorids = Cids}, _RequestId) ->
 	<<?put_header(?KillcursorOpcode),
 	?put_int32(0),
 	?put_int32(length(Cids)),
 	<<<<?put_int64(Cid)>> || Cid <- Cids>>/binary>>;
 put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = NCT, awaitdata = AD,
-	collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}, RequestId) ->
+	collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}, _RequestId) ->
 	<<?put_header(?QueryOpcode),
 	?put_bits32(0, 0, bit(AD), bit(NCT), 0, bit(SOK), bit(TC), 0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
@@ -73,7 +74,7 @@ put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = N
 	?put_int32(Batch),
 	(bson_binary:put_document(Sel))/binary,
 	(case Proj of [] -> <<>>; _ -> bson_binary:put_document(Proj) end)/binary>>;
-put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, RequestId) ->
+put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, _RequestId) ->
 	<<?put_header(?GetmoreOpcode),
 	?put_int32(0),
 	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,

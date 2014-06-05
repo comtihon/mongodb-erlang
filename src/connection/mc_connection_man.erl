@@ -21,7 +21,6 @@ request({pool, PoolName}, Request) -> %request to pool
 			gen_server:call(Worker, Request, infinity)
 		end));
 request(Connection, Request) ->  %request to worker
-	io:format("Call to gen_server ~p with arg ~p~n", [Connection, Request]),
 	reply(gen_server:call(Connection, Request, infinity)).
 
 -spec request_worker(PoolName :: atom()) -> pid().

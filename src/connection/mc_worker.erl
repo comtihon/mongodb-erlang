@@ -75,9 +75,6 @@ handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = 
 	{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
 	{reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
-	{stop, normal, ok, State};
-handle_call(Undef, _From, State) ->
-	io:format("Undefined! ~p~n", [Undef]),
 	{stop, normal, ok, State}.
 
 %% @hidden

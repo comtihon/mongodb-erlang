@@ -1,4 +1,4 @@
--module(mongo_cursor).
+-module(mc_cursor).
 
 -behaviour(gen_server).
 
@@ -29,7 +29,6 @@
 
 -record(state, {
 	connection :: mc_worker:connection(),
-	database :: atom(),
 	collection :: atom(),
 	cursor :: integer(),
 	batchsize :: integer(),
@@ -39,7 +38,7 @@
 
 -spec create(mc_worker:connection(), atom(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->
-	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
+	{ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
 	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
@@ -93,10 +92,9 @@ start_link(Args) ->
 
 
 %% @hidden
-init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
+init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
 	{ok, #state{
 		connection = Connection,
-		database = Database,
 		collection = Collection,
 		cursor = Cursor,
 		batchsize = BatchSize,

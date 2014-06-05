@@ -49,14 +49,14 @@ insert_and_find(Config) ->
 		{name, <<"Red Sox">>, home, {city, <<"Boston">>, state, <<"MA">>}, league, <<"American">>}
 	]),
 	4 = mongo:count(Connection, Collection, {}),
-	Teams = find(Collection, {}),
+	Teams = find(Connection, Collection, {}),
 
 	NationalTeams = [Team || Team <- Teams, bson:at(league, Team) == <<"National">>],
-	NationalTeams = find(Collection, {league, <<"National">>}),
+	NationalTeams = find(Connection, Collection, {league, <<"National">>}),
 	2 = mongo:count(Connection, Collection, {league, <<"National">>}),
 
 	TeamNames = [bson:include([name], Team) || Team <- Teams],
-	TeamNames = find(Collection, {}, {'_id', 0, name, 1}),
+	TeamNames = find(Connection, Collection, {}, {'_id', 0, name, 1}),
 
 
 	BostonTeam = lists:last(Teams),
@@ -79,13 +79,13 @@ insert_and_delete(Config) ->
 
 
 %% @private
-find(Collection, Selector) ->
-	find(Collection, Selector, []).
+find(Connection, Collection, Selector) ->
+	find(Connection, Collection, Selector, []).
 
-find(Collection, Selector, Projector) ->
-	Cursor = mongo:find(Collection, Selector, Projector),
-	Result = mongo_cursor:rest(Cursor),
-	mongo_cursor:close(Cursor),
+find(Connection, Collection, Selector, Projector) ->
+	Cursor = mongo:find(Connection, Collection, Selector, Projector),
+	Result = mc_cursor:rest(Cursor),
+	mc_cursor:close(Cursor),
 	Result.
 
 %% @private
