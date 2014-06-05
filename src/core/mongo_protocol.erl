@@ -39,7 +39,7 @@
 -spec dbcoll(db(), collection()) -> bson:utf8().
 %@doc Concat db and collection name with period (.) in between
 dbcoll(Db, Coll) ->
-	<<(atom_to_binary(Db, utf8))/binary, $., (atom_to_binary(Coll, utf8))/binary>>.
+	<<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
 
 -spec put_message(db(), message(), requestid()) -> binary().
 put_message(Db, #insert{collection = Coll, documents = Docs}, _RequestId) ->
@@ -101,6 +101,10 @@ get_reply(Message) ->
 	},
 	{ResponseTo, Reply, BinRest}.
 
+-spec binarize(binary() | atom()) -> binary().
+%@doc Ensures the given term is converted to a UTF-8 binary.
+binarize(Term) when is_binary(Term) -> Term;
+binarize(Term) when is_atom(Term) -> atom_to_binary(Term, utf8).
 
 %% @private
 get_docs(0, Bin) -> {[], Bin};

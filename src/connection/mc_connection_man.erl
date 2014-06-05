@@ -12,7 +12,7 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([reply/1, request/2, pw_key/3, process_reply/2]).
+-export([reply/1, request/2, pw_key/3, process_reply/2, value_to_binary/1]).
 
 -spec request(pid(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Connection, Request) ->  %request to worker
@@ -51,3 +51,12 @@ pw_hash(Username, Password) ->
 %% @private
 binary_to_hexstr(Bin) ->
 	lists:flatten([io_lib:format("~2.16.0b", [X]) || X <- binary_to_list(Bin)]).
+
+value_to_binary(Value) when is_integer(Value) ->
+	bson:utf8(integer_to_list(Value));
+value_to_binary(Value) when is_atom(Value) ->
+	atom_to_binary(Value, utf8);
+value_to_binary(Value) when is_binary(Value) ->
+	Value;
+value_to_binary(_Value) ->
+	<<>>.

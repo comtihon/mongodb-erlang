@@ -151,7 +151,7 @@ count(Connection, Coll, Selector) ->
 %     Ie. stops counting when max is reached to save processing time.
 -spec count(pid() | term(), collection(), selector(), integer()) -> integer().
 count(Connection, Coll, Selector, Limit) ->
-	CollStr = atom_to_binary(Coll, utf8),
+	CollStr = mc_connection_man:value_to_binary(Coll),
 	{true, Doc} = command(Connection, case Limit =< 0 of
 		                                  true -> {count, CollStr, 'query', Selector};
 		                                  false -> {count, CollStr, 'query', Selector, limit, Limit}

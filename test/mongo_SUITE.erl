@@ -95,7 +95,9 @@ find(Connection, Collection, Selector, Projector) ->
 %% @private
 collection(Case) ->
 	Now = now_to_seconds(erlang:now()),
-	list_to_atom(atom_to_list(?MODULE) ++ "-" ++ atom_to_list(Case) ++ "-" ++ integer_to_list(Now)).
+	<<(atom_to_binary(?MODULE, utf8))/binary, $-,
+	(atom_to_binary(Case, utf8))/binary, $-,
+	(list_to_binary(integer_to_list(Now)))/binary>>.
 
 %% @private
 now_to_seconds({Mega, Sec, _}) ->

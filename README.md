@@ -28,9 +28,9 @@ Although the mongodb application includes several modules, you should only need 
 
 To connect to a database `test` on mongodb server listening on `localhost:27017` (or any address & port of your choosing) use `mongo:connect/3/4/6`.
 
-	> Host = localhost.
+	> Host = "127.0.0.1".
 	> Port = 27017.
-	> Database = test.
+	> Database = <<"test">>.
 	> {ok, Connection} = mongo:connect (Host, Port, Database).
 
 `mongo:connect` returns `{error, Reason}` if it failed to connect.  
@@ -48,6 +48,7 @@ To connect to a database `test` on mongodb server listening on `localhost:27017`
 
 After you connected to your database - you can carry out write operations, such as `insert`, `update` and `delete`:
     
+    > Collection = <"test">>.
     > mongo:insert(Connection, Collection, [
     		{name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
     		{name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},

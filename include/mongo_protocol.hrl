@@ -1,7 +1,7 @@
 % Wire protocol message types (records)
 
 -type db() :: atom().
--type collection() :: atom(). % without db prefix
+-type collection() :: binary() | atom(). % without db prefix
 -type cursorid() :: integer().
 -type selector() :: bson:document().
 -type projector() :: bson:document().
@@ -9,7 +9,7 @@
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 -type modifier() :: bson:document().
 -type connection() :: pid().
--type database() :: atom().
+-type database() :: binary | atom().
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
 -type read_mode() :: master | slave_ok.
 -type action(A) :: fun (() -> A).
