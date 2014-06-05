@@ -15,7 +15,7 @@
 
 encode_request(Database, Request) ->
 	RequestId = mongo_id_server:request_id(), %TODO uuid:generate
-	Payload = mongo_protocol:put_message(Database, Request),
+	Payload = mongo_protocol:put_message(Database, Request, RequestId),
 	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
 
 decode_responses(Data) ->
@@ -56,9 +56,10 @@ process_responses(Responses, Ets) ->
 		end, Responses).
 
 gen_index_name(KeyOrder) ->
-	bson:doc_foldl(fun(Label, Order, Acc) ->
-		<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
-	end, <<"i">>, KeyOrder).
+	bson:doc_foldl(
+		fun(Label, Order, Acc) ->
+			<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
+		end, <<"i">>, KeyOrder).
 
 make_request(Socket, Database, Request) ->
 	{Packet, Id} = encode_request(Database, Request),

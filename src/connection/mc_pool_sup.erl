@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 28. май 2014 17:21
 %%%-------------------------------------------------------------------
--module(mc_sup).
+-module(mc_pool_sup).
 -author("tihon").
 
 -behaviour(supervisor).

@@ -12,7 +12,7 @@
 
 -define(SUPERVISOR(Id, Tag), {Id, {supervisor, start_link, [?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
 -define(SUPERVISOR(Id, Name, Tag), {Id, {supervisor, start_link, [{local, Name}, ?MODULE, Tag]}, permanent, infinity, supervisor, [?MODULE]}).
--define(WORKER(M, F, A, R), {M, {M, F, A}, R, 5000, worker, [M]}).
+-define(WORKER(M, A, R), {M, {M, start_link, A}, R, 5000, worker, [M]}).
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -23,17 +23,18 @@ start_cursor(Args) ->
 	supervisor:start_child(?MODULE, [Args]).
 
 %% @hidden
+init(app) ->
+	MongoIdServer = ?WORKER(mongo_id_server, [], permanent),
+	{ok, {{one_for_one, 5, 10}, [MongoIdServer]}};
 init(cursors) ->
 	{ok, {
 		{simple_one_for_one, 5, 10}, [
-			?WORKER(mongo_cursor, start_link, [], temporary)
+			?WORKER(mongo_cursor, [], temporary)
 		]
 	}};
-
 init({connections, Service, Options}) ->
 	{ok, {
 		{simple_one_for_one, 5, 10}, [
-			?WORKER(mongo_connection, start_link, [Service, Options], temporary)
+			?WORKER(mongo_connection, [Service, Options], temporary)
 		]
 	}}.
-

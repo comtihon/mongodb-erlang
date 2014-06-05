@@ -68,13 +68,16 @@ handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state
 	{ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
 	inet:setopts(Socket, [{active, once}]),
 	RespFun = fun(Response) ->
-		gen_server:reply(From, Response) end,  % save function, which will be called on response %TODO cursor?
+		gen_server:reply(From, Response) end,  % save function, which will be called on response
 	true = ets:insert_new(Ets, {Id, RespFun}),
 	{noreply, State};
-handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % ordinary requests %TODO what are they? (killcursor)
+handle_call({request, Request}, _, State = #state{socket = Socket, conn_state = ConnState}) -> % TODO made - killcursor!
 	{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
 	{reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
+	{stop, normal, ok, State};
+handle_call(Undef, _From, State) ->
+	io:format("Undefined! ~p~n", [Undef]),
 	{stop, normal, ok, State}.
 
 %% @hidden

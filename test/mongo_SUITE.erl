@@ -29,7 +29,7 @@ end_per_suite(_Config) ->
 	ok.
 
 init_per_testcase(Case, Config) ->
-	Connection = mongo:connect("127.0.0.1", 27017, #conn_state{database = ?config(database, Config), write_mode = safe, read_mode = master}),
+	{ok, Connection} = mongo:connect("127.0.0.1", 27017, ?config(database, Config), safe, master, []),
 	[{connection, Connection}, {collection, collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
