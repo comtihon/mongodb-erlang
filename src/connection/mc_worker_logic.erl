@@ -9,13 +9,14 @@
 -module(mc_worker_logic).
 -author("tihon").
 
+-include("mongo_protocol.hrl").
+
 %% API
 -export([encode_requests/2, decode_responses/1, process_responses/2, process_write_response/1]).
 -export([gen_index_name/1, make_request/3]).
 
 encode_requests(Database, Request) when not is_list(Request) -> encode_requests(Database, [Request]);
 encode_requests(Database, Request) ->
-	io:format("encode_requests ~p~n", [Request]),
 	Build = fun(Message, {Bin, _}) ->
 		RequestId = mongo_id_server:request_id(),
 		Payload = mongo_protocol:put_message(Database, Message, RequestId),
@@ -36,11 +37,11 @@ decode_responses(Data, Acc) ->
 %% Returns function for processing requests to From pid on write operations
 -spec process_write_response(From :: pid()) -> fun().
 process_write_response(From) ->
-	fun({0, [Ack | _]}) ->
-		case bson:lookup(err, Ack, undefined) of
+	fun(#reply{documents = [Doc]}) ->
+		case bson:lookup(err, Doc, undefined) of
 			undefined -> gen_server:reply(From, ok);
 			String ->
-				case bson:at(code, Ack) of
+				case bson:at(code, Doc) of
 					10058 -> gen_server:reply(From, {error, {not_master, 10058}});
 					Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
 				end
@@ -68,5 +69,4 @@ gen_index_name(KeyOrder) ->
 
 make_request(Socket, Database, Request) ->
 	{Packet, Id} = encode_requests(Database, Request),
-	io:format("Encoded Packet ~p~nId ~p~n", [Packet, Id]),
 	{gen_tcp:send(Socket, Packet), Id}.
