@@ -46,19 +46,22 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
 	case ConnState#conn_state.write_mode of
 		unsafe ->   %unsafe (just write)
-			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request);
+			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
+			{reply, ok, State};
 		SafeMode -> %safe (write and check)
-			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request), % ordinary write request
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
-			{ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, #'query'{ % check-write read request
+			ConfirmWrite = #'query'{ % check-write read request
 				batchsize = -1,
 				collection = '$cmd',
 				selector = bson:append({getlasterror, 1}, Params)
-			}),
+			},
+			io:format("Form query~n"),
+			{ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
+			io:format("made request~n"),
 			RespFun = mc_worker_logic:process_write_response(From),
-			true = ets:insert_new(Ets, {Id, RespFun}) % save function, which will be called on response
-	end,
-	{reply, ok, State};
+			true = ets:insert_new(Ets, {Id, RespFun}), % save function, which will be called on response
+			{noreply, State}
+	end;
 handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state = CS}) % read requests
 	when is_record(Request, 'query'); is_record(Request, getmore) ->
 	UpdReq = case is_record(Request, 'query') of
@@ -82,6 +85,7 @@ handle_cast(_, State) ->
 
 %% @hidden
 handle_info({tcp, _Socket, Data}, State = #state{ets = Ets}) ->
+	io:format("Got shth: ~p~n", [Data]),
 	Buffer = <<(State#state.buffer)/binary, Data/binary>>,
 	{Responses, Pending} = mc_worker_logic:decode_responses(Buffer),
 	mc_worker_logic:process_responses(Responses, Ets),
@@ -91,8 +95,10 @@ handle_info({tcp, _Socket, Data}, State = #state{ets = Ets}) ->
 	end,
 	{noreply, State#state{buffer = Pending}};
 handle_info({tcp_closed, _Socket}, State) ->
+	io:format("tcp_closed~n"),
 	{stop, tcp_closed, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
+	io:format("tcp_error~n"),
 	{stop, Reason, State}.
 
 %% @hidden

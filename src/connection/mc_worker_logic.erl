@@ -10,13 +10,17 @@
 -author("tihon").
 
 %% API
--export([encode_request/2, decode_responses/1, process_responses/2, process_write_response/1]).
+-export([encode_requests/2, decode_responses/1, process_responses/2, process_write_response/1]).
 -export([gen_index_name/1, make_request/3]).
 
-encode_request(Database, Request) ->
-	RequestId = mongo_id_server:request_id(), %TODO uuid:generate
-	Payload = mongo_protocol:put_message(Database, Request, RequestId),
-	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
+encode_requests(Database, Request) when not is_list(Request) -> encode_requests(Database, [Request]);
+encode_requests(Database, Request) ->
+	io:format("encode_requests ~p~n", [Request]),
+	Build = fun(Message, {Bin, _}) ->
+		RequestId = mongo_id_server:request_id(),
+		Payload = mongo_protocol:put_message(Database, Message, RequestId),
+		{<<Bin/binary, (byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId} end,
+	lists:foldl(Build, {<<>>, 0}, Request).
 
 decode_responses(Data) ->
 	decode_responses(Data, []).
@@ -63,5 +67,6 @@ gen_index_name(KeyOrder) ->
 		end, <<"i">>, KeyOrder).
 
 make_request(Socket, Database, Request) ->
-	{Packet, Id} = encode_request(Database, Request),
+	{Packet, Id} = encode_requests(Database, Request),
+	io:format("Encoded Packet ~p~nId ~p~n", [Packet, Id]),
 	{gen_tcp:send(Socket, Packet), Id}.
