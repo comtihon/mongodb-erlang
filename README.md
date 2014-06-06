@@ -88,6 +88,11 @@ The return values will be:
 * `{true,{dbname,<<"test">>,user,<<"admin">>}}` in case of success.  
 Plain Erlang string is interpreted as a BSON array of integers, so **make sure** to always encode your strings, as in `<<"hello">>` or `bson:utf8("hello")`.
 
+### Timeout
+
+By default timeout for all connections to connection gen_server is `infinity`. If you found problems with it - you can modify timeout.  
+To modify it just add `mc_worker_call_timeout` with new value to your applications's env config.
+
 ### Pooling
 
 For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as pool workers. It is just a client, so pool realisation should not be here.

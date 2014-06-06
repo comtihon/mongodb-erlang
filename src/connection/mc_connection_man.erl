@@ -16,7 +16,11 @@
 
 -spec request(pid(), term()) -> ok | {non_neg_integer(), [bson:document()]}.
 request(Connection, Request) ->  %request to worker
-	reply(gen_server:call(Connection, Request, infinity)).
+	Timeout = case application:get_env(mc_worker_call_timeout) of
+		          {ok, Time} -> Time;
+		          undefined -> infinity
+	          end,
+	reply(gen_server:call(Connection, Request, Timeout)).
 
 reply(ok) -> ok;
 reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
