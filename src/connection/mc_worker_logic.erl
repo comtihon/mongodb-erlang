@@ -14,7 +14,7 @@
 -export([gen_index_name/1, make_request/3]).
 
 encode_request(Database, Request) ->
-	RequestId = mongo_id_server:request_id(), %TODO uuid:generate
+	RequestId = mongo_id_server:request_id(),
 	Payload = mongo_protocol:put_message(Database, Request, RequestId),
 	{<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
 
@@ -40,7 +40,8 @@ process_write_response(From) ->
 					10058 -> gen_server:reply(From, {error, {not_master, 10058}});
 					Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
 				end
-		end
+		end;
+		(Response) -> gen_server:reply(From, Response)
 	end.
 
 process_responses(Responses, Ets) ->

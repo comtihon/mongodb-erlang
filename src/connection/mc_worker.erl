@@ -46,7 +46,8 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
 	case ConnState#conn_state.write_mode of
 		unsafe ->   %unsafe (just write)
-			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request);
+			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
+			{reply, ok, State};
 		SafeMode -> %safe (write and check)
 			{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request), % ordinary write request
 			Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
@@ -55,10 +56,11 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
 				collection = '$cmd',
 				selector = bson:append({getlasterror, 1}, Params)
 			}),
+			inet:setopts(Socket, [{active, once}]),
 			RespFun = mc_worker_logic:process_write_response(From),
-			true = ets:insert_new(Ets, {Id, RespFun}) % save function, which will be called on response
-	end,
-	{reply, ok, State};
+			true = ets:insert_new(Ets, {Id, RespFun}), % save function, which will be called on response
+			{noreply, State}
+	end;
 handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state = CS}) % read requests
 	when is_record(Request, 'query'); is_record(Request, getmore) ->
 	UpdReq = case is_record(Request, 'query') of
