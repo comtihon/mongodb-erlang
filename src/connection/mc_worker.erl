@@ -3,7 +3,7 @@
 
 -include("mongo_protocol.hrl").
 
--export([start_link/2]).
+-export([start_link/2, start_link/1]).
 -export([
 	init/1,
 	handle_call/3,
@@ -23,6 +23,7 @@
 }).
 
 -spec start_link(service(), options()) -> {ok, pid()}.
+start_link([Service, Options]) -> start_link(Service, Options).
 start_link(Service, Options) ->
 	gen_server:start_link(?MODULE, [Service, Options], []).
 
