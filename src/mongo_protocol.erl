@@ -2,7 +2,8 @@
 -export([
 	dbcoll/2,
 	put_message/3,
-	get_reply/1
+	get_reply/1,
+	value_to_binary/1, value_to_binary/2
 ]).
 -export_type([db/0]).
 -export_type([notice/0, request/0, reply/0]).
@@ -38,7 +39,7 @@
 
 -spec dbcoll (db(), collection()) -> bson:utf8().
 %@doc Concat db and collection name with period (.) in between
-dbcoll (Db, Coll) -> <<(atom_to_binary (Db, utf8)) /binary, $., (atom_to_binary (Coll, utf8)) /binary>>.
+dbcoll (Db, Coll) -> <<(value_to_binary (Db, utf8)) /binary, $., (value_to_binary (Coll, utf8)) /binary>>.
 
 -spec put_message(db(), message(), requestid()) -> binary().
 put_message(Db, #insert{collection = Coll, documents = Docs}, RequestId) ->
@@ -115,3 +116,15 @@ bit(true) -> 1.
 %% @private
 bool(0) -> false;
 bool(1) -> true.
+
+%% helper function
+value_to_binary(Value) when is_integer(Value) ->
+        bson:utf8(integer_to_list(Value));
+value_to_binary(Value) when is_atom(Value) ->
+        atom_to_binary(Value, utf8);
+value_to_binary(Value) when is_binary(Value) ->
+        Value;
+value_to_binary(_Value) ->
+        <<>>.
+value_to_binary(Value,utf8)->
+        value_to_binary(Value).

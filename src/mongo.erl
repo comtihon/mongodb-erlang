@@ -163,7 +163,7 @@ count(Coll, Selector) ->
 %     Ie. stops counting when max is reached to save processing time.
 -spec count(collection(), selector(), integer()) -> integer().
 count(Coll, Selector, Limit) ->
-	CollStr = atom_to_binary(Coll, utf8),
+	CollStr = mongo_protocol:value_to_binary(Coll, utf8),
 	Doc = command(case Limit =< 0 of
 		true -> {count, CollStr, 'query', Selector};
 		false -> {count, CollStr, 'query', Selector, limit, Limit}
@@ -210,18 +210,9 @@ assign_id(Doc) ->
 %% @private
 gen_index_name(KeyOrder) ->
 	bson:doc_foldl(fun(Label, Order, Acc) ->
-		<<Acc/binary, $_, (value_to_binary(Label))/binary, $_, (value_to_binary(Order))/binary>>
+		<<Acc/binary, $_, (mongo_protocol:value_to_binary(Label))/binary, $_, (mongo_protocol:value_to_binary(Order))/binary>>
 	end, <<"i">>, KeyOrder).
 
-%% @private
-value_to_binary(Value) when is_integer(Value) ->
-	bson:utf8(integer_to_list(Value));
-value_to_binary(Value) when is_atom(Value) ->
-	atom_to_binary(Value, utf8);
-value_to_binary(Value) when is_binary(Value) ->
-	Value;
-value_to_binary(_Value) ->
-	<<>>.
 
 %% @private
 write(Request) ->
