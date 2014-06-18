@@ -1,4 +1,7 @@
 -module(mongo_id_server).
+
+-behaviour(gen_server).
+
 -export([
 	request_id/0,
 	object_id/0
@@ -8,7 +11,6 @@
 	start_link/0
 ]).
 
--behaviour(gen_server).
 -export([
 	init/1,
 	handle_call/3,
@@ -25,7 +27,7 @@ request_id() ->
 	ets:update_counter(?MODULE, requestid_counter, 1).
 
 %% @doc Fresh object id
--spec object_id () -> bson:objectid().
+-spec object_id() -> bson:objectid().
 object_id() ->
 	Now = bson:unixtime_to_secs(bson:timenow()),
 	MPid = ets:lookup_element(?MODULE, oid_machineprocid, 2),

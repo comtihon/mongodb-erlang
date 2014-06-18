@@ -1,6 +1,11 @@
--module(mongo_cursor).
+-module(mc_cursor).
+
+-behaviour(gen_server).
+
+-include("mongo_protocol.hrl").
+
 -export([
-	create/6,
+	create/5,
 	next/1,
 	rest/1,
 	take/2,
@@ -13,7 +18,6 @@
 	start_link/1
 ]).
 
--behaviour(gen_server).
 -export([
 	init/1,
 	handle_call/3,
@@ -24,21 +28,17 @@
 ]).
 
 -record(state, {
-	connection  :: mongo_connection:connection(),
-	database    :: atom(),
-	collection  :: atom(),
-	cursor      :: integer(),
-	batchsize   :: integer(),
-	batch       :: [bson:document()],
-	monitor     :: reference
+	connection :: mc_worker:connection(),
+	collection :: atom(),
+	cursor :: integer(),
+	batchsize :: integer(),
+	batch :: [bson:document()],
+	monitor :: reference
 }).
 
--include ("mongo_protocol.hrl").
-
-
--spec create(mongo_connection:connection(), atom(), atom(), integer(), integer(), [bson:document()]) -> pid().
-create(Connection, Database, Collection, Cursor, BatchSize, Batch) ->
-	{ok, Pid} = mongo_sup:start_cursor([self(), Connection, Database, Collection, Cursor, BatchSize, Batch]),
+-spec create(mc_worker:connection(), atom(), integer(), integer(), [bson:document()]) -> pid().
+create(Connection, Collection, Cursor, BatchSize, Batch) ->
+	{ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
 	Pid.
 
 -spec next(pid()) -> {} | {bson:document()}.
@@ -92,10 +92,9 @@ start_link(Args) ->
 
 
 %% @hidden
-init([Owner, Connection, Database, Collection, Cursor, BatchSize, Batch]) ->
+init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
 	{ok, #state{
 		connection = Connection,
-		database = Database,
 		collection = Collection,
 		cursor = Cursor,
 		batchsize = BatchSize,
@@ -142,9 +141,7 @@ handle_info(_, State) ->
 terminate(_, #state{cursor = 0}) ->
 	ok;
 terminate(_, State) ->
-	mongo_connection:request(State#state.connection, State#state.database, #killcursor{
-		cursorids = [State#state.cursor]
-	}).
+	gen_server:call(State#state.connection, #killcursor{cursorids = [State#state.cursor]}).
 
 %% @hidden
 code_change(_Old, State, _Extra) ->
@@ -156,7 +153,7 @@ next_i(#state{batch = [Doc | Rest]} = State) ->
 next_i(#state{batch = [], cursor = 0} = State) ->
 	{{}, State};
 next_i(#state{batch = []} = State) ->
-	{Cursor, Batch} = mongo_connection:request(State#state.connection, State#state.database, #getmore{
+	{Cursor, Batch} = gen_server:call(State#state.connection, #getmore{
 		collection = State#state.collection,
 		batchsize = State#state.batchsize,
 		cursorid = State#state.cursor
@@ -176,5 +173,6 @@ rest_i(State, Acc, 0) ->
 rest_i(State, Acc, Limit) ->
 	case next_i(State) of
 		{{}, UpdatedState} -> {Acc, UpdatedState};
-		{{Doc}, UpdatedState} -> rest_i(UpdatedState, [Doc | Acc], Limit - 1)
+		{{Doc}, UpdatedState} ->
+			rest_i(UpdatedState, [Doc | Acc], Limit - 1)
 	end.

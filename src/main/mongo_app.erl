@@ -1,7 +1,7 @@
 -module(mongo_app).
 
 -behaviour(application).
--export ([
+-export([
 	start/2,
 	stop/1
 ]).
@@ -9,7 +9,7 @@
 
 %% @hidden
 start(_, _) ->
-	mongo_sup:start_link ().
+	mc_super_sup:start_link().
 
 %% @hidden
 stop(_) ->
