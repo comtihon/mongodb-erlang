@@ -48,7 +48,7 @@ To connect to a database `test` on mongodb server listening on `localhost:27017`
 
 After you connected to your database - you can carry out write operations, such as `insert`, `update` and `delete`:
     
-    > Collection = <"test">>.
+    > Collection = <<"test">>.
     > mongo:insert(Connection, Collection, [
     		{name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
     		{name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
@@ -72,6 +72,25 @@ The difference between `find` and `find_one` is in return. Find_one just returns
     > Result = mc_cursor:rest(Cursor),
     > mc_cursor:close(Cursor),
 __Important!__ Do not forget to close cursors after using them!
+
+### Advance reading
+
+To search for params - specify `Selector`:
+
+    mongo:find_one(Connection, Collection, {key, <<"123">>}).
+will return one document from collection Collection with key == <<"123">>.
+
+    mongo:find_one(Connection, Collection, {key, <<"123">>, value, <<"built_in">>}).
+will return one document from collection Collection with key == <<"123">> `and` value == <<"built_in">>.  
+Tuples `{key, <<"123">>}` in first example and `{key, <<"123">>, value, <<"built_in">>}` are selectors.  
+
+For filtering result - use `Projector`:
+
+    mongo:find_one(Connection, Collection, {}, {value, true}).
+will return one document from collection Collection with fetching `only` _id and value.
+
+    mongo:find_one(Connection, Collection, {}, {key, false, value, false}).
+will return your data without key and value params. If there is no other data - only _id will be returned.
 
 ### Administering
 
