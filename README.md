@@ -90,7 +90,8 @@ For filtering result - use `Projector`:
 will return one document from collection Collection with fetching `only` _id and value.
 
     mongo:find_one(Connection, Collection, {}, {key, false, value, false}).
-will return your data without key and value params. If there is no other data - only _id will be returned.
+will return your data without key and value params. If there is no other data - only _id will be returned.  
+__Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
 ### Administering
 

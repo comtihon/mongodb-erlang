@@ -1,14 +1,18 @@
 -module(mongo_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
 -include("mongo_protocol.hrl").
+
+
 -export([
 	all/0,
 	init_per_suite/1,
 	end_per_suite/1,
 	init_per_testcase/2,
-	end_per_testcase/2
-]).
+	end_per_testcase/2,
+	search_and_query/1]).
 
 -export([
 	insert_and_find/1,
@@ -16,7 +20,11 @@
 ]).
 
 all() ->
-	[insert_and_find, insert_and_delete].
+	[
+		insert_and_find,
+		insert_and_delete,
+		search_and_query
+	].
 
 init_per_suite(Config) ->
 	application:start(bson),
@@ -80,6 +88,42 @@ insert_and_delete(Config) ->
 
 	mongo:delete_one(Connection, Collection, {}),
 	3 = mongo:count(Connection, Collection, {}).
+
+search_and_query(Config) ->
+	Connection = ?config(connection, Config),
+	Collection = ?config(collection, Config),
+
+	%insert test data
+	mongo:insert(Connection, Collection, [
+		{name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
+		{name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
+		{name, <<"Phillies">>, home, {city, <<"Philadelphia">>, state, <<"PA">>}, league, <<"National">>},
+		{name, <<"Red Sox">>, home, {city, <<"Boston">>, state, <<"MA">>}, league, <<"American">>}
+	]),
+
+	%test selector
+	Res = find(Connection, Collection, {home, {city, <<"New York">>, state, <<"NY">>}}),
+	?debugFmt("Got ~p", [Res]),
+	[{'_id', _,
+		name, <<"Yankees">>, home,
+		{city, <<"New York">>, state, <<"NY">>},
+		league, <<"American">>},
+		{'_id', _,
+			name, <<"Mets">>, home,
+			{city, <<"New York">>, state, <<"NY">>},
+			league, <<"National">>}] = Res,
+
+	%test projector
+	Res2 = find(Connection, Collection, {home, {city, <<"New York">>, state, <<"NY">>}}, {name, true, league, true}),
+	?debugFmt("Got ~p", [Res2]),
+	[{'_id', _,
+		name, <<"Yankees">>,
+		league, <<"American">>},
+		{'_id', _,
+			name, <<"Mets">>,
+			league, <<"National">>}] = Res2,
+
+	Config.
 
 
 %% @private
