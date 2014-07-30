@@ -153,11 +153,13 @@ next_i(#state{batch = [Doc | Rest]} = State) ->
 next_i(#state{batch = [], cursor = 0} = State) ->
 	{{}, State};
 next_i(#state{batch = []} = State) ->
-	{Cursor, Batch} = gen_server:call(State#state.connection, #getmore{
+	Reply = gen_server:call(State#state.connection, #getmore{
 		collection = State#state.collection,
 		batchsize = State#state.batchsize,
 		cursorid = State#state.cursor
 	}),
+	Cursor = Reply#reply.cursorid,
+	Batch = Reply#reply.documents,
 	next_i(State#state{cursor = Cursor, batch = Batch}).
 
 %% @private
