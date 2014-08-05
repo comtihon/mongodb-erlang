@@ -38,14 +38,14 @@
 -type cursor() :: pid().
 
 %% @doc Make one connection to server, return its pid
--spec connect(Host :: string(), Port :: integer(), Database :: string()) -> {ok, Pid :: pid()}.
+-spec connect(Host :: string(), Port :: integer(), Database :: database()) -> {ok, Pid :: pid()}.
 connect(Host, Port, Database) ->
 	mc_worker:start_link({Host, Port, #conn_state{database = Database}}, []).
--spec connect(Host :: string(), Port :: integer(), Database :: string(), Opts :: proplists:proplist()) -> {ok, Pid :: pid()}.
+-spec connect(Host :: string(), Port :: integer(), Database :: database(), Opts :: proplists:proplist()) -> {ok, Pid :: pid()}.
 connect(Host, Port, Database, Opts) ->
 	mc_worker:start_link({Host, Port, #conn_state{database = Database}}, Opts).
--spec connect(Host :: string(), Port :: integer(), Database :: string(),
-		Wmode :: write_mode(), Rmode :: read_mode(), Opts :: proplists:proplist()) -> Pid :: pid().
+-spec connect(Host :: string(), Port :: integer(), Database :: database(),
+		Wmode :: write_mode(), Rmode :: read_mode(), Opts :: proplists:proplist()) -> {ok, Pid :: pid()}.
 connect(Host, Port, Database, Wmode, Rmode, Opts) ->
 	mc_worker:start_link({Host, Port, #conn_state{database = Database, write_mode = Wmode, read_mode = Rmode}}, Opts).
 
