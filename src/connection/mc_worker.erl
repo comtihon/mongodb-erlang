@@ -41,7 +41,7 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State =
 	Key = bson:at(key, IndexSpec),
 	Defaults = {name, mc_worker_logic:gen_index_name(Key), unique, false, dropDups, false},
 	Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-	{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, #insert{collection = 'system.indexes', documents = Index}),
+	{ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, #insert{collection = 'system.indexes', documents = [Index]}),
 	{reply, ok, State};
 handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, ets = Ets})
 	when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
