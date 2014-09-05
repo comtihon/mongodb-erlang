@@ -93,6 +93,17 @@ will return one document from collection Collection with fetching `only` _id and
 will return your data without key and value params. If there is no other data - only _id will be returned.  
 __Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
+### Creating indexes
+
+To create indexes - use `mongo:ensure_index/3` command:
+
+    mongo:ensure_index(Connection, Collection, {key, {index, 1}}).  %simple
+    mongo:ensure_index(Connection, Collection, {key, {index, 1}, name, <<"MyI">>}).  %advanced
+    mongo:ensure_index(Connection, Collection, {key, {index, 1}, name, <<"MyI">>, unique, true, dropDups, true}).  %full
+ensure_index takes `mc_worker`' pid or atom name as first parameter, collection, where to create index, as second parameter and bson document with index
+specification - as third parameter. In index specification one can set all or only some parameters.  
+If index specification is not full - it is automatically filled with values: `name, Name, unique, false, dropDups, false`, where `Name` is index's key.
+
 ### Administering
 
 This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands.
@@ -115,7 +126,7 @@ To modify it just add `mc_worker_call_timeout` with new value to your applicatio
 
 ### Pooling
 
-For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as pool workers. It is just a client, so pool realisation should not be here.
+For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as pool workers.
 
 ### More Documentation
 
