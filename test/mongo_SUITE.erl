@@ -18,7 +18,8 @@
   insert_and_find/1,
   insert_and_delete/1,
   search_and_query/1,
-  update/1
+  update/1,
+  sort_and_limit/1
 ]).
 
 all() ->
@@ -26,7 +27,8 @@ all() ->
     insert_and_find,
     insert_and_delete,
     search_and_query,
-    update
+    update,
+    sort_and_limit
   ].
 
 init_per_suite(Config) ->
@@ -125,6 +127,43 @@ search_and_query(Config) ->
     {'_id', _,
       name, <<"Mets">>,
       league, <<"National">>}] = Res2,
+  Config.
+
+sort_and_limit(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  %insert test data
+  mongo:insert(Connection, Collection, [
+    {key, <<"test">>, value, <<"two">>, tag, 2},
+    {key, <<"test">>, value, <<"one">>, tag, 1},
+    {key, <<"test">>, value, <<"four">>, tag, 4},
+    {key, <<"another">>, value, <<"five">>, tag, 5},
+    {key, <<"test">>, value, <<"three">>, tag, 3}
+  ]),
+
+  %test match and sort
+  {true, {result, Res}} = mongo:command(Connection, {aggregate, <<"test">>, pipeline, [{'$match', {key, <<"test">>}}, {'$sort', {tag, 1}}]}),
+  ?debugFmt("Got ~p", [Res]),
+  [
+    {'_id', _, key, <<"test">>, value, <<"one">>, tag, 1},
+    {'_id', _, key, <<"test">>, value, <<"two">>, tag, 2},
+    {'_id', _, key, <<"test">>, value, <<"three">>, tag, 3},
+    {'_id', _, key, <<"test">>, value, <<"four">>, tag, 4}
+  ] = Res,
+
+  %test match & sort with limit
+  {true, {result, Res1}} = mongo:command(Connection,
+    {aggregate, <<"test">>, pipeline,
+      [
+        {'$match', {key, <<"test">>}},
+        {'$sort', {tag, 1}},
+        {'$limit', 1}
+      ]}),
+  ?debugFmt("Got ~p", [Res1]),
+  [
+    {'_id', _, key, <<"test">>, value, <<"one">>, tag, 1}
+  ] = Res1,
   Config.
 
 update(Config) ->
