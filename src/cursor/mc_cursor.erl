@@ -157,7 +157,7 @@ next_i(#state{batch = []} = State) ->
 		collection = State#state.collection,
 		batchsize = State#state.batchsize,
 		cursorid = State#state.cursor
-	}),
+	}, infinity),
 	Cursor = Reply#reply.cursorid,
 	Batch = Reply#reply.documents,
 	next_i(State#state{cursor = Cursor, batch = Batch}).
