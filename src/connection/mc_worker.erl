@@ -17,7 +17,7 @@
 
 -record(state, {
   socket :: gen_tcp:socket(),
-  ets,
+  request_storage :: dict:dict(),
   buffer :: binary(),
   conn_state
 }).
@@ -31,13 +31,12 @@ start_link(Service, Options) ->
 init([{Host, Port, State}, Options]) ->
   {ok, Socket} = connect_to_database(Host, Port, Options),
   process_flag(trap_exit, true),
-  RequestStorage = ets:new(requests, [private]),  %TODO move to dict in case of ets number limits
   case proplists:get_value(auth, Options) of
     {User, Password} ->
       spawn(mongo, auth, [self(), User, Password]); %TODO remove this spike, make auth consequentially
     _ -> ok
   end,
-  {ok, #state{socket = Socket, ets = RequestStorage, buffer = <<>>, conn_state = State}}.
+  {ok, #state{socket = Socket, request_storage = dict:new(), buffer = <<>>, conn_state = State}}.
 
 %% @hidden
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
@@ -48,7 +47,7 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State =
   Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
   {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, #insert{collection = 'system.indexes', documents = [Index]}),
   {reply, ok, State};
-handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, ets = Ets})
+handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor})
   when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
   case ConnState#conn_state.write_mode of
     unsafe ->   %unsafe (just write)
@@ -64,10 +63,10 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
       inet:setopts(Socket, [{active, once}]),
       RespFun = mc_worker_logic:process_write_response(From),
-      true = ets:insert_new(Ets, {Id, RespFun}), % save function, which will be called on response
-      {noreply, State}
+      UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
+      {noreply, State#state{request_storage = UReqStor}}
   end;
-handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state = CS}) % read requests
+handle_call(Request, From, State = #state{socket = Socket, request_storage = RequestStorage, conn_state = CS}) % read requests
   when is_record(Request, 'query'); is_record(Request, getmore) ->
   UpdReq = case is_record(Request, 'query') of
              true -> Request#'query'{slaveok = CS#conn_state.read_mode =:= slave_ok};
@@ -76,8 +75,8 @@ handle_call(Request, From, State = #state{socket = Socket, ets = Ets, conn_state
   {ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
   inet:setopts(Socket, [{active, once}]),
   RespFun = fun(Response) -> gen_server:reply(From, Response) end,  % save function, which will be called on response
-  true = ets:insert_new(Ets, {Id, RespFun}),
-  {noreply, State};
+  URStorage = dict:store(Id, RespFun, RequestStorage),
+  {noreply, State#state{request_storage = URStorage}};
 handle_call(Request = #killcursor{}, _, State = #state{socket = Socket, conn_state = ConnState}) ->
   {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
   {reply, ok, State};
@@ -89,15 +88,15 @@ handle_cast(_, State) ->
   {noreply, State}.
 
 %% @hidden
-handle_info({tcp, _Socket, Data}, State = #state{ets = Ets}) ->
+handle_info({tcp, _Socket, Data}, State = #state{request_storage = RequestStorage}) ->
   Buffer = <<(State#state.buffer)/binary, Data/binary>>,
   {Responses, Pending} = mc_worker_logic:decode_responses(Buffer),
-  mc_worker_logic:process_responses(Responses, Ets),
-  case proplists:get_value(size, ets:info(Ets)) of
+  UReqStor = mc_worker_logic:process_responses(Responses, RequestStorage),
+  case dict:size(UReqStor) of
     0 -> ok;
     _ -> inet:setopts(State#state.socket, [{active, once}]) %TODO why not always active true?
   end,
-  {noreply, State#state{buffer = Pending}};
+  {noreply, State#state{buffer = Pending, request_storage = UReqStor}};
 handle_info({tcp_closed, _Socket}, State) ->
   {stop, tcp_closed, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
