@@ -17,7 +17,7 @@
 
 -record(state, {
   socket :: gen_tcp:socket(),
-  request_storage :: dict:dict(),
+  request_storage :: dict,  %dict:dict()
   buffer :: binary(),
   conn_state
 }).

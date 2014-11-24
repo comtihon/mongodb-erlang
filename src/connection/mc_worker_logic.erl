@@ -48,7 +48,7 @@ process_write_response(From) ->
     end
   end.
 
--spec process_responses(Responses :: list(), RequestStorage :: dict:dict()) -> UpdStorage :: dict:dict().
+-spec process_responses(Responses :: list(), RequestStorage :: dict) -> UpdStorage :: dict.  %dict:dict()
 process_responses(Responses, RequestStorage) ->
   lists:foldl(
     fun({Id, Response}, UReqStor) ->
