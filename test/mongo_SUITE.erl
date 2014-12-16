@@ -100,33 +100,25 @@ search_and_query(Config) ->
 
   %insert test data
   mongo:insert(Connection, Collection, [
-    {name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
-    {name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
+    Yankees = {name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
+    Mets = {name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
     {name, <<"Phillies">>, home, {city, <<"Philadelphia">>, state, <<"PA">>}, league, <<"National">>},
     {name, <<"Red Sox">>, home, {city, <<"Boston">>, state, <<"MA">>}, league, <<"American">>}
   ]),
 
   %test selector
   Res = find(Connection, Collection, {home, {city, <<"New York">>, state, <<"NY">>}}),
-  ?debugFmt("Got ~p", [Res]),
-  [{'_id', _,
-    name, <<"Yankees">>, home,
-    {city, <<"New York">>, state, <<"NY">>},
-    league, <<"American">>},
-    {'_id', _,
-      name, <<"Mets">>, home,
-      {city, <<"New York">>, state, <<"NY">>},
-      league, <<"National">>}] = Res,
+  ct:log("Got ~p", [Res]),
+  [YankeesBSON, MetsBSON] = Res,
+  true = is_equal_bsons(Yankees, YankeesBSON),
+  true = is_equal_bsons(Mets, MetsBSON),
 
   %test projector
   Res2 = find(Connection, Collection, {home, {city, <<"New York">>, state, <<"NY">>}}, {name, true, league, true}),
-  ?debugFmt("Got ~p", [Res2]),
-  [{'_id', _,
-    name, <<"Yankees">>,
-    league, <<"American">>},
-    {'_id', _,
-      name, <<"Mets">>,
-      league, <<"National">>}] = Res2,
+  ct:log("Got ~p", [Res2]),
+  [YankeesProjectedBSON, MetsProjectedBSON] = Res2,
+  true = match_bson({name, <<"Yankees">>, league, <<"American">>}, YankeesProjectedBSON),
+  true = match_bson({name, <<"Mets">>,league, <<"National">>}, MetsProjectedBSON),
   Config.
 
 sort_and_limit(Config) ->
@@ -143,27 +135,32 @@ sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  {true, {result, Res}} = mongo:command(Connection, {aggregate, <<"test">>, pipeline, [{'$match', {key, <<"test">>}}, {'$sort', {tag, 1}}]}),
-  ?debugFmt("Got ~p", [Res]),
-  [
-    {'_id', _, key, <<"test">>, value, <<"one">>, tag, 1},
-    {'_id', _, key, <<"test">>, value, <<"two">>, tag, 2},
-    {'_id', _, key, <<"test">>, value, <<"three">>, tag, 3},
-    {'_id', _, key, <<"test">>, value, <<"four">>, tag, 4}
-  ] = Res,
+  {true, {result, Res}} = mongo:command(Connection, {aggregate, Collection, pipeline, [{'$match', {key, <<"test">>}}, {'$sort', {tag, 1}}]}),
+  ct:log("Got ~p", [Res]),
+
+  true = is_equal_lists_of_bsons(
+           [
+            {key, <<"test">>, value, <<"one">>, tag, 1},
+            {key, <<"test">>, value, <<"two">>, tag, 2},
+            {key, <<"test">>, value, <<"three">>, tag, 3},
+            {key, <<"test">>, value, <<"four">>, tag, 4}
+           ],
+           Res),
 
   %test match & sort with limit
   {true, {result, Res1}} = mongo:command(Connection,
-    {aggregate, <<"test">>, pipeline,
+    {aggregate, Collection, pipeline,
       [
         {'$match', {key, <<"test">>}},
         {'$sort', {tag, 1}},
         {'$limit', 1}
       ]}),
-  ?debugFmt("Got ~p", [Res1]),
-  [
-    {'_id', _, key, <<"test">>, value, <<"one">>, tag, 1}
-  ] = Res1,
+  ct:log("Got ~p", [Res1]),
+  true = is_equal_lists_of_bsons(
+           [
+            {key, <<"test">>, value, <<"one">>, tag, 1}
+           ],
+           Res1),
   Config.
 
 update(Config) ->
@@ -184,7 +181,7 @@ update(Config) ->
 
   %check data inserted
   Res = find(Connection, Collection, {'_id', 100}),
-  ?debugFmt("Got ~p", [Res]),
+  ct:log("Got ~p", [Res]),
   [{'_id', 100,
     sku, <<"abc123">>,
     quantity, 250,
@@ -203,52 +200,56 @@ update(Config) ->
   mongo:update(Connection, Collection, {'_id', 100}, Command),
 
   %check data updated
-  Res1 = find(Connection, Collection, {'_id', 100}),
-  ?debugFmt("Got ~p", [Res1]),
-  [{'_id', 100,
-    sku, <<"abc123">>,
-    quantity, 500,
-    instock, true,
-    reorder, false,
-    details, {model, "14Q3", make, "xyz"},
-    tags, ["coats", "outerwear", "clothing"],
-    ratings, [{by, "ijk", rating, 4}]}] = Res1,
+  [Res1] = find(Connection, Collection, {'_id', 100}),
+  ct:log("Got ~p", [Res1]),
+  true = is_equal_bsons(
+           Res1,
+           {'_id', 100,
+            sku, <<"abc123">>,
+            quantity, 500,
+            instock, true,
+            reorder, false,
+            details, {model, "14Q3", make, "xyz"},
+            tags, ["coats", "outerwear", "clothing"],
+            ratings, [{by, "ijk", rating, 4}]}),
 
   %update non existent fields
   Command1 = {'$set', {expired, true}},
   mongo:update(Connection, Collection, {'_id', 100}, Command1),
 
   %check data updated
-  Res2 = find(Connection, Collection, {'_id', 100}),
-  ?debugFmt("Got ~p", [Res1]),
-  [{'_id', 100,
-    sku, <<"abc123">>,
-    quantity, 500,
-    instock, true,
-    reorder, false,
-    details, {model, "14Q3", make, "xyz"},
-    tags, ["coats", "outerwear", "clothing"],
-    ratings, [{by, "ijk", rating, 4}],
-    expired, true}
-  ] = Res2,
+  [Res2] = find(Connection, Collection, {'_id', 100}),
+  ct:log("Got ~p", [Res2]),
+  true = is_equal_bsons(
+           Res2,
+           {'_id', 100,
+            sku, <<"abc123">>,
+            quantity, 500,
+            instock, true,
+            reorder, false,
+            details, {model, "14Q3", make, "xyz"},
+            tags, ["coats", "outerwear", "clothing"],
+            ratings, [{by, "ijk", rating, 4}],
+            expired, true}),
 
   %update embedded fields
   Command2 = {'$set', {'details.make', "zzz"}}, %TODO make bson avoid using atoms
   mongo:update(Connection, Collection, {'_id', 100}, Command2),
 
   %check data updated
-  Res3 = find(Connection, Collection, {'_id', 100}),
-  ?debugFmt("Got ~p", [Res1]),
-  [{'_id', 100,
-    sku, <<"abc123">>,
-    quantity, 500,
-    instock, true,
-    reorder, false,
-    details, {model, "14Q3", make, "zzz"},
-    tags, ["coats", "outerwear", "clothing"],
-    ratings, [{by, "ijk", rating, 4}],
-    expired, true}
-  ] = Res3,
+  [Res3] = find(Connection, Collection, {'_id', 100}),
+  ct:log("Got ~p", [Res3]),
+  true = is_equal_bsons(
+           Res3,
+           {'_id', 100,
+            sku, <<"abc123">>,
+            quantity, 500,
+            instock, true,
+            reorder, false,
+            details, {model, "14Q3", make, "zzz"},
+            tags, ["coats", "outerwear", "clothing"],
+            ratings, [{by, "ijk", rating, 4}],
+            expired, true}),
 
   %update list elements
   Command3 = {'$set', { %TODO make bson avoid using atoms
@@ -256,19 +257,19 @@ update(Config) ->
     'ratings.0.rating', 2
   }},
   mongo:update(Connection, Collection, {'_id', 100}, Command3),
-  Res4 = find(Connection, Collection, {'_id', 100}),
-  ?debugFmt("Got ~p", [Res1]),
-  [{'_id', 100,
-    sku, <<"abc123">>,
-    quantity, 500,
-    instock, true,
-    reorder, false,
-    details, {model, "14Q3", make, "zzz"},
-    tags, ["coats", "rain gear", "clothing"],
-    ratings, [{by, "ijk", rating, 2}],
-    expired, true}
-  ] = Res4,
-
+  [Res4] = find(Connection, Collection, {'_id', 100}),
+  ct:log("Got ~p", [Res4]),
+  true = is_equal_bsons(
+           Res4,
+           {'_id', 100,
+            sku, <<"abc123">>,
+            quantity, 500,
+            instock, true,
+            reorder, false,
+            details, {model, "14Q3", make, "zzz"},
+            tags, ["coats", "rain gear", "clothing"],
+            ratings, [{by, "ijk", rating, 2}],
+            expired, true}),
   Config.
 
 
@@ -306,3 +307,14 @@ match_bson(Tuple1, Tuple2) ->
     _:_ -> false
   end,
   true.
+
+is_equal_bsons(LHV, RHV) ->
+    LHVSorted = sort_bson_data(LHV),
+    LHVSorted =:= sort_bson_data(RHV).
+
+is_equal_lists_of_bsons(LHV, RHV) ->
+    LHVSorted = lists:sort([sort_bson_data(BSON) || BSON <- LHV]),
+    LHVSorted =:= lists:sort([sort_bson_data(BSON) || BSON <- RHV]).
+
+sort_bson_data(BSON) ->
+    lists:keydelete('_id', 1, lists:sort(bson:fields(BSON))).
