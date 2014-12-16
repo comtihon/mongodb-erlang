@@ -6,10 +6,10 @@
 
 -export([
 	create/5,
-	next/1,
-	rest/1,
-	take/2,
-	foldl/4,
+        next/1, next/2,
+	rest/1, rest/2,
+	take/2, take/3,
+	foldl/4, foldl/5,
 	map/3,
 	close/1
 ]).
@@ -43,7 +43,11 @@ create(Connection, Collection, Cursor, BatchSize, Batch) ->
 
 -spec next(pid()) -> {} | {bson:document()}.
 next(Cursor) ->
-	try gen_server:call(Cursor, next, infinity) of
+        next(Cursor, cursor_default_timeout()).
+
+-spec next(pid(), timeout()) -> {} | {bson:document()}.
+next(Cursor, Timeout) ->
+        try gen_server:call(Cursor, {next, Timeout}, Timeout) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> {}
@@ -51,7 +55,11 @@ next(Cursor) ->
 
 -spec rest(pid()) -> [bson:document()].
 rest(Cursor) ->
-	try gen_server:call(Cursor, rest, infinity) of
+        rest(Cursor, cursor_default_timeout()).
+
+-spec rest(pid(), timeout()) -> [bson:document()].
+rest(Cursor, Timeout) ->
+	try gen_server:call(Cursor, {rest, infinity, Timeout}, Timeout) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> []
@@ -59,21 +67,32 @@ rest(Cursor) ->
 
 -spec take(pid(), non_neg_integer()) -> [bson:document()].
 take(Cursor, Limit) ->
-	try gen_server:call(Cursor, {rest, Limit}, infinity) of
+        take(Cursor, Limit, cursor_default_timeout()).
+
+-spec take(pid(), non_neg_integer(), timeout()) -> [bson:document()].
+take(Cursor, Limit, Timeout) ->
+	try gen_server:call(Cursor, {rest, Limit, Timeout}, Timeout) of
 		Result -> Result
 	catch
 		exit:{noproc, _} -> []
 	end.
 
+cursor_default_timeout() ->
+        application:get_env(mongodb, cursor_timeout, infinity).
+
 -spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer()) -> term().
-foldl(_Fun, Acc, _Cursor, 0) ->
-	Acc;
-foldl(Fun, Acc, Cursor, infinity) ->
-	lists:foldl(Fun, Acc, rest(Cursor));
 foldl(Fun, Acc, Cursor, Max) ->
-	case next(Cursor) of
+        foldl(Fun, Acc, Cursor, Max, cursor_default_timeout()).
+
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer(), timeout()) -> term().
+foldl(_Fun, Acc, _Cursor, 0, _Timeout) ->
+	Acc;
+foldl(Fun, Acc, Cursor, infinity, Timeout) ->
+	lists:foldl(Fun, Acc, rest(Cursor, Timeout));
+foldl(Fun, Acc, Cursor, Max, Timeout) ->
+	case next(Cursor, Timeout) of
 		{} -> Acc;
-		{Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1)
+		{Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1, Timeout)
 	end.
 
 -spec map(fun((bson:document()) -> term()), pid(), non_neg_integer()) -> [term()].
@@ -103,20 +122,16 @@ init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
 	}}.
 
 %% @hidden
-handle_call(next, _From, State) ->
-	case next_i(State) of
+handle_call({next, Timeout}, _From, State) ->
+	case next_i(State, Timeout) of
 		{Reply, #state{cursor = 0, batch = []} = UpdatedState} ->
 			{stop, normal, Reply, UpdatedState};
 		{Reply, UpdatedState} ->
 			{reply, Reply, UpdatedState}
 	end;
 
-handle_call(rest, _From, State) ->
-	{Reply, UpdatedState} = rest_i(State, infinity),
-	{stop, normal, Reply, UpdatedState};
-
-handle_call({rest, Limit}, _From, State) ->
-	case rest_i(State, Limit) of
+handle_call({rest, Limit, Timeout}, _From, State) ->
+	case rest_i(State, Limit, Timeout) of
 		{Reply, #state{cursor = 0} = UpdatedState} ->
 			{stop, normal, Reply, UpdatedState};
 		{Reply, UpdatedState} ->
@@ -148,33 +163,36 @@ code_change(_Old, State, _Extra) ->
 	{ok, State}.
 
 %% @private
-next_i(#state{batch = [Doc | Rest]} = State) ->
+next_i(#state{batch = [Doc | Rest]} = State, _Timeout) ->
 	{{Doc}, State#state{batch = Rest}};
-next_i(#state{batch = [], cursor = 0} = State) ->
+next_i(#state{batch = [], cursor = 0} = State, _Timeout) ->
 	{{}, State};
-next_i(#state{batch = []} = State) ->
-	Reply = gen_server:call(State#state.connection, #getmore{
-		collection = State#state.collection,
-		batchsize = State#state.batchsize,
-		cursorid = State#state.cursor
-	}),
+next_i(#state{batch = []} = State, Timeout) ->
+    Reply = gen_server:call(
+              State#state.connection,
+              #getmore{
+                 collection = State#state.collection,
+                 batchsize = State#state.batchsize,
+                 cursorid = State#state.cursor
+                },
+              Timeout),
 	Cursor = Reply#reply.cursorid,
 	Batch = Reply#reply.documents,
-	next_i(State#state{cursor = Cursor, batch = Batch}).
+        next_i(State#state{cursor = Cursor, batch = Batch}, Timeout).
 
 %% @private
-rest_i(State, infinity) ->
-	rest_i(State, -1);
-rest_i(State, Limit) ->
-	{Docs, UpdatedState} = rest_i(State, [], Limit),
+rest_i(State, infinity, Timeout) ->
+	rest_i(State, -1, Timeout);
+rest_i(State, Limit, Timeout) when is_integer(Limit) ->
+	{Docs, UpdatedState} = rest_i(State, [], Limit, Timeout),
 	{lists:reverse(Docs), UpdatedState}.
 
 %% @private
-rest_i(State, Acc, 0) ->
+rest_i(State, Acc, 0, _Timeout) ->
 	{Acc, State};
-rest_i(State, Acc, Limit) ->
-	case next_i(State) of
+rest_i(State, Acc, Limit, Timeout) ->
+	case next_i(State, Timeout) of
 		{{}, UpdatedState} -> {Acc, UpdatedState};
 		{{Doc}, UpdatedState} ->
-			rest_i(UpdatedState, [Doc | Acc], Limit - 1)
+			rest_i(UpdatedState, [Doc | Acc], Limit - 1, Timeout)
 	end.
