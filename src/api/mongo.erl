@@ -30,6 +30,7 @@
 ]).
 -export([
   command/2,
+  sync_command/3,
   ensure_index/3
 ]).
 
@@ -69,13 +70,6 @@ connect(Database, User, Pass, Wmode, Rmode, Opts) ->
       {w_mode, Wmode},
       {r_mode, Rmode}
     ])).
-
-%% @doc Auth to MongoDB
--spec auth(Connection :: pid(), bson:utf8(), bson:utf8()) -> bson:document().
-auth(Connection, Username, Password) ->
-  {true, Res} = command(Connection, {getnonce, 1}),
-  Nonce = bson:at(nonce, Res),
-  command(Connection, {authenticate, 1, user, Username, nonce, Nonce, key, mc_utils:pw_key(Nonce, Username, Password)}).
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
@@ -190,7 +184,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_async(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), bson:document()) -> bson:document(). % Action
+-spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action
 command(Connection, Command) ->
   {Doc} = mc_action_man:read_one(Connection, #'query'{
     collection = '$cmd',
@@ -198,6 +192,14 @@ command(Connection, Command) ->
   }),
   mc_connection_man:process_reply(Doc, Command).
 
+%% @doc Execute MongoDB command in this thread
+-spec sync_command(port(), binary(), bson:document()) -> {boolean(), bson:document()}.
+sync_command(Socket, Database, Command) ->
+  {Doc} = mc_action_man:read_one_sync(Socket, Database, #'query'{
+    collection = '$cmd',
+    selector = Command
+  }),
+  mc_connection_man:process_reply(Doc, Command).
 
 %% @private
 -spec assign_id(bson:document()) -> bson:document().

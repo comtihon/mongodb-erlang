@@ -11,13 +11,16 @@
 
 -include("mongo_protocol.hrl").
 
+-define(NOT_MASTER_ERROR, 13435).
+-define(UNAUTHORIZED_ERROR, 10057).
+
 %% API
 -export([reply/1, request_async/2, process_reply/2, request_sync/3]).
 
 -spec request_async(pid(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_async(Connection, Request) ->  %request to worker
-	Timeout = mc_utils:get_timeout(),
-	reply(gen_server:call(Connection, Request, Timeout)).
+  Timeout = mc_utils:get_timeout(),
+  reply(gen_server:call(Connection, Request, Timeout)).
 
 -spec request_sync(port(), binary(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_sync(Socket, Database, Request) ->
@@ -30,23 +33,25 @@ request_sync(Socket, Database, Request) ->
 
 reply(ok) -> ok;
 reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
-	{Reply#reply.cursorid, Reply#reply.documents};
+  {Reply#reply.cursorid, Reply#reply.documents};
 reply(#reply{cursornotfound = false, queryerror = true} = Reply) ->
-	[Doc | _] = Reply#reply.documents,
-	process_error(bson:at(code, Doc), Doc);
+  [Doc | _] = Reply#reply.documents,
+  process_error(bson:at(code, Doc), Doc);
 reply(#reply{cursornotfound = true, queryerror = false} = Reply) ->
-	erlang:error({bad_cursor, Reply#reply.cursorid}).
+  erlang:error({bad_cursor, Reply#reply.cursorid}).
 
 process_reply(Doc, Command) ->
-	case bson:lookup(ok, Doc) of
-		{N} when N == 1 -> {true, bson:exclude([ok], Doc)};   %command succeed
-		{N} when N == 0 -> {false, bson:exclude([ok], Doc)};  %command failed
-		_Res -> erlang:error({bad_command, Doc}, [Command]) %unknown result
-	end.
+  case bson:lookup(ok, Doc) of
+    {N} when N == 1 -> {true, bson:exclude([ok], Doc)};   %command succeed
+    {N} when N == 0 -> {false, bson:exclude([ok], Doc)};  %command failed
+    _Res -> erlang:error({bad_command, Doc}, [Command]) %unknown result
+  end.
 
-process_error(13435, _) ->
-	erlang:error(not_master);
-process_error(10057, _) ->
-	erlang:error(unauthorized);
+
+%% @private
+process_error(?NOT_MASTER_ERROR, _) ->
+  erlang:error(not_master);
+process_error(?UNAUTHORIZED_ERROR, _) ->
+  erlang:error(unauthorized);
 process_error(_, Doc) ->
-	erlang:error({bad_query, Doc}).
+  erlang:error({bad_query, Doc}).

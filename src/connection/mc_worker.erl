@@ -25,10 +25,10 @@ start_link(Options) ->
   proc_lib:start_link(?MODULE, init, [Options]).
 
 init(Options) ->
-  register(?MODULE, self()),
-  {ok, Socket} = mc_protocol:connect_to_database(Options),
+  {ok, Socket} = mc_auth:connect_to_database(Options),
   ConnState = form_state(Options),
-  mc_protocol:auth(Socket, Options, ConnState#conn_state.database),
+  try_register(Options),
+  mc_auth:auth(Socket, Options, ConnState#conn_state.database),
   proc_lib:init_ack({ok, self()}),
   gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState}).
 
@@ -111,3 +111,11 @@ form_state(Options) ->
   RMode = mc_utils:get_value(r_mode, Options, master),
   WMode = mc_utils:get_value(w_mode, Options, unsafe),
   #conn_state{database = Database, read_mode = RMode, write_mode = WMode}.
+
+%% @private
+%% Register this process if needed
+try_register(Options) ->
+  case lists:keyfind(register, 1, Options) of
+    false -> ok;
+    {_, Name} -> register(Name, self())
+  end.
