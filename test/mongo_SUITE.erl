@@ -42,7 +42,7 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  {ok, Connection} = mongo:connect("127.0.0.1", 27017, ?config(database, Config), safe, master, []),
+  {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {w_mode, safe}]),
   [{connection, Connection}, {collection, collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
