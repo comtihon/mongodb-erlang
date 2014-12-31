@@ -17,6 +17,8 @@
 -type options() :: [option()].
 -type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl | {database, database()} | {read_mode, read_mode()} | {write_mode, write_mode()}.
 
+-export_type([connection/0, service/0, options/0]).
+
 %% write
 -record(insert, {
 	collection :: collection(),

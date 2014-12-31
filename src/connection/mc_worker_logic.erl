@@ -65,8 +65,8 @@ process_responses(Responses, RequestStorage) ->
 gen_index_name(KeyOrder) ->
   bson:doc_foldl(
     fun(Label, Order, Acc) ->
-      <<Acc/binary, $_, (mc_connection_man:value_to_binary(Label))/binary,
-      $_, (mc_connection_man:value_to_binary(Order))/binary>>
+      <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
+      $_, (mc_utils:value_to_binary(Order))/binary>>
     end, <<"i">>, KeyOrder).
 
 make_request(Socket, Database, Request) ->

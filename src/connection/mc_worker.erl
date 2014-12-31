@@ -3,7 +3,7 @@
 
 -include("mongo_protocol.hrl").
 
--export([start_link/2, start_link/1]).
+-export([start_link/1]).
 -export([
   init/1,
   handle_call/3,
@@ -13,32 +13,26 @@
   code_change/3
 ]).
 
--export_type([connection/0, service/0, options/0]).
-
 -record(state, {
   socket :: gen_tcp:socket(),
-  request_storage :: dict,  %dict:dict()
-  buffer :: binary(),
+  request_storage = dict:new(),  %dict:dict()
+  buffer = <<>> :: binary(),
   conn_state
 }).
 
--spec start_link(service(), options()) -> {ok, pid()}.
-start_link([Service, Options]) -> start_link(Service, Options).
-start_link(Service, Options) ->
-  gen_server:start_link(?MODULE, [Service, Options], []).
+-spec start_link(proplists:proplist()) -> {ok, pid()}.
+start_link(Options) ->
+  proc_lib:start_link(?MODULE, init, [Options]).
 
-%% @hidden
-init([{Host, Port, State}, Options]) ->
-  {ok, Socket} = connect_to_database(Host, Port, Options),
-  process_flag(trap_exit, true),
-  case proplists:get_value(auth, Options) of
-    {User, Password} ->
-      spawn(mongo, auth, [self(), User, Password]); %TODO remove this spike, make auth consequentially
-    _ -> ok
-  end,
-  {ok, #state{socket = Socket, request_storage = dict:new(), buffer = <<>>, conn_state = State}}.
+init(Options) ->
+  register(?MODULE, self()),
+  {ok, Socket} = mc_protocol:connect_to_database(Options),
+  ConnState = form_state(Options),
+  mc_protocol:auth(Socket, Options, ConnState#conn_state.database),
+  proc_lib:init_ack({ok, self()}),
+  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState}).
 
-%% @hidden
+
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState, socket = Socket}) -> % ensure index request with insert request
@@ -111,6 +105,9 @@ code_change(_Old, State, _Extra) ->
   {ok, State}.
 
 %% @private
-connect_to_database(Host, Port, Options) ->
-  Timeout = proplists:get_value(timeout, Options, infinity),
-  gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout).
+%% Parses proplist to record
+form_state(Options) ->
+  Database = mc_utils:get_value(database, Options),
+  RMode = mc_utils:get_value(r_mode, Options, master),
+  WMode = mc_utils:get_value(w_mode, Options, unsafe),
+  #conn_state{database = Database, read_mode = RMode, write_mode = WMode}.
