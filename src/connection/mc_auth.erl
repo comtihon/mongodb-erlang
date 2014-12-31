@@ -36,4 +36,7 @@ do_auth(_, _, Login, Pass) when Login == undefined; Pass == undefined -> ok; %do
 do_auth(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database, {getnonce, 1}),
   Nonce = bson:at(nonce, Res),
-  mongo:sync_command(Socket, Database, {authenticate, 1, user, Login, nonce, Nonce, key, mc_utils:pw_key(Nonce, Login, Password)}).
+  case mongo:sync_command(Socket, Database, {authenticate, 1, user, Login, nonce, Nonce, key, mc_utils:pw_key(Nonce, Login, Password)}) of
+    {true, _} -> true;
+    {false, Reason} -> erlang:error(Reason)
+  end.
