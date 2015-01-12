@@ -31,8 +31,8 @@ auth(Socket, Conf, Database) ->
 
 
 %% @private
--spec do_auth(port(), binary(), binary() | undefined, binary() | undefined) -> {boolean(), bson:document()}.
-do_auth(_, _, Login, Pass) when Login == undefined; Pass == undefined -> ok; %do nothing
+-spec do_auth(port(), binary(), binary() | undefined, binary() | undefined) -> boolean().
+do_auth(_, _, Login, Pass) when Login == undefined; Pass == undefined -> true; %do nothing
 do_auth(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database, {getnonce, 1}),
   Nonce = bson:at(nonce, Res),
