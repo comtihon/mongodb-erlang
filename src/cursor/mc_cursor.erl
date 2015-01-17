@@ -103,8 +103,7 @@ map(Fun, Cursor, Max) ->
 
 -spec close(pid()) -> ok.
 close(Cursor) ->
-	catch gen_server:call(Cursor, stop),
-	ok.
+	gen_server:cast(Cursor, halt).
 
 start_link(Args) ->
 	gen_server:start_link(?MODULE, Args, []).
@@ -129,32 +128,28 @@ handle_call({next, Timeout}, _From, State) ->
 		{Reply, UpdatedState} ->
 			{reply, Reply, UpdatedState}
 	end;
-
 handle_call({rest, Limit, Timeout}, _From, State) ->
 	case rest_i(State, Limit, Timeout) of
 		{Reply, #state{cursor = 0} = UpdatedState} ->
 			{stop, normal, Reply, UpdatedState};
 		{Reply, UpdatedState} ->
 			{reply, Reply, UpdatedState}
-	end;
-
-handle_call(stop, _From, State) ->
-	{stop, normal, ok, State}.
+	end.
 
 %% @hidden
+handle_cast(stop, State) ->
+  {stop, normal, State};
 handle_cast(_, State) ->
 	{noreply, State}.
 
 %% @hidden
 handle_info({'DOWN', Monitor, process, _, _}, #state{monitor = Monitor} = State) ->
 	{stop, normal, State};
-
 handle_info(_, State) ->
 	{noreply, State}.
 
 %% @hidden
-terminate(_, #state{cursor = 0}) ->
-	ok;
+terminate(_, #state{cursor = 0}) ->	ok;
 terminate(_, State) ->
 	gen_server:call(State#state.connection, #killcursor{cursorids = [State#state.cursor]}).
 

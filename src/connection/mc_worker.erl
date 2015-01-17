@@ -3,7 +3,7 @@
 
 -include("mongo_protocol.hrl").
 
--export([start_link/1]).
+-export([start_link/1, disconnect/1]).
 -export([
   init/1,
   handle_call/3,
@@ -23,6 +23,10 @@
 -spec start_link(proplists:proplist()) -> {ok, pid()}.
 start_link(Options) ->
   proc_lib:start_link(?MODULE, init, [Options]).
+
+%% halt worker, close tcp connection
+disconnect(Worker) ->
+  gen_server:cast(Worker, halt).
 
 init(Options) ->
   {ok, Socket} = mc_auth:connect_to_database(Options),
@@ -78,6 +82,8 @@ handle_call({stop, _}, _From, State) -> % stop request
   {stop, normal, ok, State}.
 
 %% @hidden
+handle_cast(halt, State) ->
+  {stop, normal, State};
 handle_cast(_, State) ->
   {noreply, State}.
 
