@@ -137,7 +137,7 @@ handle_call({rest, Limit, Timeout}, _From, State) ->
 	end.
 
 %% @hidden
-handle_cast(stop, State) ->
+handle_cast(halt, State) ->
   {stop, normal, State};
 handle_cast(_, State) ->
 	{noreply, State}.
