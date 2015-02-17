@@ -1,6 +1,8 @@
-deps
-*.swp
-*.swo
-.eunit/
-data/
-**/*.beam
+.*
+ebin/
+deps/
+logs/
+*.beam
+ct_run.*
+variables-ct*
+*.iml
