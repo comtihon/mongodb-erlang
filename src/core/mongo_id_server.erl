@@ -20,7 +20,7 @@
 	code_change/3
 ]).
 
-define(MAX_INT32, 2147483647).
+-define(MAX_INT32, 2147483647).
 
 %% @doc Fresh request id
 -spec request_id() -> pos_integer().
