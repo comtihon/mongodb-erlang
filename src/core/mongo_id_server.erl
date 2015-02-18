@@ -20,11 +20,12 @@
 	code_change/3
 ]).
 
+define(MAX_INT32, 2147483647).
 
 %% @doc Fresh request id
 -spec request_id() -> pos_integer().
 request_id() ->
-	ets:update_counter(?MODULE, requestid_counter, 1).
+	ets:update_counter(?MODULE, requestid_counter, {2, 1, ?MAX_INT32, 0}).
 
 %% @doc Fresh object id
 -spec object_id() -> bson:objectid().
