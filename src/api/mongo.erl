@@ -4,6 +4,7 @@
 -module(mongo).
 -export([
   connect/1,
+  connect/2,
   connect/3,
   connect/5,
   connect/6,  %TODO disconnect?
@@ -42,6 +43,9 @@
 -spec connect(database()) -> {ok, pid()}.
 connect(Database) ->
   mc_worker:start_link([{database, Database}]).
+-spec connect(database(), proplists:proplist()) -> {ok, pid()}.
+connect(Database, Opts) ->
+    mc_worker:start_link(lists:append(Opts,[{database, Database}])).
 -spec connect(database(), bson:utf8(), bson:utf8()) -> {ok, pid()}.
 connect(Database, User, Pass) ->
   mc_worker:start_link(
