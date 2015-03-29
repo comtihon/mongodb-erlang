@@ -113,7 +113,7 @@ code_change(_Old, State, _Extra) ->
 %% @private
 %% Parses proplist to record
 form_state(Options) ->
-  Database = mc_utils:get_value(database, Options),
+  Database = mc_utils:get_value(database, Options, <<"admin">>),
   RMode = mc_utils:get_value(r_mode, Options, master),
   WMode = mc_utils:get_value(w_mode, Options, unsafe),
   #conn_state{database = Database, read_mode = RMode, write_mode = WMode}.
