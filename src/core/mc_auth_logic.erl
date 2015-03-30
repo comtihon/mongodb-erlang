@@ -33,7 +33,7 @@ scram_first_step(Socket, Database, Login, Password) ->
   RandomBString = list_to_binary(mc_utils:random_string(?RANDOM_LENGTH)),
   Nonce = <<<<"r=">>/binary, RandomBString/binary>>,
   FirstMessage = <<UserName/binary, <<",">>/binary, Nonce/binary>>,
-  Message = base64:encode(<<?GS2_HEADER/binary, UserName/binary, <<",">>/binary, Nonce/binary>>),
+  Message = <<?GS2_HEADER/binary, FirstMessage/binary>>,
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
   {ConversationId} = bson:lookup(conversationId, Res),
@@ -60,7 +60,8 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   ServerSignature = mc_utils:hmac(ServerKey, AuthMessage),
   Proof = <<<<"p=">>/binary, (base64:encode(ClientProof))/binary>>,
   ClientFinalMessage = <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>,
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage}).
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage})
+.
 
 
 %% @private
