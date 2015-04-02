@@ -33,7 +33,7 @@ scram_first_step(Socket, Database, Login, Password) ->
   RandomBString = list_to_binary(mc_utils:random_string(?RANDOM_LENGTH)),
   Nonce = <<<<"r=">>/binary, RandomBString/binary>>,
   FirstMessage = <<UserName/binary, <<",">>/binary, Nonce/binary>>,
-  Message = <<?GS2_HEADER/binary, FirstMessage/binary>>,
+  Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
   {ConversationId} = bson:lookup(conversationId, Res),
@@ -49,24 +49,23 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   S = mc_utils:get_value(<<"s">>, ParamList),
   I = binary_to_integer(mc_utils:get_value(<<"i">>, ParamList)),
   Pass = mc_utils:pw_hash(Login, Password),
-  SaltedPassword = hi(Pass, base64:decode(S), I),
-  {ClientKey, StoredKey} = compose_keys(SaltedPassword, <<"Client Key">>),
   ChannelBinding = <<<<"c=">>/binary, (base64:encode(?GS2_HEADER))/binary>>,
   ClientFinalMessageWithoutProof = <<ChannelBinding/binary, <<",">>/binary, Nonce/binary>>,
-  AuthMessage = <<FirstMessage/binary, <<",">>/binary, Decoded/binary, <<",">>/binary, ClientFinalMessageWithoutProof/binary>>,
+  SaltedPassword = hi(Pass, base64:decode(S), I),
+  {ClientKey, StoredKey} = compose_keys(SaltedPassword, <<"Client Key">>),
+  AuthMessage = <<FirstMessage/binary, <<",">>/binary, Payload/binary, <<",">>/binary, ClientFinalMessageWithoutProof/binary>>,
   Signature = mc_utils:hmac(StoredKey, AuthMessage),
   ClientProof = xorKeys(ClientKey, Signature, <<>>),
   ServerKey = mc_utils:hmac(SaltedPassword, "Server Key"),
   ServerSignature = mc_utils:hmac(ServerKey, AuthMessage),
   Proof = <<<<"p=">>/binary, (base64:encode(ClientProof))/binary>>,
   ClientFinalMessage = <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>,
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage})
-.
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage}).
 
 
 %% @private
 hi(Password, Salt, Iterations) ->
-  {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 160), %20 bytes
+  {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 20),
   Key.
 
 %% @private

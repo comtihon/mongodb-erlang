@@ -52,9 +52,7 @@ get_timeout() ->
     undefined -> infinity
   end.
 
-hmac(One, Two) ->
-  <<Mac:160/integer>> = crypto:hmac(sha, One, Two),
-  list_to_binary(lists:flatten(io_lib:format("~40.16.0b", [Mac]))).
+hmac(One, Two) -> crypto:hmac(sha, One, Two).
 
 pw_key(Nonce, Username, Password) ->
   bson:utf8(binary_to_hexstr(crypto:hash(md5, [Nonce, Username, pw_hash(Username, Password)]))).
