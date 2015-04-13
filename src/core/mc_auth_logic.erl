@@ -9,11 +9,12 @@
 -module(mc_auth_logic).
 -author("tihon").
 
+-include("mongo_protocol.hrl").
+
 -define(RANDOM_LENGTH, 24).
--define(GS2_HEADER, <<"n,,">>).
 
 %% API
--export([mongodb_cr_auth/4, scram_sha_1_auth/4]).
+-export([mongodb_cr_auth/4, scram_sha_1_auth/4, compose_first_message/2, compose_second_message/5]).
 
 -spec mongodb_cr_auth(port(), binary(), binary(), binary()) -> true.
 mongodb_cr_auth(Socket, Database, Login, Password) ->
@@ -28,11 +29,11 @@ scram_sha_1_auth(Socket, Database, Login, Password) ->
   scram_first_step(Socket, Database, Login, Password),
   ok.
 
+
+%% @private
 scram_first_step(Socket, Database, Login, Password) ->
-  UserName = <<<<"n=">>/binary, (mc_utils:encode_name(Login))/binary>>,
   RandomBString = list_to_binary(mc_utils:random_string(?RANDOM_LENGTH)),
-  Nonce = <<<<"r=">>/binary, RandomBString/binary>>,
-  FirstMessage = <<UserName/binary, <<",">>/binary, Nonce/binary>>,
+  FirstMessage = compose_first_message(Login, RandomBString),
   Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
@@ -40,9 +41,20 @@ scram_first_step(Socket, Database, Login, Password) ->
   {Payload} = bson:lookup(payload, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
 
+%% @private
 scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage) -> %TODO refactor huge method
   Decoded = base64:decode(Payload),
-  ParamList = parse_server_responce(Decoded),
+  ClientFinalMessage = base64:encode(compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage)),
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage}).
+%% Export for test purposes
+compose_first_message(Login, RandomBString) ->
+  UserName = <<<<"n=">>/binary, (mc_utils:encode_name(Login))/binary>>,
+  Nonce = <<<<"r=">>/binary, RandomBString/binary>>,
+  <<UserName/binary, <<",">>/binary, Nonce/binary>>.
+
+%% Export for test purposes
+compose_second_message(Payload, Login, Password, RandomBString, FirstMessage) ->
+  ParamList = parse_server_responce(Payload),
   R = mc_utils:get_value(<<"r">>, ParamList),
   Nonce = <<<<"r=">>/binary, R/binary>>,
   {0, ?RANDOM_LENGTH} = binary:match(R, [RandomBString], []),
@@ -51,27 +63,30 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   Pass = mc_utils:pw_hash(Login, Password),
   ChannelBinding = <<<<"c=">>/binary, (base64:encode(?GS2_HEADER))/binary>>,
   ClientFinalMessageWithoutProof = <<ChannelBinding/binary, <<",">>/binary, Nonce/binary>>,
-  SaltedPassword = hi(Pass, base64:decode(S), I),
-  {ClientKey, StoredKey} = compose_keys(SaltedPassword, <<"Client Key">>),
   AuthMessage = <<FirstMessage/binary, <<",">>/binary, Payload/binary, <<",">>/binary, ClientFinalMessageWithoutProof/binary>>,
+  ServerSignature = generate_sig(Pass, AuthMessage, S, I),
+  Proof = generate_proof(Login, Password, AuthMessage),
+  <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>.
+
+%% @private
+generate_proof(Login, Password, AuthMessage) ->
+  Pass = mc_utils:pw_hash(Login, Password),
+  ClientKey = mc_utils:hmac(Pass, <<"Client Key">>),
+  StoredKey = crypto:hash(sha, ClientKey),
   Signature = mc_utils:hmac(StoredKey, AuthMessage),
   ClientProof = xorKeys(ClientKey, Signature, <<>>),
-  ServerKey = mc_utils:hmac(SaltedPassword, "Server Key"),
-  ServerSignature = mc_utils:hmac(ServerKey, AuthMessage),
-  Proof = <<<<"p=">>/binary, (base64:encode(ClientProof))/binary>>,
-  ClientFinalMessage = <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>,
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage}).
+  <<<<"p=">>/binary, (base64:encode(ClientProof))/binary>>.
 
+%% @private
+generate_sig(Pass, AuthMessage, S, I) ->
+  SaltedPassword = hi(Pass, base64:decode(S), I),
+  ServerKey = mc_utils:hmac(SaltedPassword, "Server Key"),
+  mc_utils:hmac(ServerKey, AuthMessage).
 
 %% @private
 hi(Password, Salt, Iterations) ->
   {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 20),
   Key.
-
-%% @private
-compose_keys(Pass, Key) ->
-  ClientKey = mc_utils:hmac(Pass, Key),
-  {ClientKey, crypto:hash(sha, ClientKey)}.
 
 %% @private
 xorKeys(<<>>, _, Res) -> Res;
@@ -81,8 +96,8 @@ xorKeys(<<FA, RestA/binary>>, <<FB, RestB/binary>>, Res) ->
 %% @private
 parse_server_responce(Responce) ->
   ParamList = binary:split(Responce, <<",">>, [global]),
-  lists:foldl(
-    fun(Param, Acc) ->
+  lists:map(
+    fun(Param) ->
       [K, V] = binary:split(Param, <<"=">>),
-      [{K, V} | Acc]
-    end, [], ParamList).
+      {K, V}
+    end, ParamList).

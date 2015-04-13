@@ -1,5 +1,7 @@
 % Wire protocol message types (records)
 
+-define(GS2_HEADER, <<"n,,">>).
+
 -type db() :: atom().
 -type collection() :: binary() | atom(). % without db prefix
 -type cursorid() :: integer().
@@ -9,7 +11,7 @@
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 -type modifier() :: bson:document().
 -type connection() :: pid().
--type database() :: binary | atom().
+-type database() :: binary() | atom().
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
 -type read_mode() :: master | slave_ok.
 -type action(A) :: fun (() -> A).
