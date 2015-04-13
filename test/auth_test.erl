@@ -14,6 +14,7 @@
 -include("mongo_protocol.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+%% https://github.com/mongodb/specifications/blob/master/source/auth/auth.rst#scram-sha-1
 auth_test() ->
   User = <<"user">>,
   Password = <<"pencil">>,
