@@ -25,9 +25,14 @@ mongodb_cr_auth(Socket, Database, Login, Password) ->
     {false, Reason} -> erlang:error(Reason)
   end.
 
+-spec scram_sha_1_auth(port(), binary(), binary(), binary()) -> boolean().
 scram_sha_1_auth(Socket, Database, Login, Password) ->
-  scram_first_step(Socket, Database, Login, Password),
-  ok.
+  try
+    scram_first_step(Socket, Database, Login, Password)
+  catch
+      _:_  ->
+        erlang:error(<<"Can't pass authentification">>)
+  end.
 
 
 %% @private
@@ -38,14 +43,22 @@ scram_first_step(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
   {ConversationId} = bson:lookup(conversationId, Res),
-  {Payload} = bson:lookup(payload, Res),
+  Payload = bson:at(payload, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
 
 %% @private
-scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage) -> %TODO refactor huge method
+scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage) ->
   Decoded = base64:decode(Payload),
-  ClientFinalMessage = base64:encode(compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage)),
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, ClientFinalMessage}).
+  {Signature, ClientFinalMessage} = compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage),
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, base64:encode(ClientFinalMessage)}),
+  scram_third_step(base64:encode(Signature), Res).
+
+%% @private
+scram_third_step(ServerSignature, Responce) ->
+  Payload = bson:at(payload, Responce),
+  ParamList = parse_server_responce(base64:decode(Payload)),
+  ServerSignature = mc_utils:get_value(<<"v">>, ParamList).
+
 %% Export for test purposes
 compose_first_message(Login, RandomBString) ->
   UserName = <<<<"n=">>/binary, (mc_utils:encode_name(Login))/binary>>,
@@ -60,26 +73,24 @@ compose_second_message(Payload, Login, Password, RandomBString, FirstMessage) ->
   {0, ?RANDOM_LENGTH} = binary:match(R, [RandomBString], []),
   S = mc_utils:get_value(<<"s">>, ParamList),
   I = binary_to_integer(mc_utils:get_value(<<"i">>, ParamList)),
-  Pass = mc_utils:pw_hash(Login, Password),
+  SaltedPassword = hi(mc_utils:pw_hash(Login, Password), base64:decode(S), I),
   ChannelBinding = <<<<"c=">>/binary, (base64:encode(?GS2_HEADER))/binary>>,
   ClientFinalMessageWithoutProof = <<ChannelBinding/binary, <<",">>/binary, Nonce/binary>>,
   AuthMessage = <<FirstMessage/binary, <<",">>/binary, Payload/binary, <<",">>/binary, ClientFinalMessageWithoutProof/binary>>,
-  ServerSignature = generate_sig(Pass, AuthMessage, S, I),
-  Proof = generate_proof(Login, Password, AuthMessage),
-  <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>.
+  ServerSignature = generate_sig(SaltedPassword, AuthMessage),
+  Proof = generate_proof(SaltedPassword, AuthMessage),
+  {ServerSignature, <<ClientFinalMessageWithoutProof/binary, <<",">>/binary, Proof/binary>>}.
 
 %% @private
-generate_proof(Login, Password, AuthMessage) ->
-  Pass = mc_utils:pw_hash(Login, Password),
-  ClientKey = mc_utils:hmac(Pass, <<"Client Key">>),
+generate_proof(SaltedPassword, AuthMessage) ->
+  ClientKey = mc_utils:hmac(SaltedPassword, <<"Client Key">>),
   StoredKey = crypto:hash(sha, ClientKey),
   Signature = mc_utils:hmac(StoredKey, AuthMessage),
   ClientProof = xorKeys(ClientKey, Signature, <<>>),
   <<<<"p=">>/binary, (base64:encode(ClientProof))/binary>>.
 
 %% @private
-generate_sig(Pass, AuthMessage, S, I) ->
-  SaltedPassword = hi(Pass, base64:decode(S), I),
+generate_sig(SaltedPassword, AuthMessage) ->
   ServerKey = mc_utils:hmac(SaltedPassword, "Server Key"),
   mc_utils:hmac(ServerKey, AuthMessage).
 
