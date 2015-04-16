@@ -7,7 +7,8 @@
   connect/2,
   connect/3,
   connect/5,
-  connect/6,  %TODO disconnect?
+  connect/6,
+  disconnect/1,
   insert/3,
   update/4,
   update/5,
@@ -74,6 +75,10 @@ connect(Database, User, Pass, Wmode, Rmode, Opts) ->
       {w_mode, Wmode},
       {r_mode, Rmode}
     ])).
+
+-spec disconnect(pid()) -> ok.
+disconnect(Connection) ->
+  mc_worker:disconnect(Connection).
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.

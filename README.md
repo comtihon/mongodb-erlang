@@ -36,6 +36,7 @@ use `mongo:connect/1,3,5,6`.
 
 `mongo:connect` returns `{error, Reason}` if it failed to connect.  
 `mongo:connect/1` takes only database as argument and connects to local database on 127.0.0.1:27017  
+`mongo:connect/2` same as `mongo:connect/1` with an additional argument - a proplist with connect options, such as host, port and register name.
 `mongo:connect/3` takes two additional params - login and password. It can be used to connect to local database and auth.  
 `mongo:connect/5` also takes extra params - they are write mode and read mode. They are `master` and `slave_ok` for read 
 and `unsafe`, `safe` and `{safe, bson:document()}` for write.  
