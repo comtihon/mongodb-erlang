@@ -20,6 +20,10 @@ The bson application needs to be started before starting mongodb application
 
     > application:start (bson).
 
+The crypto application needs to be started if you plan to use authorization to mongodb-server 3+.
+    
+    > application:start (crypto).
+
 The mongodb application needs be started before using (to initialize an internal ets table of counters)
 
 	> application:start (mongodb).
