@@ -228,7 +228,6 @@ prepare_doc([Doc | Docs]) ->  %list of documents
 prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
   assign_id(Doc);
 prepare_doc(Doc) when is_map(Doc) ->  %map
-  prepare_doc(maps:to_list(Doc));
+  bson:map_to_bson(Doc);
 prepare_doc(Doc) when is_list(Doc) -> %proplist
-  L = lists:foldr(fun({A, B}, Acc) -> [A | [B | Acc]] end, [], Doc),
-  list_to_tuple(L).
+  bson:proplist_to_bson(Doc).
