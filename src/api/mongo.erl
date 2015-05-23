@@ -46,7 +46,7 @@ connect(Database) ->
   mc_worker:start_link([{database, Database}]).
 -spec connect(database(), proplists:proplist()) -> {ok, pid()}.
 connect(Database, Opts) ->
-    mc_worker:start_link(lists:append(Opts,[{database, Database}])).
+  mc_worker:start_link(lists:append(Opts, [{database, Database}])).
 -spec connect(database(), bson:utf8(), bson:utf8()) -> {ok, pid()}.
 connect(Database, User, Pass) ->
   mc_worker:start_link(
@@ -86,7 +86,8 @@ disconnect(Connection) ->
 insert(Connection, Coll, Doc) when is_tuple(Doc) ->
   hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
-  Docs1 = [assign_id(Doc) || Doc <- Docs],
+  Converted = prepare_doc(Docs),
+  Docs1 = [assign_id(Doc) || Doc <- Converted],
   mc_connection_man:request_async(Connection, #insert{collection = Coll, documents = Docs1}),
   Docs1.
 
@@ -217,3 +218,17 @@ assign_id(Doc) ->
     {_Value} -> Doc;
     {} -> bson:update('_id', mongo_id_server:object_id(), Doc)
   end.
+
+%% @private
+%% Convert maps or proplists to bson
+prepare_doc([Doc | []]) ->  %list of documents
+  prepare_doc(Doc);
+prepare_doc([Doc | Docs]) ->  %list of documents
+  [prepare_doc(Doc) | prepare_doc(Docs)];
+prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
+  assign_id(Doc);
+prepare_doc(Doc) when is_map(Doc) ->  %map
+  prepare_doc(maps:to_list(Doc));
+prepare_doc(Doc) when is_list(Doc) -> %proplist
+  L = lists:foldr(fun({A, B}, Acc) -> [A | [B | Acc]] end, [], Doc),
+  list_to_tuple(L).
