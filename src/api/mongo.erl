@@ -102,9 +102,10 @@ update(Connection, Coll, Selector, Doc, Upsert) ->
   update(Connection, Coll, Selector, Doc, Upsert, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), collection(), selector(), bson:document(), boolean(), boolean()) -> ok.
+-spec update(pid(), collection(), selector(), bson:document() | map | proplists:proplist(), boolean(), boolean()) -> ok.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
-  mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector, updater = Doc, upsert = Upsert, multiupdate = MultiUpdate}).
+  Converted = prepare_doc(Doc),
+  mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector, updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
 
 %% @doc Delete selected documents
 -spec delete(pid(), collection(), selector()) -> ok.
