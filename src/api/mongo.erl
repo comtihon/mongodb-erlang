@@ -86,10 +86,9 @@ disconnect(Connection) ->
 insert(Connection, Coll, Doc) when is_tuple(Doc) ->
   hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
-  Converted = prepare_doc(Docs),
-  Docs1 = [assign_id(Doc) || Doc <- Converted],
-  mc_connection_man:request_async(Connection, #insert{collection = Coll, documents = Docs1}),
-  Docs1.
+  Converted = prepare_and_assign(Docs),
+  mc_connection_man:request_async(Connection, #insert{collection = Coll, documents = Converted}),
+  Converted.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document()) -> ok.
@@ -104,8 +103,9 @@ update(Connection, Coll, Selector, Doc, Upsert) ->
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document() | map | proplists:proplist(), boolean(), boolean()) -> ok.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
-  Converted = prepare_doc(Doc),
-  mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector, updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
+  Converted = prepare_and_assign(Doc),
+  mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector,
+    updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
 
 %% @doc Delete selected documents
 -spec delete(pid(), collection(), selector()) -> ok.
@@ -213,22 +213,28 @@ sync_command(Socket, Database, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @private
+prepare_and_assign(Docs) ->
+  case prepare_doc(Docs) of
+    Res when is_tuple(Res) -> [Res];
+    List -> List
+  end.
+
+%% @private
+%% Convert maps or proplists to bson
+prepare_doc(Docs) when is_list(Docs) ->  %list of documents
+  case mc_utils:is_proplist(Docs) of
+    true -> prepare_doc(bson:proplist_to_bson(Docs)); %proplist
+    false -> lists:map(fun prepare_doc/1, Docs)
+  end;
+prepare_doc(Doc) when is_map(Doc) ->  %map
+  prepare_doc(bson:map_to_bson(Doc));
+prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
+  assign_id(Doc).
+
+%% @private
 -spec assign_id(bson:document()) -> bson:document().
 assign_id(Doc) ->
   case bson:lookup('_id', Doc) of
     {_Value} -> Doc;
     {} -> bson:update('_id', mongo_id_server:object_id(), Doc)
   end.
-
-%% @private
-%% Convert maps or proplists to bson
-prepare_doc([Doc | []]) ->  %list of documents
-  prepare_doc(Doc);
-prepare_doc([Doc | Docs]) ->  %list of documents
-  [prepare_doc(Doc) | prepare_doc(Docs)];
-prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
-  assign_id(Doc);
-prepare_doc(Doc) when is_map(Doc) ->  %map
-  bson:map_to_bson(Doc);
-prepare_doc(Doc) when is_list(Doc) -> %proplist
-  bson:proplist_to_bson(Doc).
