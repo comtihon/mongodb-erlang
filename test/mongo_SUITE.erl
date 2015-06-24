@@ -22,18 +22,13 @@
   sort_and_limit/1
 ]).
 
--export([
-  insert_fail/1
-]).
-
 all() ->
   [
     insert_and_find,
     insert_and_delete,
     search_and_query,
     update,
-    sort_and_limit,
-    insert_fail
+    sort_and_limit
   ].
 
 init_per_suite(Config) ->
@@ -56,11 +51,6 @@ end_per_testcase(_Case, Config) ->
   mongo:delete(Connection, Collection, {}).
 
 %% Tests
-insert_fail(Config) ->
-  Connection = ?config(connection, Config),
-  Collection = ?config(collection, Config),
-  {false, _Errors} = mongo:insert(Connection, Collection, {'$invalid_field_name', 42}).
-
 insert_and_find(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),

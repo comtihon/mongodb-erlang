@@ -10,8 +10,6 @@
   connect/6,
   disconnect/1,
   insert/3,
-  insert/4,
-  insert/5,
   update/4,
   update/5,
   update/6,
@@ -82,14 +80,6 @@ connect(Database, User, Pass, Wmode, Rmode, Opts) ->
 disconnect(Connection) ->
   mc_worker:disconnect(Connection).
 
--spec process_insert_result(A, bson:document()) -> A | {false, bson:document()}.
-process_insert_result(Docs, Result) ->
-  InsertedCount = trunc(bson:at(n, Result)),
-  case length(Docs) of
-    InsertedCount  -> Docs;
-    _ -> {false, bson:at(writeErrors, Result)}
-  end.
-
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), collection(), A) -> A.
@@ -97,28 +87,8 @@ insert(Connection, Coll, Doc) when is_tuple(Doc) ->
   hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
   Docs1 = [assign_id(Doc) || Doc <- Docs],
-  {true, Result} = command(Connection, {insert, Coll, documents, Docs1}),
-  process_insert_result(Docs1, Result).
-
-%% @doc Insert a document or multiple documents into a collection.
-%%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), collection(), A, boolean()) -> A.
-insert(Connection, Coll, Doc, Ordered) when is_tuple(Doc) ->
-  hd(insert(Connection, Coll, [Doc], Ordered));
-insert(Connection, Coll, Docs, Ordered) ->
-  Docs1 = [assign_id(Doc) || Doc <- Docs],
-  {true, Result} = command(Connection, {insert, Coll, documents, Docs1, ordered, Ordered}),
-  process_insert_result(Docs1, Result).
-
-%% @doc Insert a document or multiple documents into a collection.
-%%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), collection(), A, boolean(), bson:document()) -> A.
-insert(Connection, Coll, Doc, Ordered, WriteConcern) when is_tuple(Doc) ->
-  hd(insert(Connection, Coll, [Doc], Ordered, WriteConcern));
-insert(Connection, Coll, Docs, Ordered, WriteConcern) ->
-  Docs1 = [assign_id(Doc) || Doc <- Docs],
-  {true, Result} = command(Connection, {insert, Coll, documents, Docs1, ordered, Ordered, writeConcern, WriteConcern}),
-  process_insert_result(Docs1, Result).
+  mc_connection_man:request_async(Connection, #insert{collection = Coll, documents = Docs1}),
+  Docs1.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document()) -> ok.
