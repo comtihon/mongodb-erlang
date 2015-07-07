@@ -38,7 +38,9 @@ reply(#reply{cursornotfound = false, queryerror = true} = Reply) ->
   [Doc | _] = Reply#reply.documents,
   process_error(bson:at(code, Doc), Doc);
 reply(#reply{cursornotfound = true, queryerror = false} = Reply) ->
-  erlang:error({bad_cursor, Reply#reply.cursorid}).
+  erlang:error({bad_cursor, Reply#reply.cursorid});
+reply({error, Error}) ->
+  process_error(error, Error).
 
 process_reply(Doc, Command) ->
   case bson:lookup(ok, Doc) of
