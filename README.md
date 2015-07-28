@@ -11,7 +11,7 @@ to understand the document type.
 ### Installing
 Download and compile the application
 
-	$ git clone git://github.com/mongodb/mongodb-erlang.git mongodb
+	$ git clone git://github.com/comtihon/mongodb-erlang.git mongodb
 	$ cd mongodb
 	$ make
 
