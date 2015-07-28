@@ -14,7 +14,17 @@
   116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57}).
 
 %% API
--export([get_value/2, get_value/3, value_to_binary/1, pw_key/3, get_timeout/0, encode_name/1, random_string/1, pw_hash/2, hmac/2]).
+-export([
+  get_value/2,
+  get_value/3,
+  value_to_binary/1,
+  pw_key/3,
+  pw_hash/2,
+  get_timeout/0,
+  encode_name/1,
+  random_string/1,
+  hmac/2,
+  is_proplist/1]).
 
 get_value(Key, List) -> get_value(Key, List, undefined).
 
@@ -23,6 +33,11 @@ get_value(Key, List, Default) ->
     {_, Value} -> Value;
     false -> Default
   end.
+
+-spec is_proplist(list() | any()) -> boolean().
+is_proplist(List) ->
+  Check = fun({X, _}) when is_atom(X) -> true;(_) -> false end,
+  lists:all(Check, List).
 
 -spec encode_name(binary()) -> binary().
 encode_name(Name) ->
