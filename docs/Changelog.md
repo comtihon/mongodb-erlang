@@ -12,3 +12,17 @@ In connect/1,3,5 default host and port are used.
 
 * added SCRAM-SHA-1 auth support, used in mongodb 3+
 * added server version request before each auth to determine the default auth mechanizm.
+
+#### 2.1
+
+* moved to really binary bson. Atom interface exists for compatibility, but it converted to binary and all results return
+in binary. For max speed use binary to avoid conversion. __Important__ custom commands in update/find/insert should be 
+binary! F.e.:  
+
+
+	Command3 = {<<"$set">>, {
+        <<"tags.1">>, "rain gear",
+        <<"ratings.0.rating">>, 2
+    }},
+    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command3),
+instead of '$set' as it will lead to crash.

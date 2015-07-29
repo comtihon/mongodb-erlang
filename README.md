@@ -68,11 +68,11 @@ After you connected to your database - you can carry out write operations, such 
 
     > Collection = <<"test">>.
     > mongo:insert(Connection, Collection, [
-    		{name, <<"Yankees">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"American">>},
-    		{name, <<"Mets">>, home, {city, <<"New York">>, state, <<"NY">>}, league, <<"National">>},
-    		{name, <<"Phillies">>, home, {city, <<"Philadelphia">>, state, <<"PA">>}, league, <<"National">>},
-    		{name, <<"Red Sox">>, home, {city, <<"Boston">>, state, <<"MA">>}, league, <<"American">>}
-    	])
+          Yankees = {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
+          Mets = {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
+          {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
+          {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
+        ]),
 An insert example (from `mongo_SUITE` test module). `Connection` is your Connection, got `from mongo:connect`, `Collection`
 is your collection name, `Doc` is something, you want to save.
 Doc will be returned, if insert succeeded. If Doc doesn't contains `_id` field - an updated Doc will be returned - with
@@ -97,19 +97,19 @@ __Important!__ Do not forget to close cursors after using them!
 ### Advance reading
 To search for params - specify `Selector`:
 
-    mongo:find_one(Connection, Collection, {key, <<"123">>}).
+    mongo:find_one(Connection, Collection, {<<"key">>, <<"123">>}).
 will return one document from collection Collection with key == <<"123">>.
 
-    mongo:find_one(Connection, Collection, {key, <<"123">>, value, <<"built_in">>}).
+    mongo:find_one(Connection, Collection, {<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}).
 will return one document from collection Collection with key == <<"123">> `and` value == <<"built_in">>.
-Tuples `{key, <<"123">>}` in first example and `{key, <<"123">>, value, <<"built_in">>}` are selectors.
+Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}` are selectors.
 
 For filtering result - use `Projector`:
 
-    mongo:find_one(Connection, Collection, {}, {value, true}).
+    mongo:find_one(Connection, Collection, {}, {<<"value">>, true}).
 will return one document from collection Collection with fetching `only` _id and value.
 
-    mongo:find_one(Connection, Collection, {}, {key, false, value, false}).
+    mongo:find_one(Connection, Collection, {}, {<<"key">>, false, <<"value">>, false}).
 will return your data without key and value params. If there is no other data - only _id will be returned.
 __Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
@@ -117,25 +117,25 @@ __Important!__ For empty projector use `[]` instead `{}`. For empty selector use
 To add or update field in document - use `mongo:update` function with `$set` param.
 This updates selected fields:
 
-    Command = {'$set', {
-        quantity, 500,
-        details, {model, "14Q3", make, "xyz"},
-        tags, ["coats", "outerwear", "clothing"]
+    Command = {<<"$set">>, {
+        <<"quantity">>, 500,
+        <<"details">>, {<<"model">>, "14Q3", <<"make">>, "xyz"},
+        <<"tags">>, ["coats", "outerwear", "clothing"]
     }},
-    mongo:update(Connection, Collection, {'_id', 100}, Command),
+    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will add new field `expired`, if there is no such field, and set it to true.
 
-    Command = {'$set', {expired, true}},
-    mongo:update(Connection, Collection, {'_id', 100}, Command),
+    Command = {<<"$set">>, {<<"expired">>, true}},
+    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will update fields in nested documents. __Atoms using will be changed next version.__
 
-    Command = {'$set', {'details.make', "zzz"}},
-    mongo:update(Connection, Collection, {'_id', 100}, Command),
+    Command = {<<"$set">>, {'details.make', "zzz"}},
+    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will update elements in array.  __Atoms using will be changed next version.__
 
-    Command = {'$set', {
-        'tags.1', "rain gear",
-        'ratings.0.rating', 2
+    Command = {<<"$set">>, {
+        <<"tags.1">>, "rain gear",
+        <<"ratings.0.rating">>, 2
       }},
     mongo:update(Connection, Collection, {'_id', 100}, Command),
 For result of executing this functions - see mongo_SUITE update test.
@@ -143,9 +143,9 @@ For result of executing this functions - see mongo_SUITE update test.
 ### Creating indexes
 To create indexes - use `mongo:ensure_index/3` command:
 
-    mongo:ensure_index(Connection, Collection, {key, {index, 1}}).  %simple
-    mongo:ensure_index(Connection, Collection, {key, {index, 1}, name, <<"MyI">>}).  %advanced
-    mongo:ensure_index(Connection, Collection, {key, {index, 1}, name, <<"MyI">>, unique, true, dropDups, true}).  %full
+    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
+    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>}).  %advanced
+    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>, <<"unique">>, true, <<"dropDups">>, true}).  %full
 ensure_index takes `mc_worker`' pid or atom name as first parameter, collection, where to create index, as second
 parameter and bson document with index
 specification - as third parameter. In index specification one can set all or only some parameters.
