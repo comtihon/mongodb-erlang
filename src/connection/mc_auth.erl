@@ -25,8 +25,8 @@ connect_to_database(Conf) ->  %TODO scram server-first auth case
 %% Get server version. This is need to choose default authentification method.
 -spec get_version(port(), binary()) -> float().
 get_version(Socket, Database) ->
-  {true, Info} = mongo:sync_command(Socket, Database, {buildinfo, 1}),
-  {Version} = bson:lookup(version, Info),
+  {true, Info} = mongo:sync_command(Socket, Database, {<<"buildinfo">>, 1}),
+  Version = bson:lookup(<<"version">>, Info),
   {VFloat, _} = string:to_float(binary_to_list(Version)),
   VFloat.
 

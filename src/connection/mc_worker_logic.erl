@@ -38,10 +38,10 @@ decode_responses(Data, Acc) ->
 -spec process_write_response(From :: pid()) -> fun().
 process_write_response(From) ->
   fun(#reply{documents = [Doc]}) ->
-    case bson:lookup(err, Doc, undefined) of
+    case bson:lookup(<<"err">>, Doc, undefined) of
       undefined -> gen_server:reply(From, ok);
       String ->
-        case bson:at(code, Doc) of
+        case bson:at(<<"code">>, Doc) of
           10058 -> gen_server:reply(From, {error, {not_master, 10058}});
           Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
         end

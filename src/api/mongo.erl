@@ -182,7 +182,7 @@ count(Connection, Coll, Selector, Limit) ->
                                       true -> {count, CollStr, 'query', Selector};
                                       false -> {count, CollStr, 'query', Selector, limit, Limit}
                                     end),
-  trunc(bson:at(n, Doc)). % Server returns count as float
+  trunc(bson:at(<<"n">>, Doc)). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
@@ -213,6 +213,15 @@ sync_command(Socket, Database, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @private
+prepare_and_assign(Docs) when is_tuple(Docs) ->
+  case element(1, Docs) of
+    <<"$", _/binary>> -> Docs;  %command
+    _ ->  %document
+      case prepare_doc(Docs) of
+        Res when is_tuple(Res) -> [Res];
+        List -> List
+      end
+  end;
 prepare_and_assign(Docs) ->
   case prepare_doc(Docs) of
     Res when is_tuple(Res) -> [Res];
@@ -234,7 +243,7 @@ prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
 %% @private
 -spec assign_id(bson:document()) -> bson:document().
 assign_id(Doc) ->
-  case bson:lookup('_id', Doc) of
-    {_Value} -> Doc;
-    {} -> bson:update('_id', mongo_id_server:object_id(), Doc)
+  case bson:lookup(<<"_id">>, Doc) of
+    {} -> bson:update(<<"_id">>, mongo_id_server:object_id(), Doc);
+    _Value -> Doc
   end.

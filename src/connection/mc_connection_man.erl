@@ -36,16 +36,15 @@ reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
   {Reply#reply.cursorid, Reply#reply.documents};
 reply(#reply{cursornotfound = false, queryerror = true} = Reply) ->
   [Doc | _] = Reply#reply.documents,
-  process_error(bson:at(code, Doc), Doc);
+  process_error(bson:at(<<"code">>, Doc), Doc);
 reply(#reply{cursornotfound = true, queryerror = false} = Reply) ->
   erlang:error({bad_cursor, Reply#reply.cursorid});
 reply({error, Error}) ->
   process_error(error, Error).
 
 process_reply(Doc, Command) ->
-  case bson:lookup(ok, Doc) of
-    {N} when N == 1 -> {true, bson:exclude([ok], Doc)};   %command succeed
-    {N} when N == 0 -> {false, bson:exclude([ok], Doc)};  %command failed
+  case bson:lookup(<<"ok">>, Doc) of
+    N when is_number(N) -> {N == 1, bson:exclude([<<"ok">>], Doc)};   %command succeed | failed
     _Res -> erlang:error({bad_command, Doc}, [Command]) %unknown result
   end.
 

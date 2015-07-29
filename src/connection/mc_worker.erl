@@ -40,10 +40,11 @@ init(Options) ->
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState, socket = Socket}) -> % ensure index request with insert request
-  Key = bson:at(key, IndexSpec),
-  Defaults = {name, mc_worker_logic:gen_index_name(Key), unique, false, dropDups, false},
-  Index = bson:update(ns, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-  {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, #insert{collection = 'system.indexes', documents = [Index]}),
+  Key = bson:at(<<"key">>, IndexSpec),
+  Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
+  Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
+  {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database,
+    #insert{collection = <<"system.indexes">>, documents = [Index]}),
   {reply, ok, State};
 handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor})
   when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) -> % write requests
@@ -56,7 +57,7 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
       ConfirmWrite = #'query'{ % check-write read request
         batchsize = -1,
         collection = '$cmd',
-        selector = bson:append({getlasterror, 1}, Params)
+        selector = bson:append({<<"getlasterror">>, 1}, Params)
       },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
       inet:setopts(Socket, [{active, once}]),

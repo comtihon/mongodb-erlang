@@ -12,15 +12,22 @@
 -include("mongo_protocol.hrl").
 
 -define(RANDOM_LENGTH, 24).
+-define(AUTH_CMD(Login, Nonce, Password),
+  {
+    <<"authenticate">>, 1,
+    <<"user">>, Login,
+    <<"nonce">>, Nonce,
+    <<"key">>, mc_utils:pw_key(Nonce, Login, Password)
+  }).
 
 %% API
 -export([mongodb_cr_auth/4, scram_sha_1_auth/4, compose_first_message/2, compose_second_message/5]).
 
 -spec mongodb_cr_auth(port(), binary(), binary(), binary()) -> true.
 mongodb_cr_auth(Socket, Database, Login, Password) ->
-  {true, Res} = mongo:sync_command(Socket, Database, {getnonce, 1}),
-  Nonce = bson:at(nonce, Res),
-  case mongo:sync_command(Socket, Database, {authenticate, 1, user, Login, nonce, Nonce, key, mc_utils:pw_key(Nonce, Login, Password)}) of
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"getnonce">>, 1}),
+  Nonce = bson:at(<<"nonce">>, Res),
+  case mongo:sync_command(Socket, Database, ?AUTH_CMD(Login, Nonce, Password)) of
     {true, _} -> true;
     {false, Reason} -> erlang:error(Reason)
   end.
@@ -30,8 +37,8 @@ scram_sha_1_auth(Socket, Database, Login, Password) ->
   try
     scram_first_step(Socket, Database, Login, Password)
   catch
-      _:_  ->
-        erlang:error(<<"Can't pass authentification">>)
+    _:_ ->
+      erlang:error(<<"Can't pass authentification">>)
   end.
 
 
@@ -42,8 +49,8 @@ scram_first_step(Socket, Database, Login, Password) ->
   Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
-  {ConversationId} = bson:lookup(conversationId, Res),
-  Payload = bson:at(payload, Res),
+  ConversationId = bson:lookup(<<"conversationId">>, Res),
+  Payload = bson:at(<<"payload">>, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
 
 %% @private
@@ -55,7 +62,7 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
 
 %% @private
 scram_third_step(ServerSignature, Responce) ->
-  Payload = bson:at(payload, Responce),
+  Payload = bson:at(<<"payload">>, Responce),
   ParamList = parse_server_responce(base64:decode(Payload)),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList).
 
