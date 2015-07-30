@@ -22,7 +22,7 @@ request_async(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_sync(port(), binary(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
+-spec request_sync(port(), mongo:database(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_sync(Socket, Database, Request) ->
   Timeout = mc_utils:get_timeout(),
   {ok, _} = mc_worker_logic:make_request(Socket, Database, Request),

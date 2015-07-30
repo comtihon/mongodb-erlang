@@ -61,7 +61,7 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
       },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
       inet:setopts(Socket, [{active, once}]),
-      RespFun = mc_worker_logic:process_write_response(From),
+      RespFun = mc_worker_logic:get_resp_fun(From, Request),
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
   end;
@@ -73,7 +73,7 @@ handle_call(Request, From, State = #state{socket = Socket, request_storage = Req
            end,
   {ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
   inet:setopts(Socket, [{active, once}]),
-  RespFun = fun(Response) -> gen_server:reply(From, Response) end,  % save function, which will be called on response
+  RespFun = mc_worker_logic:get_resp_fun(From, UpdReq),  % save function, which will be called on response
   URStorage = dict:store(Id, RespFun, RequestStorage),
   {noreply, State#state{request_storage = URStorage}};
 handle_call(Request = #killcursor{}, _, State = #state{socket = Socket, conn_state = ConnState}) ->

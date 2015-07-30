@@ -2,29 +2,22 @@
 %% and then pass it to all functions
 
 -module(mongo).
+
+-include("mongo_protocol.hrl").
+
 -export([
   connect/1,
-  connect/2,
-  connect/3,
-  connect/5,
-  connect/6,
   disconnect/1,
   insert/3,
   update/4,
   update/5,
-  update/6,
   delete/3,
   delete_one/3]).
 -export([
-]).
--export([
   find_one/3,
   find_one/4,
-  find_one/5,
   find/3,
-  find/4,
-  find/5,
-  find/6
+  find/4
 ]).
 -export([
   count/3,
@@ -36,45 +29,41 @@
   ensure_index/3
 ]).
 
--include("mongo_protocol.hrl").
-
+-type collection() :: binary() | atom(). % without db prefix
+-type cursorid() :: integer().
+-type selector() :: bson:document().
+-type projector() :: bson:document().
+-type skip() :: integer().
+-type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
+-type modifier() :: bson:document().
+-type connection() :: pid().
+-type database() :: binary() | atom().
+-type args() :: [arg()].
+-type arg() :: {database, database()} | {login, binary()} | {password, binary()} | {w_mode, write_mode()} | {r_mode, read_mode()}.
+-type write_mode() :: unsafe | safe | {safe, bson:document()}.
+-type read_mode() :: master | slave_ok.
+-type service() :: {Host :: inet:hostname() | inet:ip_address(), Post :: 0..65535}.
+-type options() :: [option()].
+-type option() :: {timeout, timeout()} | {ssl, boolean()} | ssl | {database, database()} | {read_mode, read_mode()} | {write_mode, write_mode()}.
 -type cursor() :: pid().
 
+-export_type([
+  connection/0,
+  service/0,
+  options/0,
+  args/0,
+  cursorid/0,
+  projector/0,
+  selector/0,
+  skip/0,
+  batchsize/0,
+  modifier/0]).
+
+
 %% @doc Make one connection to server, return its pid
--spec connect(database()) -> {ok, pid()}.
-connect(Database) ->
-  mc_worker:start_link([{database, Database}]).
--spec connect(database(), proplists:proplist()) -> {ok, pid()}.
-connect(Database, Opts) ->
-  mc_worker:start_link(lists:append(Opts, [{database, Database}])).
--spec connect(database(), bson:utf8(), bson:utf8()) -> {ok, pid()}.
-connect(Database, User, Pass) ->
-  mc_worker:start_link(
-    [
-      {database, Database},
-      {login, User},
-      {password, Pass}
-    ]).
--spec connect(database(), bson:utf8(), bson:utf8(), write_mode(), read_mode()) -> {ok, pid()}.
-connect(Database, User, Pass, Wmode, Rmode) ->
-  mc_worker:start_link(
-    [
-      {database, Database},
-      {login, User},
-      {password, Pass},
-      {w_mode, Wmode},
-      {r_mode, Rmode}
-    ]).
--spec connect(database(), bson:utf8(), bson:utf8(), write_mode(), read_mode(), proplists:proplist()) -> {ok, pid()}.
-connect(Database, User, Pass, Wmode, Rmode, Opts) ->
-  mc_worker:start_link(lists:append(Opts,
-    [
-      {database, Database},
-      {login, User},
-      {password, Pass},
-      {w_mode, Wmode},
-      {r_mode, Rmode}
-    ])).
+-spec connect(args()) -> {ok, pid()}.
+connect(Args) ->
+  mc_worker:start_link(Args).
 
 -spec disconnect(pid()) -> ok.
 disconnect(Connection) ->
@@ -93,16 +82,13 @@ insert(Connection, Coll, Docs) ->
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document()) -> ok.
 update(Connection, Coll, Selector, Doc) ->
-  update(Connection, Coll, Selector, Doc, false, false).
+  update(Connection, Coll, Selector, Doc, []).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document(), boolean()) -> ok.
-update(Connection, Coll, Selector, Doc, Upsert) ->
-  update(Connection, Coll, Selector, Doc, Upsert, false).
-
-%% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), collection(), selector(), bson:document() | map | proplists:proplist(), boolean(), boolean()) -> ok.
-update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
+update(Connection, Coll, Selector, Doc, Args) ->
+  Upsert = mc_utils:get_value(projector, Args, false),
+  MultiUpdate = mc_utils:get_value(projector, Args, false),
   Converted = prepare_and_assign(Doc),
   mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector,
     updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
@@ -122,14 +108,11 @@ delete_one(Connection, Coll, Selector) ->
 find_one(Connection, Coll, Selector) ->
   find_one(Connection, Coll, Selector, []).
 
-%% @doc Return projection of first selected document, if any. Empty projection [] means full projection.
--spec find_one(pid(), collection(), selector(), projector()) -> {} | {bson:document()}.
-find_one(Connection, Coll, Selector, Projector) ->
-  find_one(Connection, Coll, Selector, Projector, 0).
-
-%% @doc Return projection of Nth selected document, if any. Empty projection [] means full projection.
--spec find_one(pid(), collection(), selector(), projector(), skip()) -> {} | {bson:document()}.
-find_one(Connection, Coll, Selector, Projector, Skip) ->
+%% @doc Return first selected document, if any
+-spec find_one(pid(), collection(), selector(), proplists:proplist()) -> {} | {bson:document()}.
+find_one(Connection, Coll, Selector, Args) ->
+  Projector = mc_utils:get_value(projector, Args, []),
+  Skip = mc_utils:get_value(skip, Args, 0),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
     selector = Selector,
@@ -144,22 +127,11 @@ find(Connection, Coll, Selector) ->
 
 %% @doc Return projection of selected documents.
 %%      Empty projection [] means full projection.
--spec find(pid(), collection(), selector(), projector()) -> cursor().
-find(Connection, Coll, Selector, Projector) ->
-  find(Connection, Coll, Selector, Projector, 0).
-
-%% @doc Return projection of selected documents starting from Nth document.
-%%      Empty projection means full projection.
--spec find(pid(), collection(), selector(), projector(), skip()) -> cursor().
-find(Connection, Coll, Selector, Projector, Skip) ->
-  find(Connection, Coll, Selector, Projector, Skip, 0).
-
-%% @doc Return projection of selected documents starting from Nth document in batches of batchsize.
-%%      0 batchsize means default batch size.
-%%      Negative batch size means one batch only.
-%%      Empty projection means full projection.
--spec find(pid(), collection(), selector(), projector(), skip(), batchsize()) -> cursor(). % Action
-find(Connection, Coll, Selector, Projector, Skip, BatchSize) ->
+-spec find(pid(), collection(), selector(), proplists:proplist()) -> cursor().
+find(Connection, Coll, Selector, Args) ->
+  Projector = mc_utils:get_value(projector, Args, []),
+  Skip = mc_utils:get_value(skip, Args, 0),
+  BatchSize = mc_utils:get_value(batchsize, Args, 0),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
     selector = Selector,
@@ -224,7 +196,7 @@ prepare_and_assign(Docs) when is_tuple(Docs) ->
   end;
 prepare_and_assign(Docs) ->
   case prepare_doc(Docs) of
-    Res when is_tuple(Res) -> [Res];
+    Res when not is_list(Res) -> [Res];
     List -> List
   end.
 
@@ -232,16 +204,19 @@ prepare_and_assign(Docs) ->
 %% Convert maps or proplists to bson
 prepare_doc(Docs) when is_list(Docs) ->  %list of documents
   case mc_utils:is_proplist(Docs) of
-    true -> prepare_doc(bson:proplist_to_bson(Docs)); %proplist
+    true -> prepare_doc(maps:from_list(Docs)); %proplist
     false -> lists:map(fun prepare_doc/1, Docs)
   end;
-prepare_doc(Doc) when is_map(Doc) ->  %map
-  prepare_doc(bson:map_to_bson(Doc));
-prepare_doc(Doc) when is_tuple(Doc) -> %bson:document()
+prepare_doc(Doc) ->
   assign_id(Doc).
 
 %% @private
--spec assign_id(bson:document()) -> bson:document().
+-spec assign_id(bson:document() | map()) -> bson:document().
+assign_id(Map) when is_map(Map) ->
+  case maps:is_key(<<"_id">>, Map) of
+    true -> Map;
+    false -> Map#{<<"_id">> => mongo_id_server:object_id()}
+  end;
 assign_id(Doc) ->
   case bson:lookup(<<"_id">>, Doc) of
     {} -> bson:update(<<"_id">>, mongo_id_server:object_id(), Doc);

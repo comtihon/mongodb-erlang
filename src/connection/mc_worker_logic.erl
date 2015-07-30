@@ -12,41 +12,28 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([encode_requests/2, decode_responses/1, process_responses/2, process_write_response/1]).
--export([gen_index_name/1, make_request/3]).
+-export([encode_requests/2, decode_responses/1, process_responses/2]).
+-export([gen_index_name/1, make_request/3, get_resp_fun/2]).
 
-encode_requests(Database, Request) when not is_list(Request) -> encode_requests(Database, [Request]);
+encode_requests(Database, Request) when not is_list(Request) ->
+  encode_requests(Database, [Request]);
 encode_requests(Database, Request) ->
-  Build = fun(Message, {Bin, _}) ->
-    RequestId = mongo_id_server:request_id(),
-    Payload = mongo_protocol:put_message(Database, Message, RequestId),
-    {<<Bin/binary, (byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId} end,
+  Build =
+    fun(Message, {Bin, _}) ->
+      RequestId = mongo_id_server:request_id(),
+      Payload = mongo_protocol:put_message(Database, Message, RequestId),
+      {<<Bin/binary, (byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}
+    end,
   lists:foldl(Build, {<<>>, 0}, Request).
 
 decode_responses(Data) ->
   decode_responses(Data, []).
 
-decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->
-  PayloadLength = Length - 4,
-  <<Payload:PayloadLength/binary, Rest/binary>> = Data,
-  {Id, Response, <<>>} = mongo_protocol:get_reply(Payload),
-  decode_responses(Rest, [{Id, Response} | Acc]);
-decode_responses(Data, Acc) ->
-  {lists:reverse(Acc), Data}.
-
-%% Returns function for processing requests to From pid on write operations
--spec process_write_response(From :: pid()) -> fun().
-process_write_response(From) ->
-  fun(#reply{documents = [Doc]}) ->
-    case bson:lookup(<<"err">>, Doc, undefined) of
-      undefined -> gen_server:reply(From, ok);
-      String ->
-        case bson:at(<<"code">>, Doc) of
-          10058 -> gen_server:reply(From, {error, {not_master, 10058}});
-          Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
-        end
-    end
-  end.
+-spec get_resp_fun(#query{} | #getmore{} | #insert{} | #update{} | #delete{}, pid()) -> fun().
+get_resp_fun(Read, From) when is_record(Read, query); is_record(Read, getmore) ->
+  fun(Response) -> gen_server:reply(From, Response) end;
+get_resp_fun(Write, From) when is_record(Write, insert); is_record(Write, update); is_record(Write, delete) ->
+  process_write_response(From).
 
 -spec process_responses(Responses :: list(), RequestStorage :: dict) -> UpdStorage :: dict.  %dict:dict()
 process_responses(Responses, RequestStorage) ->
@@ -72,3 +59,28 @@ gen_index_name(KeyOrder) ->
 make_request(Socket, Database, Request) ->
   {Packet, Id} = encode_requests(Database, Request),
   {gen_tcp:send(Socket, Packet), Id}.
+
+
+%% @private
+decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->
+  PayloadLength = Length - 4,
+  <<Payload:PayloadLength/binary, Rest/binary>> = Data,
+  {Id, Response, <<>>} = mongo_protocol:get_reply(Payload),
+  decode_responses(Rest, [{Id, Response} | Acc]);
+decode_responses(Data, Acc) ->
+  {lists:reverse(Acc), Data}.
+
+%% @private
+%% Returns function for processing requests to From pid on write operations
+-spec process_write_response(From :: pid()) -> fun().
+process_write_response(From) ->
+  fun(#reply{documents = [Doc]}) ->
+    case bson:lookup(<<"err">>, Doc, undefined) of
+      undefined -> gen_server:reply(From, ok);
+      String ->
+        case bson:at(<<"code">>, Doc) of
+          10058 -> gen_server:reply(From, {error, {not_master, 10058}});
+          Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
+        end
+    end
+  end.

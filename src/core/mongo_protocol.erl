@@ -1,10 +1,9 @@
 -module(mongo_protocol).
 -export([
-	dbcoll/2,
-	put_message/3,
-	get_reply/1
+  dbcoll/2,
+  put_message/3,
+  get_reply/1
 ]).
--export_type([db/0]).
 -export_type([notice/0, request/0, reply/0]).
 -export_type([message/0]).
 -export_type([requestid/0]).
@@ -36,70 +35,70 @@
 -define(KillcursorOpcode, 2007).
 
 
--spec dbcoll(db(), collection()) -> bson:utf8().
+-spec dbcoll(mongo:database(), mongo:collection()) -> bson:utf8().
 %@doc Concat db and collection name with period (.) in between
 dbcoll(Db, Coll) ->
-	<<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
+  <<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
 
--spec put_message(db(), message(), requestid()) -> binary().
+-spec put_message(mongo:database(), message(), requestid()) -> binary().
 put_message(Db, #insert{collection = Coll, documents = Docs}, _RequestId) ->
-	<<?put_header(?InsertOpcode),
-	?put_int32(0),
-	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
-	<<<<(bson_binary:put_document(Doc))/binary>> || Doc <- Docs>>/binary>>;
+  <<?put_header(?InsertOpcode),
+  ?put_int32(0),
+  (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
+  <<<<(bson_binary:put_document(Doc))/binary>> || Doc <- Docs>>/binary>>;
 put_message(Db, #update{collection = Coll, upsert = U, multiupdate = M, selector = Sel, updater = Up}, _RequestId) ->
-	<<?put_header(?UpdateOpcode),
-	?put_int32(0),
-	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
-	?put_bits32(0, 0, 0, 0, 0, 0, bit(M), bit(U)),
-	(bson_binary:put_document(Sel))/binary,
-	(bson_binary:put_document(Up))/binary>>;
+  <<?put_header(?UpdateOpcode),
+  ?put_int32(0),
+  (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
+  ?put_bits32(0, 0, 0, 0, 0, 0, bit(M), bit(U)),
+  (bson_binary:put_document(Sel))/binary,
+  (bson_binary:put_document(Up))/binary>>;
 put_message(Db, #delete{collection = Coll, singleremove = R, selector = Sel}, _RequestId) ->
-	<<?put_header(?DeleteOpcode),
-	?put_int32(0),
-	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
-	?put_bits32(0, 0, 0, 0, 0, 0, 0, bit(R)),
-	(bson_binary:put_document(Sel))/binary>>;
+  <<?put_header(?DeleteOpcode),
+  ?put_int32(0),
+  (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
+  ?put_bits32(0, 0, 0, 0, 0, 0, 0, bit(R)),
+  (bson_binary:put_document(Sel))/binary>>;
 put_message(_Db, #killcursor{cursorids = Cids}, _RequestId) ->
-	<<?put_header(?KillcursorOpcode),
-	?put_int32(0),
-	?put_int32(length(Cids)),
-	<<<<?put_int64(Cid)>> || Cid <- Cids>>/binary>>;
+  <<?put_header(?KillcursorOpcode),
+  ?put_int32(0),
+  ?put_int32(length(Cids)),
+  <<<<?put_int64(Cid)>> || Cid <- Cids>>/binary>>;
 put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = NCT, awaitdata = AD,
-	collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}, _RequestId) ->
-	<<?put_header(?QueryOpcode),
-	?put_bits32(0, 0, bit(AD), bit(NCT), 0, bit(SOK), bit(TC), 0),
-	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
-	?put_int32(Skip),
-	?put_int32(Batch),
-	(bson_binary:put_document(Sel))/binary,
-	(case Proj of [] -> <<>>; _ -> bson_binary:put_document(Proj) end)/binary>>;
+  collection = Coll, skip = Skip, batchsize = Batch, selector = Sel, projector = Proj}, _RequestId) ->
+  <<?put_header(?QueryOpcode),
+  ?put_bits32(0, 0, bit(AD), bit(NCT), 0, bit(SOK), bit(TC), 0),
+  (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
+  ?put_int32(Skip),
+  ?put_int32(Batch),
+  (bson_binary:put_document(Sel))/binary,
+  (case Proj of [] -> <<>>; _ -> bson_binary:put_document(Proj) end)/binary>>;
 put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, _RequestId) ->
-	<<?put_header(?GetmoreOpcode),
-	?put_int32(0),
-	(bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
-	?put_int32(Batch),
-	?put_int64(Cid)>>.
+  <<?put_header(?GetmoreOpcode),
+  ?put_int32(0),
+  (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
+  ?put_int32(Batch),
+  ?put_int64(Cid)>>.
 
 
 -spec get_reply(binary()) -> {requestid(), reply(), binary()}.
 get_reply(Message) ->
-	<<?get_header(?ReplyOpcode, ResponseTo),
-	?get_bits32(_, _, _, _, AwaitCapable, _, QueryError, CursorNotFound),
-	?get_int64(CursorId),
-	?get_int32(StartingFrom),
-	?get_int32(NumDocs),
-	Bin/binary>> = Message,
-	{Docs, BinRest} = get_docs(NumDocs, Bin),
-	Reply = #reply{
-		cursornotfound = bool(CursorNotFound),
-		queryerror = bool(QueryError),
-		awaitcapable = bool(AwaitCapable),
-		cursorid = CursorId,
-		startingfrom = StartingFrom,
-		documents = Docs
-	},
-	{ResponseTo, Reply, BinRest}.
+  <<?get_header(?ReplyOpcode, ResponseTo),
+  ?get_bits32(_, _, _, _, AwaitCapable, _, QueryError, CursorNotFound),
+  ?get_int64(CursorId),
+  ?get_int32(StartingFrom),
+  ?get_int32(NumDocs),
+  Bin/binary>> = Message,
+  {Docs, BinRest} = get_docs(NumDocs, Bin, []),
+  Reply = #reply{
+    cursornotfound = bool(CursorNotFound),
+    queryerror = bool(QueryError),
+    awaitcapable = bool(AwaitCapable),
+    cursorid = CursorId,
+    startingfrom = StartingFrom,
+    documents = Docs
+  },
+  {ResponseTo, Reply, BinRest}.
 
 -spec binarize(binary() | atom()) -> binary().
 %@doc Ensures the given term is converted to a UTF-8 binary.
@@ -107,11 +106,10 @@ binarize(Term) when is_binary(Term) -> Term;
 binarize(Term) when is_atom(Term) -> atom_to_binary(Term, utf8).
 
 %% @private
-get_docs(0, Bin) -> {[], Bin};
-get_docs(NumDocs, Bin) when NumDocs > 0 ->
-	{Doc, Bin1} = bson_binary:get_document(Bin),
-	{Docs, Bin2} = get_docs(NumDocs - 1, Bin1),
-	{[Doc | Docs], Bin2}.
+get_docs(0, Bin, Docs) -> {lists:reverse(Docs), Bin};
+get_docs(NumDocs, Bin, Docs) when NumDocs > 0 ->
+  {Doc, Bin1} = bson_binary:get_document(Bin),
+  get_docs(NumDocs - 1, Bin1, [Doc | Docs]).
 
 %% @private
 bit(false) -> 0;

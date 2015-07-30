@@ -19,7 +19,8 @@
   insert_and_delete/1,
   search_and_query/1,
   update/1,
-  sort_and_limit/1
+  sort_and_limit/1,
+  insert_map/1
 ]).
 
 all() ->
@@ -28,7 +29,8 @@ all() ->
     insert_and_delete,
     search_and_query,
     update,
-    sort_and_limit
+    sort_and_limit,
+    insert_map
   ].
 
 init_per_suite(Config) ->
@@ -95,6 +97,21 @@ insert_and_delete(Config) ->
 
   mongo:delete_one(Connection, Collection, {}),
   3 = mongo:count(Connection, Collection, {}).
+
+insert_map(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  Map = #{<<"name">> => <<"Yankees">>, <<"home">> =>
+  #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>},
+  mongo:insert(Connection, Collection, Map),
+
+  [Res] = find(Connection, Collection, {<<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}}),
+  true = is_equal_bsons(Res, {<<"home">>,
+    {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>},
+    <<"league">>, <<"American">>, <<"name">>, <<"Yankees">>}),
+  ok.
+
 
 search_and_query(Config) ->
   Connection = ?config(connection, Config),
