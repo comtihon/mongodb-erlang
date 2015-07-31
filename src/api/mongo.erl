@@ -79,7 +79,7 @@ disconnect(Connection) ->
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), collection(), A) -> A.
-insert(Connection, Coll, Doc) when is_tuple(Doc) ->
+insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   hd(insert(Connection, Coll, [Doc]));
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
