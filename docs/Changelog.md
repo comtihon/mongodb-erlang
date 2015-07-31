@@ -26,3 +26,8 @@ binary! F.e.:
     }},
     mongo:update(Connection, Collection, {<<"_id">>, 100}, Command3),
 instead of '$set' as it will lead to crash.
+
+#### 3.0
+
+* changed interface of mongo `connect`, `update`, `find`, `find_one`
+* make find, update and insert operations return map.

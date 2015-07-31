@@ -124,5 +124,6 @@ form_state(Options) ->
 try_register(Options) ->
   case lists:keyfind(register, 1, Options) of
     false -> ok;
-    {_, Name} -> register(Name, self())
+    {_, Name} when is_atom(Name)-> register(Name, self());
+    {_, RegFun} when is_function(RegFun) -> RegFun(self())
   end.

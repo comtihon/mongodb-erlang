@@ -33,20 +33,22 @@ interface for the driver. Likewise, you should only need to use the *bson* modul
 
 ### Connecting
 To connect to a database `test` on mongodb server listening on `localhost:27017` (or any address & port of your choosing)
-use `mongo:connect/1,3,5,6`.
+use `mongo:connect/1`.
 
 	> Database = <<"test">>.
-	> {ok, Connection} = mongo:connect (Database).
+	> {ok, Connection} = mongo:connect ([{database, Database}]).
 
-`mongo:connect` returns `{error, Reason}` if it failed to connect.  
-`mongo:connect/1` takes only database as argument and connects to local database on 127.0.0.1:27017  
-`mongo:connect/2` same as `mongo:connect/1` with an additional argument - a proplist with connect options, such as host, port and register name.
-`mongo:connect/3` takes two additional params - login and password. It can be used to connect to local database and auth.  
-`mongo:connect/5` also takes extra params - they are write mode and read mode. They are `master` and `slave_ok` for read 
-and `unsafe`, `safe` and `{safe, bson:document()}` for write.  
-`mongo:connect/6` takes one additional argument - a proplist with connect options, such as host, port and register name.
+`mongo:connect` returns `{error, Reason}` if it failed to connect. See arguments you can pass in `mongo.erl` type spec:
 
-To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` instead and pass all the parameters as a proplist.
+    -type arg() :: {database, database()}
+    | {login, binary()}
+    | {password, binary()}
+    | {w_mode, write_mode()}
+    | {r_mode, read_mode()}
+    | {host, list()}
+    | {port, integer()}
+    | {register, atom() | fun()}.
+To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` instead and pass all args to it.
 
 `safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are write-modes. Safe mode makes a *getLastError* request
 after every write in the sequence. If the reply says it failed then the rest of the sequence is aborted and returns 
@@ -60,7 +62,8 @@ a master/primary server). If the connected server is not a master then the first
 will be aborted, and `mongo:do` will return `{failure, not_master}`. `slave_ok` means every query is allowed to read
 stale data from a slave/secondary (fresh data from a master is fine too).  
 
-If you set `{register, Name}` option - mc_worker process will be registered on this Name.  
+If you set `{register, Name}` option - mc_worker process will be registered on this Name, or you can pass function 
+`fun(pid())`, which it runs with self pid.    
 If you set `{login, Login}` and `{password, Password}` options - mc_worker will try to authenticate to the database.  
 
 ### Writing
@@ -68,8 +71,8 @@ After you connected to your database - you can carry out write operations, such 
 
     > Collection = <<"test">>.
     > mongo:insert(Connection, Collection, [
-          Yankees = {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
-          Mets = {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
+          {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
+          {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
           {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
           {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
         ]),
@@ -80,7 +83,12 @@ automatically generated '_id' fields. If error occurred - Connection will fall.
 
     > mongo:delete(Connection, Collection, Selector).
 Delete example. `Connection` is your Connection, `Collection` - is a collection you want to clean. `Selector` is the
-rules for cleaning. If you want to clean everything - pass empty `{}`.
+rules for cleaning. If you want to clean everything - pass empty `{}`.  
+You can also use maps instead bson documents:
+
+    > Collection = <<"test">>.
+    > mongo:insert(Connection, Collection, #{<<"name">> => <<"Yankees">>, <<"home">> =>
+      #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>}),
 
 ### Reading
 To call read operations use `find`, `find_one`:
@@ -106,10 +114,10 @@ Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>, <<"
 
 For filtering result - use `Projector`:
 
-    mongo:find_one(Connection, Collection, {}, {<<"value">>, true}).
+    mongo:find_one(Connection, Collection, {}, [{projector, {<<"value">>, true}]).
 will return one document from collection Collection with fetching `only` _id and value.
 
-    mongo:find_one(Connection, Collection, {}, {<<"key">>, false, <<"value">>, false}).
+    mongo:find_one(Connection, Collection, {}, [{projector, {<<"key">>, false, <<"value">>, false}}]).
 will return your data without key and value params. If there is no other data - only _id will be returned.
 __Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
