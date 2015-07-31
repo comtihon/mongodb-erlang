@@ -21,13 +21,13 @@ read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSi
 read_one(Connection, Request) ->
   {0, Docs} = mc_connection_man:request_async(Connection, Request#'query'{batchsize = -1}),
   case Docs of
-    [] -> {};
-    [Doc | _] -> {Doc}
+    [] -> #{};
+    [Doc | _] -> Doc
   end.
 
 read_one_sync(Socket, Database, Request) ->
   {0, Docs} = mc_connection_man:request_sync(Socket, Database, Request#'query'{batchsize = -1}),
   case Docs of
-    [] -> {};
-    [Doc | _] -> {Doc}
+    [] -> #{};
+    [Doc | _] -> Doc
   end.

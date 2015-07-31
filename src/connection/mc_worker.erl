@@ -40,7 +40,7 @@ init(Options) ->
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State = #state{conn_state = ConnState, socket = Socket}) -> % ensure index request with insert request
-  Key = bson:at(<<"key">>, IndexSpec),
+  Key = maps:get(<<"key">>, IndexSpec),
   Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
   Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
   {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database,
@@ -56,12 +56,12 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
       Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
       ConfirmWrite = #'query'{ % check-write read request
         batchsize = -1,
-        collection = '$cmd',
+        collection = <<"$cmd">>,
         selector = bson:append({<<"getlasterror">>, 1}, Params)
       },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
       inet:setopts(Socket, [{active, once}]),
-      RespFun = mc_worker_logic:get_resp_fun(From, Request),
+      RespFun = mc_worker_logic:get_resp_fun(Request, From),
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
   end;
@@ -73,7 +73,7 @@ handle_call(Request, From, State = #state{socket = Socket, request_storage = Req
            end,
   {ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
   inet:setopts(Socket, [{active, once}]),
-  RespFun = mc_worker_logic:get_resp_fun(From, UpdReq),  % save function, which will be called on response
+  RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
   URStorage = dict:store(Id, RespFun, RequestStorage),
   {noreply, State#state{request_storage = URStorage}};
 handle_call(Request = #killcursor{}, _, State = #state{socket = Socket, conn_state = ConnState}) ->

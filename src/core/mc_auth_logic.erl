@@ -26,7 +26,7 @@
 -spec mongodb_cr_auth(port(), binary(), binary(), binary()) -> true.
 mongodb_cr_auth(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database, {<<"getnonce">>, 1}),
-  Nonce = bson:at(<<"nonce">>, Res),
+  Nonce = maps:find(<<"nonce">>, Res),
   case mongo:sync_command(Socket, Database, ?AUTH_CMD(Login, Nonce, Password)) of
     {true, _} -> true;
     {false, Reason} -> erlang:error(Reason)
@@ -49,8 +49,8 @@ scram_first_step(Socket, Database, Login, Password) ->
   Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
-  ConversationId = bson:lookup(<<"conversationId">>, Res),
-  Payload = bson:at(<<"payload">>, Res),
+  ConversationId = maps:get(<<"conversationId">>, Res, {}),
+  Payload = maps:find(<<"payload">>, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
 
 %% @private
@@ -62,7 +62,7 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
 
 %% @private
 scram_third_step(ServerSignature, Responce) ->
-  Payload = bson:at(<<"payload">>, Responce),
+  Payload = maps:find(<<"payload">>, Responce),
   ParamList = parse_server_responce(base64:decode(Payload)),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList).
 

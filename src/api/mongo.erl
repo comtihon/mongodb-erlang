@@ -150,11 +150,12 @@ count(Connection, Coll, Selector) ->
 -spec count(pid(), collection(), selector(), integer()) -> integer().
 count(Connection, Coll, Selector, Limit) ->
   CollStr = mc_utils:value_to_binary(Coll),
-  {true, Doc} = command(Connection, case Limit =< 0 of
-                                      true -> {count, CollStr, 'query', Selector};
-                                      false -> {count, CollStr, 'query', Selector, limit, Limit}
-                                    end),
-  trunc(bson:at(<<"n">>, Doc)). % Server returns count as float
+  {true, #{<<"n">> := N}} = command(Connection,
+    case Limit =< 0 of
+      true -> {<<"count">>, CollStr, <<"query">>, Selector};
+      false -> {<<"count">>, CollStr, <<"query">>, Selector, <<"limit">>, Limit}
+    end),
+  trunc(N). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
@@ -169,8 +170,8 @@ ensure_index(Connection, Coll, IndexSpec) ->
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action
 command(Connection, Command) ->
-  {Doc} = mc_action_man:read_one(Connection, #'query'{
-    collection = '$cmd',
+  Doc = mc_action_man:read_one(Connection, #'query'{
+    collection = <<"$cmd">>,
     selector = Command
   }),
   mc_connection_man:process_reply(Doc, Command).
@@ -178,8 +179,8 @@ command(Connection, Command) ->
 %% @doc Execute MongoDB command in this thread
 -spec sync_command(port(), binary(), bson:document()) -> {boolean(), bson:document()}.
 sync_command(Socket, Database, Command) ->
-  {Doc} = mc_action_man:read_one_sync(Socket, Database, #'query'{
-    collection = '$cmd',
+  Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
+    collection = <<"$cmd">>,
     selector = Command
   }),
   mc_connection_man:process_reply(Doc, Command).

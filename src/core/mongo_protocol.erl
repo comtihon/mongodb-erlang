@@ -108,7 +108,7 @@ binarize(Term) when is_atom(Term) -> atom_to_binary(Term, utf8).
 %% @private
 get_docs(0, Bin, Docs) -> {lists:reverse(Docs), Bin};
 get_docs(NumDocs, Bin, Docs) when NumDocs > 0 ->
-  {Doc, Bin1} = bson_binary:get_document(Bin),
+  {Doc, Bin1} = bson_binary:get_map(Bin),
   get_docs(NumDocs - 1, Bin1, [Doc | Docs]).
 
 %% @private
