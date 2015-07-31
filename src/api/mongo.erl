@@ -94,7 +94,7 @@ update(Connection, Coll, Selector, Doc) ->
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), bson:document(), boolean()) -> ok.
 update(Connection, Coll, Selector, Doc, Args) ->
-  Upsert = mc_utils:get_value(projector, Args, false),
+  Upsert = mc_utils:get_value(upsert, Args, false),
   MultiUpdate = mc_utils:get_value(projector, Args, false),
   Converted = prepare_and_assign(Doc),
   mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector,
@@ -155,13 +155,13 @@ count(Connection, Coll, Selector) ->
 %@doc Count selected documents up to given max number; 0 means no max.
 %     Ie. stops counting when max is reached to save processing time.
 -spec count(pid(), collection(), selector(), integer()) -> integer().
+count(Connection, Coll, Selector, Limit) when not is_binary(Coll) ->
+  count(Connection, mc_utils:value_to_binary(Coll), Selector, Limit);
+count(Connection, Coll, Selector, Limit) when Limit =< 0 ->
+  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector}),
+  trunc(N);
 count(Connection, Coll, Selector, Limit) ->
-  CollStr = mc_utils:value_to_binary(Coll),
-  {true, #{<<"n">> := N}} = command(Connection,
-    case Limit =< 0 of
-      true -> {<<"count">>, CollStr, <<"query">>, Selector};
-      false -> {<<"count">>, CollStr, <<"query">>, Selector, <<"limit">>, Limit}
-    end),
+  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit}),
   trunc(N). % Server returns count as float
 
 %% @doc Create index on collection according to given spec.
