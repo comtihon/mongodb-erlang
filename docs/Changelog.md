@@ -31,3 +31,4 @@ instead of '$set' as it will lead to crash.
 
 * changed interface of mongo `connect`, `update`, `find`, `find_one`
 * make find, update and insert operations return map.
+* added `mc_worker:hibernate/1` to put worker into hibernate.
