@@ -204,12 +204,12 @@ update(Config) ->
     <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
 
   %update existent fields
-  Command = {<<"$set">>, {
-    <<"quantity">>, 500,
-    <<"details">>, {<<"model">>, "14Q3", <<"make">>, "xyz"},
-    <<"tags">>, ["coats", "outerwear", "clothing"]
-  }},
-  mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
+  Command = #{
+    <<"quantity">> => 500,
+    <<"details">> => #{<<"model">> => "14Q3"},  %with flatten_map there is no need to specify non-changeble data
+    <<"tags">> => ["coats", "outerwear", "clothing"]
+  },
+  mongo:update(Connection, Collection, {<<"_id">>, 100}, #{<<"$set">> => bson:flatten_map(Command)}),
 
   %check data updated
   [Res1] = find(Connection, Collection, {<<"_id">>, 100}),
