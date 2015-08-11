@@ -38,8 +38,8 @@ init(Options) ->
   {ok, Socket} = mc_auth:connect_to_database(Options),
   ConnState = form_state(Options),
   try_register(Options),
-  mc_auth:auth(Socket, Options, ConnState#conn_state.database),
   proc_lib:init_ack({ok, self()}),
+  mc_auth:auth(Socket, Options, ConnState#conn_state.database),
   gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState}).
 
 
