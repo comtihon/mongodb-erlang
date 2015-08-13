@@ -26,7 +26,7 @@
 -spec mongodb_cr_auth(port(), binary(), binary(), binary()) -> true.
 mongodb_cr_auth(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database, {<<"getnonce">>, 1}),
-  Nonce = maps:find(<<"nonce">>, Res),
+  Nonce = maps:get(<<"nonce">>, Res),
   case mongo:sync_command(Socket, Database, ?AUTH_CMD(Login, Nonce, Password)) of
     {true, _} -> true;
     {false, Reason} -> erlang:error(Reason)
@@ -50,7 +50,7 @@ scram_first_step(Socket, Database, Login, Password) ->
   {true, Res} = mongo:sync_command(Socket, Database,
     {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
   ConversationId = maps:get(<<"conversationId">>, Res, {}),
-  Payload = maps:find(<<"payload">>, Res),
+  Payload = maps:get(<<"payload">>, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
 
 %% @private
@@ -62,7 +62,7 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
 
 %% @private
 scram_third_step(ServerSignature, Responce) ->
-  Payload = maps:find(<<"payload">>, Responce),
+  Payload = maps:get(<<"payload">>, Responce),
   ParamList = parse_server_responce(base64:decode(Payload)),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList).
 
