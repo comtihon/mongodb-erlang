@@ -135,11 +135,11 @@ This will add new field `expired`, if there is no such field, and set it to true
 
     Command = {<<"$set">>, {<<"expired">>, true}},
     mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
-This will update fields in nested documents. __Atoms using will be changed next version.__
+This will update fields in nested documents.
 
-    Command = {<<"$set">>, {'details.make', "zzz"}},
+    Command = {<<"$set">>, {<<"details.make">>, "zzz"}},
     mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
-This will update elements in array.  __Atoms using will be changed next version.__
+This will update elements in array.
 
     Command = {<<"$set">>, {
         <<"tags.1">>, "rain gear",
