@@ -92,10 +92,10 @@ update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, []).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), collection(), selector(), bson:document(), boolean()) -> ok.
+-spec update(pid(), collection(), selector(), bson:document(), proplists:proplist()) -> ok.
 update(Connection, Coll, Selector, Doc, Args) ->
   Upsert = mc_utils:get_value(upsert, Args, false),
-  MultiUpdate = mc_utils:get_value(projector, Args, false),
+  MultiUpdate = mc_utils:get_value(multi, Args, false),
   Converted = prepare_and_assign(Doc),
   mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector,
     updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
