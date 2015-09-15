@@ -58,7 +58,7 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   Decoded = base64:decode(Payload),
   {Signature, ClientFinalMessage} = compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage),
   {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, base64:encode(ClientFinalMessage)}),
-  scram_third_step(base64:encode(Signature), Res).
+  scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database).
 
 %% @private
 scram_third_step(ServerSignature, Responce, ConversationId, Socket, Database) ->
