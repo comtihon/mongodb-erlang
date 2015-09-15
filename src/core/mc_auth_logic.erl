@@ -61,9 +61,9 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database).
 
 %% @private
-scram_third_step(ServerSignature, Responce, ConversationId, Socket, Database) ->
-  Payload = maps:get(<<"payload">>, Responce),
-  Done = maps:get(<<"done">>, Responce, false),
+scram_third_step(ServerSignature, Response, ConversationId, Socket, Database) ->
+  Payload = maps:get(<<"payload">>, Response),
+  Done = maps:get(<<"done">>, Response, false),
   ParamList = parse_server_responce(base64:decode(Payload)),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList),
   scram_forth_step( Done, ConversationId, Socket, Database ).
