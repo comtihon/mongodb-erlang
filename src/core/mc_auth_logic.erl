@@ -48,7 +48,7 @@ scram_first_step(Socket, Database, Login, Password) ->
   FirstMessage = compose_first_message(Login, RandomBString),
   Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
   {true, Res} = mongo:sync_command(Socket, Database,
-    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, Message}),
+    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"autoAuthorize">>, 1, <<"payload">>, Message}),
   ConversationId = maps:get(<<"conversationId">>, Res, {}),
   Payload = maps:get(<<"payload">>, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
@@ -58,13 +58,24 @@ scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, Ra
   Decoded = base64:decode(Payload),
   {Signature, ClientFinalMessage} = compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage),
   {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, base64:encode(ClientFinalMessage)}),
-  scram_third_step(base64:encode(Signature), Res).
+  scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database).
 
 %% @private
-scram_third_step(ServerSignature, Responce) ->
-  Payload = maps:get(<<"payload">>, Responce),
+scram_third_step(ServerSignature, Response, ConversationId, Socket, Database) ->
+  Payload = maps:get(<<"payload">>, Response),
+  Done = maps:get(<<"done">>, Response, false),
   ParamList = parse_server_responce(base64:decode(Payload)),
-  ServerSignature = mc_utils:get_value(<<"v">>, ParamList).
+  ServerSignature = mc_utils:get_value(<<"v">>, ParamList),
+  scram_forth_step( Done, ConversationId, Socket, Database ).
+
+%% @private
+scram_forth_step( true, _, _, _ ) ->
+    ok;
+scram_forth_step( false, ConversationId, Socket, Database ) ->
+  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, <<>> } ),
+  true = maps:get(<<"done">>, Res, false).
+
+
 
 %% Export for test purposes
 compose_first_message(Login, RandomBString) ->
