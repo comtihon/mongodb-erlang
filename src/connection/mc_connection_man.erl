@@ -25,8 +25,10 @@ request_async(Connection, Request) ->  %request to worker
 -spec request_sync(port(), mongo:database(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_sync(Socket, Database, Request) ->
   Timeout = mc_utils:get_timeout(),
+  inet:setopts(Socket, [{active, false}]),
   {ok, _} = mc_worker_logic:make_request(Socket, Database, Request),
   {ok, Packet} = gen_tcp:recv(Socket, 0, Timeout),
+  inet:setopts(Socket, [{active, true}]),
   {Responses, _} = mc_worker_logic:decode_responses(Packet),
   {_, Reply} = hd(Responses),
   reply(Reply).

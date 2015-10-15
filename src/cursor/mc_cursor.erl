@@ -41,40 +41,40 @@ create(Connection, Collection, Cursor, BatchSize, Batch) ->
   {ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
   Pid.
 
--spec next(pid()) -> {} | {bson:document()}.
+-spec next(pid()) -> error | {bson:document()}.
 next(Cursor) ->
   next(Cursor, cursor_default_timeout()).
 
--spec next(pid(), timeout()) -> {} | {bson:document()}.
+-spec next(pid(), timeout()) -> error | {bson:document()}.
 next(Cursor, Timeout) ->
   try gen_server:call(Cursor, {next, Timeout}, Timeout) of
     Result -> Result
   catch
-    exit:{noproc, _} -> {}
+    exit:{noproc, _} -> error
   end.
 
--spec rest(pid()) -> [bson:document()].
+-spec rest(pid()) -> [bson:document()] | error.
 rest(Cursor) ->
   rest(Cursor, cursor_default_timeout()).
 
--spec rest(pid(), timeout()) -> [bson:document()].
+-spec rest(pid(), timeout()) -> [bson:document()] | error.
 rest(Cursor, Timeout) ->
   try gen_server:call(Cursor, {rest, infinity, Timeout}, Timeout) of
     Result -> Result
   catch
-    exit:{noproc, _} -> []
+    exit:{noproc, _} -> error
   end.
 
--spec take(pid(), non_neg_integer()) -> [bson:document()].
+-spec take(pid(), non_neg_integer()) -> [bson:document()] | error.
 take(Cursor, Limit) ->
   take(Cursor, Limit, cursor_default_timeout()).
 
--spec take(pid(), non_neg_integer(), timeout()) -> [bson:document()].
+-spec take(pid(), non_neg_integer(), timeout()) -> [bson:document()] | error.
 take(Cursor, Limit, Timeout) ->
   try gen_server:call(Cursor, {rest, Limit, Timeout}, Timeout) of
     Result -> Result
   catch
-    exit:{noproc, _} -> []
+    exit:{noproc, _} -> error
   end.
 
 cursor_default_timeout() ->

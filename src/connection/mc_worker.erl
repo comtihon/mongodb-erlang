@@ -66,7 +66,6 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
         selector = bson:append({<<"getlasterror">>, 1}, Params)
       },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
-      inet:setopts(Socket, [{active, once}]),
       RespFun = mc_worker_logic:get_resp_fun(Request, From),
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
@@ -78,7 +77,6 @@ handle_call(Request, From, State = #state{socket = Socket, request_storage = Req
              false -> Request
            end,
   {ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
-  inet:setopts(Socket, [{active, once}]),
   RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
   URStorage = dict:store(Id, RespFun, RequestStorage),
   {noreply, State#state{request_storage = URStorage}};
@@ -101,10 +99,6 @@ handle_info({tcp, _Socket, Data}, State = #state{request_storage = RequestStorag
   Buffer = <<(State#state.buffer)/binary, Data/binary>>,
   {Responses, Pending} = mc_worker_logic:decode_responses(Buffer),
   UReqStor = mc_worker_logic:process_responses(Responses, RequestStorage),
-  case dict:size(UReqStor) of
-    0 -> ok;
-    _ -> inet:setopts(State#state.socket, [{active, once}]) %TODO why not always active true?
-  end,
   {noreply, State#state{buffer = Pending, request_storage = UReqStor}};
 handle_info({tcp_closed, _Socket}, State) ->
   {stop, tcp_closed, State};
