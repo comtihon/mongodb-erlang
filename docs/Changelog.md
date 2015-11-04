@@ -33,3 +33,5 @@ instead of '$set' as it will lead to crash.
 * make find, update and insert operations return map.
 * added `mc_worker:hibernate/1` to put worker into hibernate.
 * fasten mc_worker spawning by moving sending ack before auth 
+* made mc_cursor return `error` instead `[]` when connection is down.
+* mc_worker's socket is now `{active, true}`, which allows to handle disconnect at a moment

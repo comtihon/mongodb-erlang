@@ -20,7 +20,7 @@ connect_to_database(Conf) ->  %TODO scram server-first auth case
   Timeout = mc_utils:get_value(timeout, Conf, infinity),
   Host = mc_utils:get_value(host, Conf, "127.0.0.1"),
   Port = mc_utils:get_value(port, Conf, 27017),
-  gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout).
+  gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).
 
 %% Get server version. This is need to choose default authentification method.
 -spec get_version(port(), binary()) -> float().

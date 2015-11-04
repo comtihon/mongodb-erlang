@@ -72,7 +72,7 @@ put_message(Db, #'query'{tailablecursor = TC, slaveok = SOK, nocursortimeout = N
   ?put_int32(Skip),
   ?put_int32(Batch),
   (bson_binary:put_document(Sel))/binary,
-  (case Proj of [] -> <<>>; _ -> bson_binary:put_document(Proj) end)/binary>>;
+  (add_proj(Proj))/binary>>;
 put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, _RequestId) ->
   <<?put_header(?GetmoreOpcode),
   ?put_int32(0),
@@ -118,3 +118,12 @@ bit(true) -> 1.
 %% @private
 bool(0) -> false;
 bool(1) -> true.
+
+%% @private
+add_proj(Projector) when is_map(Projector) ->
+  case map_size(Projector) of
+    0 -> <<>>;
+    _ -> bson_binary:put_document(Projector)
+  end;
+add_proj([]) -> <<>>;
+add_proj(Other) -> bson_binary:put_document(Other).
