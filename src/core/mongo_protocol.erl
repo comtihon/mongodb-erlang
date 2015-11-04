@@ -34,9 +34,15 @@
 -define(DeleteOpcode, 2006).
 -define(KillcursorOpcode, 2007).
 
+-type colldb() :: collection() | { database(), collection() }.
+-type collection() :: binary() | atom(). % without db prefix
+-type database() :: binary() | atom().
 
--spec dbcoll(mongo:database(), mongo:collection()) -> bson:utf8().
+-spec dbcoll(database(), colldb()) -> bson:utf8().
+
 %@doc Concat db and collection name with period (.) in between
+dbcoll(_, {Db, Coll}) ->
+  dbcoll(Db, Coll);
 dbcoll(Db, Coll) ->
   <<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
 

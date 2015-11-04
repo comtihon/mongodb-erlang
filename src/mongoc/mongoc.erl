@@ -11,9 +11,11 @@
 
 -export([connect/3, disconnect/1, command/2, command/3, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3]).
 
+
+-type colldb() :: collection() | { database(), collection() }.
 -type collection() :: binary() | atom(). % without db prefix
--type selector() :: bson:document().
 -type database() :: binary() | atom().
+-type selector() :: bson:document().
 -type cursor() :: pid().
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
 
@@ -47,18 +49,18 @@
 
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 -spec disconnect(pid()) -> ok.
--spec insert(pid(), collection(), A) -> A.
--spec update(pid(), collection(), selector(), bson:document()) -> ok.
--spec delete(pid(), collection(), selector()) -> ok.
--spec delete_one(pid(), collection(), selector()) -> ok.
--spec find_one(pid(), collection(), selector()) -> {} | {bson:document()}.
--spec find_one(pid(), collection(), selector(), readprefs()) -> {} | {bson:document()}.
--spec find(pid(), collection(), selector()) -> cursor().
--spec find(pid(), collection(), selector(), readprefs()) -> cursor().
--spec count(pid(), collection(), selector()) -> integer().
--spec count(pid(), collection(), selector(), readprefs()) -> integer().
--spec count(pid(), collection(), selector(), readprefs(), integer()) -> integer().
--spec ensure_index(pid(), collection(), bson:document()) -> ok.
+-spec insert(pid(), colldb(), A) -> A.
+-spec update(pid(), colldb(), selector(), bson:document()) -> ok.
+-spec delete(pid(), colldb(), selector()) -> ok.
+-spec delete_one(pid(), colldb(), selector()) -> ok.
+-spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector(), readprefs()) -> {} | {bson:document()}.
+-spec find(pid(), colldb(), selector()) -> cursor().
+-spec find(pid(), colldb(), selector(), readprefs()) -> cursor().
+-spec count(pid(), colldb(), selector()) -> integer().
+-spec count(pid(), colldb(), selector(), readprefs()) -> integer().
+-spec count(pid(), colldb(), selector(), readprefs(), integer()) -> integer().
+-spec ensure_index(pid(), colldb(), bson:document()) -> ok.
 -spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action
 -spec command(pid(), bson:document(), readprefs()) -> {boolean(), bson:document()}. % Action
 
