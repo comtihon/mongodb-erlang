@@ -149,7 +149,6 @@ loop( #state{ type = Type, host = Host, port = Port, topology = Topology, server
 			next_loop( self(), 10 )
 	catch
 		_:_ ->
-			timer:sleep( 1000 ),
 			maybe_recheck( Type, Topology, Server, ConnectArgs )
 	end,
 
@@ -162,7 +161,7 @@ maybe_recheck( unknown, Topology, Server, _ ) ->
 	next_loop( self(), 1 );
 
 maybe_recheck( _, Topology, Server, ConnectArgs ) ->
-
+	timer:sleep( 1000 ),
 	try check( ConnectArgs, Server ) of
 		Res ->
 			gen_server:cast( Topology, Res ),
