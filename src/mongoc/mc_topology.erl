@@ -81,7 +81,6 @@ start_link( Seeds, TopologyOptions, WorkerOptions ) ->
 %%%===================================================================
 
 init([SeedsList, TopologyOptions, WorkerOptions]) ->
-
 	try_register( TopologyOptions ),
 
 	{ Type, SetName, Seeds } = parse_seeds( SeedsList ),
@@ -164,20 +163,30 @@ get_pool( RPMode, RPTags, State ) ->
 	TO = State#state.topology_opts,
 	ServerSelectionTimeoutMS = proplists:get_value( serverSelectionTimeoutMS, TO, 30000 ),
 
-	Pid = spawn_link( ?MODULE, get_pool, [ self(), State, RPMode, RPTags] ),
+	Pid = spawn( ?MODULE, get_pool, [ self(), State, RPMode, RPTags] ),
 	receive
+		{ Pid, { error, Reason }, _ } ->
+			{ error, Reason };
 		{ Pid, Pool, Type } ->
 			{ ok, #{ pool => Pool, server_type => Type, readPreference => #{ mode => RPMode, tags => RPTags} } }
  	after
 		ServerSelectionTimeoutMS ->
+			exit( Pid, timeout ),
+			mc_topology:update_topology( State#state.self ),
 			{ error, timeout }
 	end.
 
 get_pool( From, #state{ self = Topology }, RPMode, Tags ) ->
-	#mc_server{ pid = Pid, type = Type } = select_server( Topology, RPMode, Tags ),
 
-	Pool = mc_server:get_pool( Pid ),
-	From ! { self(), Pool, Type }.
+	case select_server( Topology, RPMode, Tags ) of
+		#mc_server{ pid = Pid, type = Type } ->
+			Pool = mc_server:get_pool( Pid ),
+			From ! { self(), Pool, Type };
+
+		undefined ->
+			From ! { self(), { error, not_found }, unknown }
+	end.
+
 
 
 
@@ -209,6 +218,10 @@ handle_cast( {monitor_ismaster, Server, IsMaster, RTT }, State ) ->
 	NState = parse_ismaster( Server, IsMaster, RTT, State ),
 	{noreply, NState};
 
+handle_cast( {monitor_error, Server }, State ) ->
+	NState = handle_monitor_error( Server, State ),
+	{noreply, NState};
+
 handle_cast( {drop_server, Pid}, #state{ servers = Tab } = State ) ->
 	ets:delete( Tab, Pid ),
 	{noreply, State};
@@ -225,25 +238,16 @@ handle_cast(_Request, State) ->
 
 
 
-
-handle_info({'DOWN', MRef, _, _, _}, #state{ servers = Tab } = State) ->
-	case ets:match( Tab, #mc_server{ pid='$1', mref=MRef, _='_'}) of
-		[[Pid]] ->
+handle_info({'DOWN', MRef, _, _, _}, #state{ topology_opts = Topts, worker_opts = Wopts, servers = Tab } = State) ->
+	case ets:match( Tab, #mc_server{ pid='$1', host='$2', mref=MRef, _='_'}) of
+		[[Pid, Host]] ->
 			true = ets:delete(Tab, Pid),
+			init_seeds( [Host], Tab, Topts, Wopts ),
 			{noreply, State};
 		[] ->
 			{noreply, State}
 	end;
 
-handle_info({'EXIT', Pid, _Reason}, #state{ servers = Tab } = State) ->
-	case ets:lookup(Tab, Pid) of
-		[ #mc_server{ pid=Pid, mref=MRef } ] ->
-			true = erlang:demonitor(MRef),
-			true = ets:delete(Tab, Pid),
-			{noreply, State};
-		[] ->
-			{noreply, State}
-	end;
 
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -289,6 +293,23 @@ try_register(Options) ->
 	end.
 
 
+handle_monitor_error( Server, #state{ servers = Tab } = State  ) ->
+	[Saved] = ets:select( Tab, [{#mc_server{ pid=Server, _='_'}, [], [ '$_' ]}] ),
+
+	ToUpdate = #mc_server{
+		pid = Saved#mc_server.pid,
+		mref = Saved#mc_server.mref,
+
+		host = Saved#mc_server.host,
+
+		type = unknown
+	},
+
+	ets:insert( Tab, ToUpdate ),
+	mc_server:update_unknown( ToUpdate#mc_server.pid ),
+
+	update_topology_state( ToUpdate, State ).
+
 
 parse_ismaster( Server, IsMaster, RTT,  #state{ servers = Tab } = State ) ->
 
@@ -330,7 +351,7 @@ parse_ismaster( Server, IsMaster, RTT,  #state{ servers = Tab } = State ) ->
 
 	ets:insert( Tab, ToUpdate ),
 
-	mc_server:update_ismaster( ToUpdate#mc_server.pid, ToUpdate ),
+	mc_server:update_ismaster( ToUpdate#mc_server.pid, { SType, ToUpdate } ),
 
 	update_topology_state( ToUpdate, State ).
 
@@ -627,9 +648,9 @@ stop_servers_not_in_list( HostsList, Tab ) ->
 					M = lists:member( E#mc_server.host, HostsList ),
 					if
 						M =/= true ->
-							ets:insert( E#mc_server{ type=deleted } ),
+							ets:insert( Tab, E#mc_server{ type=deleted } ),
 							unlink( E#mc_server.pid ),
-							exit( E#mc_server.pid ),
+							exit( E#mc_server.pid, kill ),
 							[E#mc_server.host|Acc];
 
 						true ->

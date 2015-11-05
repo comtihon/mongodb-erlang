@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, update_ismaster/2]).
+-export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -67,6 +67,8 @@ start( Topology, HostPort, Topts, Wopts ) ->
 
 
 init([Topology, Addr, TopologyOptions, Wopts]) ->
+
+	process_flag(trap_exit, true),
 
 	{Host, Port} = parse_seed( Addr ),
 
@@ -124,16 +126,24 @@ code_change(_OldVsn, State, _Extra) ->
 get_pool( Pid ) ->
 	gen_server:call( Pid, get_pool ).
 
-update_ismaster( Pid, IsMaster ) ->
-	gen_server:cast( Pid, { update_ismaster, IsMaster } ).
+update_ismaster( Pid, { Type, IsMaster } ) ->
+	gen_server:cast( Pid, { update_ismaster, Type, IsMaster } ).
 
+update_unknown( Pid  ) ->
+	gen_server:cast( Pid, { update_unknown } ).
 
 %%%===================================================================
 %%% Handlers
 %%%===================================================================
 
+handle_call(get_pool, _From, #state{ type = unknown } = State ) ->
+	{reply, {error, server_unknown}, State };
+
+handle_call(get_pool, _From, #state{ ismaster = undefined } = State ) ->
+	{reply, {error, server_unknown}, State };
+
 handle_call(get_pool, _From, #state{ pool = undefined } = State ) ->
-	{ ok, Pid } = init_pool( State ),
+	{ok, Pid} = init_pool( State ),
 	{reply, Pid, State#state{ pool = Pid } };
 
 handle_call(get_pool, _From, #state{ pool = Pid } = State ) ->
@@ -156,8 +166,21 @@ handle_cast( start_pool, #state{ pool = undefined } = State ) ->
 	{noreply, State#state{ pool = Pid } };
 
 
-handle_cast( { update_ismaster, IsMaster }, State ) ->
-	{noreply, State#state{ ismaster = IsMaster } };
+handle_cast( { update_ismaster, Type, IsMaster }, #state{ monitor = undefined } = State ) ->
+	{noreply, State#state{ type = Type, ismaster = IsMaster } };
+
+handle_cast( { update_ismaster, Type, IsMaster }, #state{ monitor = Monitor } = State ) ->
+	mc_monitor:update_type( Monitor, Type ),
+	{noreply, State#state{ type = Type, ismaster = IsMaster } };
+
+
+handle_cast( { update_unknown }, #state{ pool = undefined } = State ) ->
+	{noreply, State#state{ pool = undefined, type = unknown, ismaster = undefined } };
+
+handle_cast( { update_unknown }, #state{ pool = Pool } = State ) ->
+	erlang:unlink( Pool ),
+	erlang:exit( Pool, kill ),
+	{noreply, State#state{ pool = undefined, type = unknown, ismaster = undefined } };
 
 
 handle_cast(_Request, State) ->
@@ -165,9 +188,17 @@ handle_cast(_Request, State) ->
 
 
 
+handle_info({'DOWN', MRef, _, _, _}, #state{ topology_mref = MRef } = State) ->
+	exit( kill ),
+	{noreply, State};
 
-handle_info({'DOWN', MRef, _, _, _}, #state{ topology_mref = MRef } = _State) ->
-	exit( kill );
+handle_info({'EXIT', Pid, _Reason}, #state{ pool = Pid } = State) ->
+	{noreply, State#state{ pool = undefined } };
+
+handle_info({'EXIT', Pid, _Reason}, #state{ monitor = Pid } = State) ->
+	exit( kill ),
+	{noreply, State};
+
 
 handle_info(_Info, State) ->
 	{noreply, State}.

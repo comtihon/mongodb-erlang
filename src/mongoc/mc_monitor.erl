@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/5, do_timeout/2, next_loop/1]).
+-export([start_link/5, do_timeout/2, next_loop/1, update_type/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record( state, { host, port, topology, server, topology_opts, worker_opts, pool, conn_to, timer } ).
+-record( state, { type, host, port, topology, server, topology_opts, worker_opts, pool, conn_to, timer, counter=0 } ).
 
 %%%===================================================================
 %%% API
@@ -40,6 +40,9 @@ start_link( Topology, Server, HostPort, Topts, Wopts ) ->
 %%%===================================================================
 
 init([Topology, Server, { Host, Port }, Topts, Wopts]) ->
+
+	process_flag(trap_exit, true),
+
 	ConnectTimeoutMS =  proplists:get_value( connectTimeoutMS, Topts, 20000 ),
 	gen_server:cast( self(), loop ),
 	{ok, #state{ host=Host, port=Port, topology=Topology, server=Server, topology_opts = Topts, worker_opts = Wopts, conn_to = ConnectTimeoutMS }}.
@@ -52,6 +55,10 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 
+update_type( Pid, Type ) ->
+	gen_server:cast( Pid, { update_type, Type } ).
+
+
 %%%===================================================================
 %%% Handlers
 %%%===================================================================
@@ -61,6 +68,10 @@ handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
 
+
+
+handle_cast( { update_type, Type }, State ) ->
+	{noreply, State#state{ type = Type }};
 
 handle_cast( loop, State ) ->
 	loop( State ),
@@ -102,6 +113,10 @@ handle_cast(_Request, State) ->
 	{noreply, State}.
 
 
+handle_info({'EXIT', Pid, _Reason}, #state{ server = Pid } = State) ->
+	exit( kill ),
+	{noreply, State };
+
 
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -121,21 +136,33 @@ next_loop( Pid ) ->
 
 
 
-loop( #state{ host = Host, port = Port, topology = Topology, server = Server, conn_to=Timeout } = State ) ->
+
+loop( #state{ host = Host, port = Port, topology = Topology, server = Server, conn_to=Timeout, counter=Counter } = State ) ->
 
 	ConnectArgs = [ {host, Host }, {port, Port}, { timeout, Timeout} ],
 
+	try check( ConnectArgs, Server ) of
+		Res ->
+			gen_server:cast( Topology, Res ),
+			next_loop( self(), 10 )
+	catch
+		_:_ ->
+			gen_server:cast( Topology, { monitor_error, Server } ),
+			next_loop( self(), 1 )
+	end,
+
+	State#state{ timer = undefined, counter = Counter + 1 }.
+
+
+
+
+check( ConnectArgs, Server ) ->
 	Start = erlang:now(),
 	{ok, Conn} = mongo:connect( ConnectArgs ),
 	{true, IsMaster} = mongo:command( Conn, { isMaster, 1 } ),
 	Finish = erlang:now(),
 	mongo:disconnect( Conn ),
-
-	gen_server:cast( Topology, { monitor_ismaster, Server, IsMaster, timer:now_diff( Finish, Start ) } ),
-
-	next_loop( self(), 10 ),
-	State#state{ timer = undefined }.
-
+	{ monitor_ismaster, Server, IsMaster, timer:now_diff( Finish, Start ) }.
 
 
 do_timeout( Pid, TO ) when TO > 0 ->
