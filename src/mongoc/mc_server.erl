@@ -174,12 +174,14 @@ handle_cast( { update_ismaster, Type, IsMaster }, #state{ monitor = Monitor } = 
 	{noreply, State#state{ type = Type, ismaster = IsMaster } };
 
 
-handle_cast( { update_unknown }, #state{ pool = undefined } = State ) ->
+handle_cast( { update_unknown }, #state{ monitor = Monitor, pool = undefined } = State ) ->
+	mc_monitor:update_type( Monitor, unknown ),
 	{noreply, State#state{ pool = undefined, type = unknown, ismaster = undefined } };
 
-handle_cast( { update_unknown }, #state{ pool = Pool } = State ) ->
+handle_cast( { update_unknown }, #state{ monitor = Monitor, pool = Pool } = State ) ->
 	erlang:unlink( Pool ),
 	erlang:exit( Pool, kill ),
+	mc_monitor:update_type( Monitor, unknown ),
 	{noreply, State#state{ pool = undefined, type = unknown, ismaster = undefined } };
 
 

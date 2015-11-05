@@ -55,6 +55,8 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 
+update_type( undefined, _ ) ->
+	ok;
 update_type( Pid, Type ) ->
 	gen_server:cast( Pid, { update_type, Type } ).
 
@@ -137,7 +139,7 @@ next_loop( Pid ) ->
 
 
 
-loop( #state{ host = Host, port = Port, topology = Topology, server = Server, conn_to=Timeout, counter=Counter } = State ) ->
+loop( #state{ type = Type, host = Host, port = Port, topology = Topology, server = Server, conn_to=Timeout, counter=Counter } = State ) ->
 
 	ConnectArgs = [ {host, Host }, {port, Port}, { timeout, Timeout} ],
 
@@ -147,11 +149,29 @@ loop( #state{ host = Host, port = Port, topology = Topology, server = Server, co
 			next_loop( self(), 10 )
 	catch
 		_:_ ->
-			gen_server:cast( Topology, { server_to_unknown, Server } ),
-			next_loop( self(), 1 )
+			timer:sleep( 1000 ),
+			maybe_recheck( Type, Topology, Server, ConnectArgs )
 	end,
 
 	State#state{ timer = undefined, counter = Counter + 1 }.
+
+
+
+maybe_recheck( unknown, Topology, Server, _ ) ->
+	gen_server:cast( Topology, { server_to_unknown, Server } ),
+	next_loop( self(), 1 );
+
+maybe_recheck( _, Topology, Server, ConnectArgs ) ->
+
+	try check( ConnectArgs, Server ) of
+		Res ->
+			gen_server:cast( Topology, Res ),
+			next_loop( self(), 10 )
+	catch
+		_:_ ->
+			gen_server:cast( Topology, { server_to_unknown, Server } ),
+			next_loop( self(), 1 )
+	end.
 
 
 
