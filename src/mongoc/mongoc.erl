@@ -49,10 +49,10 @@
 
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 -spec disconnect(pid()) -> ok.
--spec insert(pid(), colldb(), A) -> A.
--spec update(pid(), colldb(), selector(), bson:document()) -> ok.
--spec delete(pid(), colldb(), selector()) -> ok.
--spec delete_one(pid(), colldb(), selector()) -> ok.
+-spec insert(pid(), colldb(), A) -> A | { error, not_master }.
+-spec update(pid(), colldb(), selector(), bson:document()) -> ok | { error, not_master }.
+-spec delete(pid(), colldb(), selector()) -> ok | { error, not_master }.
+-spec delete_one(pid(), colldb(), selector()) -> ok | { error, not_master }.
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
 -spec find_one(pid(), colldb(), selector(), readprefs()) -> {} | {bson:document()}.
 -spec find(pid(), colldb(), selector()) -> cursor().
@@ -60,9 +60,9 @@
 -spec count(pid(), colldb(), selector()) -> integer().
 -spec count(pid(), colldb(), selector(), readprefs()) -> integer().
 -spec count(pid(), colldb(), selector(), readprefs(), integer()) -> integer().
--spec ensure_index(pid(), colldb(), bson:document()) -> ok.
--spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action
--spec command(pid(), bson:document(), readprefs()) -> {boolean(), bson:document()}. % Action
+-spec ensure_index(pid(), colldb(), bson:document()) -> ok | { error, not_master }.
+-spec command(pid(), bson:document()) -> {boolean(), bson:document()} | { error, not_master }. % Action
+-spec command(pid(), bson:document(), readprefs()) -> {boolean(), bson:document()} | { error, not_master }. % Action
 
 
 % mongoc:connect( stat,
@@ -112,23 +112,61 @@ disconnect( Topology ) ->
 
 insert( Topology, Coll, Doc ) when is_tuple(Doc); is_map(Doc) ->
 	{ ok, #{ pool := C } } = mc_topology:get_pool( Topology, [{rp_mode, primary}] ),
-	mongo:insert( C, Coll, Doc ).
+	try	mongo:insert( C, Coll, Doc ) of
+		R -> R
+	catch
+	    error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
 
 
 update( Topology, Coll, Selector, Doc) ->
 	{ ok, #{ pool := C } } = mc_topology:get_pool( Topology, [{rp_mode, primary}] ),
-	mongo:update( C, Coll, Selector, Doc ).
+	try	mongo:update( C, Coll, Selector, Doc ) of
+		R -> R
+	catch
+		error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
 
 
 
 
 delete(Topology, Coll, Selector) ->
 	{ ok, #{ pool := C } } = mc_topology:get_pool( Topology, [{rp_mode, primary}] ),
-	mongo:delete( C, Coll, Selector ).
+	try	mongo:delete( C, Coll, Selector ) of
+		R -> R
+	catch
+		error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
+
+
 
 delete_one(Topology, Coll, Selector) ->
 	{ ok, #{ pool := C } } = mc_topology:get_pool( Topology, [{rp_mode, primary}] ),
-	mongo:delete_one( C, Coll, Selector ).
+	try	mongo:delete_one( C, Coll, Selector ) of
+		R -> R
+	catch
+		error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
 
 
 
@@ -191,7 +229,16 @@ count( Topology, Coll, Selector, Options, Limit ) ->
 
 ensure_index( Topology, Coll, IndexSpec ) ->
 	{ ok, #{ pool := C } } = mc_topology:get_pool( Topology, [{rp_mode, primary}] ),
-	mc_connection_man:request_async(C, #ensure_index{collection = Coll, index_spec = IndexSpec}).
+	try	mc_connection_man:request_async(C, #ensure_index{collection = Coll, index_spec = IndexSpec}) of
+		R -> R
+	catch
+		error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
 
 
 
@@ -205,8 +252,22 @@ command( Topology, Command, Options ) ->
 		collection = <<"$cmd">>,
 		selector = Command
 	},
-	Doc = mc_action_man:read_one( C, mongos_query_transform( Type, Q, RPrefs ) ),
-	mc_connection_man:process_reply(Doc, Command).
+
+	try	exec_command( C, mongos_query_transform( Type, Q, RPrefs ) ) of
+		R -> R
+	catch
+		error:not_master ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master };
+		error:{bad_query,{not_master,_}}  ->
+			mc_topology:update_topology( Topology ),
+			{ error, not_master }
+	end.
+
+% @private
+exec_command( C, Command ) ->
+	Doc = mc_action_man:read_one( C, Command ),
+	mc_connection_man:process_reply( Doc, Command ).
 
 
 
