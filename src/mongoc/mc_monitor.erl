@@ -147,7 +147,7 @@ loop( #state{ host = Host, port = Port, topology = Topology, server = Server, co
 			next_loop( self(), 10 )
 	catch
 		_:_ ->
-			gen_server:cast( Topology, { monitor_error, Server } ),
+			gen_server:cast( Topology, { server_to_unknown, Server } ),
 			next_loop( self(), 1 )
 	end,
 

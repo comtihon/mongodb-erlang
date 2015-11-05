@@ -176,15 +176,16 @@ get_pool( RPMode, RPTags, State ) ->
 			{ error, timeout }
 	end.
 
-get_pool( From, #state{ self = Topology }, RPMode, Tags ) ->
-
+get_pool( From, #state{ self = Topology } = State, RPMode, Tags ) ->
 	case select_server( Topology, RPMode, Tags ) of
 		#mc_server{ pid = Pid, type = Type } ->
 			Pool = mc_server:get_pool( Pid ),
 			From ! { self(), Pool, Type };
 
 		undefined ->
-			From ! { self(), { error, not_found }, unknown }
+			timer:sleep( 100 ),
+			get_pool( From, State, RPMode, Tags )
+%			From ! { self(), { error, not_found }, unknown }
 	end.
 
 
@@ -218,8 +219,8 @@ handle_cast( {monitor_ismaster, Server, IsMaster, RTT }, State ) ->
 	NState = parse_ismaster( Server, IsMaster, RTT, State ),
 	{noreply, NState};
 
-handle_cast( {monitor_error, Server }, State ) ->
-	NState = handle_monitor_error( Server, State ),
+handle_cast( {server_to_unknown, Server }, State ) ->
+	NState = handle_server_to_unknown( Server, State ),
 	{noreply, NState};
 
 handle_cast( {drop_server, Pid}, #state{ servers = Tab } = State ) ->
@@ -293,7 +294,7 @@ try_register(Options) ->
 	end.
 
 
-handle_monitor_error( Server, #state{ servers = Tab } = State  ) ->
+handle_server_to_unknown( Server, #state{ servers = Tab } = State  ) ->
 	[Saved] = ets:select( Tab, [{#mc_server{ pid=Server, _='_'}, [], [ '$_' ]}] ),
 
 	ToUpdate = #mc_server{

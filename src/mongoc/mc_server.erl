@@ -192,7 +192,8 @@ handle_info({'DOWN', MRef, _, _, _}, #state{ topology_mref = MRef } = State) ->
 	exit( kill ),
 	{noreply, State};
 
-handle_info({'EXIT', Pid, _Reason}, #state{ pool = Pid } = State) ->
+handle_info({'EXIT', Pid, _Reason}, #state{ topology = Topology, pool = Pid } = State) ->
+	gen_server:cast( Topology, { server_to_unknown, self() } ),
 	{noreply, State#state{ pool = undefined } };
 
 handle_info({'EXIT', Pid, _Reason}, #state{ monitor = Pid } = State) ->
