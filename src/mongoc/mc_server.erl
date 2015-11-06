@@ -219,8 +219,8 @@ init_monitor( #state{ topology = Topology, host = Host, port = Port, topology_op
 	mc_monitor:start_link( Topology, self(), { Host, Port }, Topts, Wopts ).
 
 
-init_pool( #state{ host = Host, port = Port, min_pool = MinPool, max_pool = MaxPool, worker_opts = Wopts } = _State ) ->
-	PoolOptions = [ { min_pool_size, MinPool }, { max_pool_size, MaxPool }, { mondemand, false } ],
+init_pool( #state{ host = Host, port = Port, min_pool = MinPool, max_pool = MaxPool, worker_opts = Wopts, waitqueue_to = WQ  } = _State ) ->
+	PoolOptions = [ { min_pool_size, MinPool }, { max_pool_size, MaxPool }, { mondemand, false }, {request_max_wait, WQ } ],
 	WO = lists:append( [{host, Host}, {port, Port}], Wopts ),
 	gen_server_pool:start_link ( mc_worker, WO, [], PoolOptions ).
 
