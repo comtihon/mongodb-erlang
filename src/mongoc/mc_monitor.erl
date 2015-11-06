@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record( state, { type, host, port, topology, server, topology_opts, worker_opts, pool, conn_to, timer, counter=0 } ).
+-record( state, { type, host, port, topology, server, topology_opts, worker_opts, pool, connect_to = 20000, heartbeatF = 10000, minHeartbeatF=1000, timer, counter=0 } ).
 
 %%%===================================================================
 %%% API
@@ -44,8 +44,11 @@ init([Topology, Server, { Host, Port }, Topts, Wopts]) ->
 	process_flag(trap_exit, true),
 
 	ConnectTimeoutMS =  proplists:get_value( connectTimeoutMS, Topts, 20000 ),
+	HeartbeatFrequencyMS =  proplists:get_value( heartbeatFrequencyMS, Topts, 10000 ),
+	MinHeartbeatFrequencyMS =  proplists:get_value( minHeartbeatFrequencyMS, Topts, 1000 ),
+
 	gen_server:cast( self(), loop ),
-	{ok, #state{ host=Host, port=Port, topology=Topology, server=Server, topology_opts = Topts, worker_opts = Wopts, conn_to = ConnectTimeoutMS }}.
+	{ok, #state{ host=Host, port=Port, topology=Topology, server=Server, topology_opts = Topts, worker_opts = Wopts, connect_to = ConnectTimeoutMS, heartbeatF = HeartbeatFrequencyMS, minHeartbeatF = MinHeartbeatFrequencyMS }}.
 
 
 terminate(_Reason, _State) ->
@@ -139,37 +142,37 @@ next_loop( Pid ) ->
 
 
 
-loop( #state{ type = Type, host = Host, port = Port, topology = Topology, server = Server, conn_to=Timeout, counter=Counter } = State ) ->
+loop( #state{ type = Type, host = Host, port = Port, topology = Topology, server = Server, connect_to =Timeout, heartbeatF = HB_MS, minHeartbeatF = MinHB_MS, counter=Counter } = State ) ->
 
 	ConnectArgs = [ {host, Host }, {port, Port}, { timeout, Timeout} ],
 
 	try check( ConnectArgs, Server ) of
 		Res ->
 			gen_server:cast( Topology, Res ),
-			next_loop( self(), 10 )
+			next_loop( self(), HB_MS)
 	catch
 		_:_ ->
-			maybe_recheck( Type, Topology, Server, ConnectArgs )
+			maybe_recheck( Type, Topology, Server, ConnectArgs, HB_MS, MinHB_MS )
 	end,
 
 	State#state{ timer = undefined, counter = Counter + 1 }.
 
 
 
-maybe_recheck( unknown, Topology, Server, _ ) ->
+maybe_recheck( unknown, Topology, Server, _, _, _ ) ->
 	gen_server:cast( Topology, { server_to_unknown, Server } ),
 	next_loop( self(), 1 );
 
-maybe_recheck( _, Topology, Server, ConnectArgs ) ->
+maybe_recheck( _, Topology, Server, ConnectArgs, HB_MS, MinHB_MS ) ->
 	timer:sleep( 1000 ),
 	try check( ConnectArgs, Server ) of
 		Res ->
 			gen_server:cast( Topology, Res ),
-			next_loop( self(), 10 )
+			next_loop( self(), HB_MS)
 	catch
 		_:_ ->
 			gen_server:cast( Topology, { server_to_unknown, Server } ),
-			next_loop( self(), 1 )
+			next_loop( self(), MinHB_MS )
 	end.
 
 
@@ -185,7 +188,6 @@ check( ConnectArgs, Server ) ->
 
 
 do_timeout( Pid, TO ) when TO > 0 ->
-	TO2 = TO*1000,
 	receive
 		stop ->
 			ok;
@@ -194,7 +196,7 @@ do_timeout( Pid, TO ) when TO > 0 ->
 			next_loop( Pid )
 
 	after
-		TO2 ->
+		TO ->
 			next_loop( Pid )
 	end;
 

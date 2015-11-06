@@ -35,6 +35,8 @@
 |{socketTimeoutMS,integer()}
 |{serverSelectionTimeoutMS,integer()}
 |{waitQueueTimeoutMS,integer()}
+|{heartbeatFrequencyMS, integer()}
+|{minHeartbeatFrequencyMS, integer()}
 |{rp_mode,readmode()}
 |{rp_tags,list() }.
 -type workeroptions() :: [woption()].
@@ -84,12 +86,14 @@
 
 %							{ connectTimeoutMS, 20000 },
 %							{ socketTimeoutMS, 100 },
+%							{ serverSelectionTimeoutMS, 30000 },
+%							{ waitQueueTimeoutMS, 1000 },
+%							{ heartbeatFrequencyMS, 10000 },
+%							{ minHeartbeatFrequencyMS, 1000 },
 
 %							{ rp_mode, primary },
 %							{ rp_tags, [{tag,1}] },
 
-%							{ serverSelectionTimeoutMS, 30000 },
-%							{ waitQueueTimeoutMS, 1000 },
 %						]
 
 %						[
