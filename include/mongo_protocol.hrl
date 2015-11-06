@@ -26,6 +26,7 @@
 -record('query', {
   tailablecursor = false :: boolean(),
   slaveok = false :: boolean(),
+  sok_overriden = false :: boolean(),
   nocursortimeout = false :: boolean(),
   awaitdata = false :: boolean(),
   collection :: mongo:collection(),
