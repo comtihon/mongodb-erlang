@@ -36,9 +36,8 @@
   monitor :: reference
 }).
 
--type colldb() :: collection() | { database(), collection() }.
--type collection() :: binary() | atom(). % without db prefix
--type database() :: binary() | atom().
+
+
 
 -spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->

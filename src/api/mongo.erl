@@ -30,8 +30,6 @@
 ]).
 
 
--type colldb() :: collection() | { database(), collection() }.
--type collection() :: binary() | atom(). % without db prefix
 -type cursorid() :: integer().
 -type selector() :: bson:document().
 -type projector() :: bson:document().
@@ -39,7 +37,6 @@
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 -type modifier() :: bson:document().
 -type connection() :: pid().
--type database() :: binary() | atom().
 -type args() :: [arg()].
 -type arg() :: {database, database()}
 | {login, binary()}

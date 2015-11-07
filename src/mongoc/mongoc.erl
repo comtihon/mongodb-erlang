@@ -5,16 +5,13 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoc).
--author("alttagil").
+-author("alttagil@gmail.com").
 
 -include("mongo_protocol.hrl").
 
 -export([connect/3, disconnect/1, command/2, command/3, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3]).
 
 
--type colldb() :: collection() | { database(), collection() }.
--type collection() :: binary() | atom(). % without db prefix
--type database() :: binary() | atom().
 -type selector() :: bson:document().
 -type cursor() :: pid().
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
@@ -237,23 +234,6 @@ find(Topology, Coll, Selector, Options) ->
 
 
 
-count( Topology, Coll, Selector ) ->
-	count(Topology, Coll, Selector, [], 0).
-
-count( Topology, Coll, Selector, Options ) ->
-	count(Topology, Coll, Selector, Options, 0).
-
-count( Topology, Coll, Selector, Options, Limit ) when not is_binary(Coll) ->
-	count(Topology, mc_utils:value_to_binary(Coll), Selector, Options, Limit);
-count( Topology, Coll, Selector, Options, Limit ) when Limit =< 0 ->
-	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, Coll, <<"query">>, Selector}, Options),
-	trunc(N);
-count( Topology, Coll, Selector, Options, Limit ) ->
-	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit}, Options ),
-	trunc(N). % Server returns count as float
-
-
-
 
 ensure_index( Topology, Coll, IndexSpec ) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
@@ -274,14 +254,45 @@ ensure_index( Topology, Coll, IndexSpec ) ->
 
 
 
+
+count( Topology, Coll, Selector ) ->
+	count(Topology, Coll, Selector, [], 0).
+
+count( Topology, Coll, Selector, Options ) ->
+	count(Topology, Coll, Selector, Options, 0).
+
+count( Topology, {Db, Coll}, Selector, Options, Limit ) when Limit =< 0 ->
+	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),
+	trunc(N);
+count( Topology, {Db, Coll}, Selector, Options, Limit ) ->
+	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, Db ),
+	trunc(N); % Server returns count as float
+
+count( Topology, Coll, Selector, Options, Limit ) when Limit =< 0 ->
+	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options),
+	trunc(N);
+count( Topology, Coll, Selector, Options, Limit ) ->
+	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options ),
+	trunc(N). % Server returns count as float
+
+
+
+
+
+
+
+
 command( Topology, Command ) ->
 	command( Topology, Command, [] ).
 
 command( Topology, Command, Options ) ->
+	command( Topology, Command, Options, undefined ).
+
+command( Topology, Command, Options, Db ) ->
 	case mc_topology:get_pool( Topology, Options ) of
 		{ ok, #{ pool := C, server_type := Type, readPreference := RPrefs } } ->
 			Q = #'query'{
-				collection = <<"$cmd">>,
+				collection = { Db, <<"$cmd">> },
 				selector = Command
 			},
 
