@@ -136,7 +136,6 @@ handle_call(Request, From, State = #state{socket = Socket, request_storage = Req
   {noreply, State#state{request_storage = URStorage}};
 
 
-%!!!!
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState})
   when is_record(Request, killcursor)
   ->
