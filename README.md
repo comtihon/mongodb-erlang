@@ -31,7 +31,10 @@ The mongodb application needs be started before using (to initialize an internal
 Although the mongodb application includes several modules, you should only need to use top-level driver interfaces *mongo* or *mongoc*. *mongo* can be used for direct connections to a single mongod or mongos server. Use *mongoc* for connection to sharded or replica set Mongo deployments (As a matter of fact mongoc is built upon mongo module and also can be used for connections to a single server. Also it has built-in support of pooling connections so you won't be in any need of using extra pooling libraries like a poolboy). Likewise, you should only need to use the *bson* module in the bson application.
 
 
-### mongo: Connecting
+mongo -- direct connection client
+---------------------------------
+
+### Connecting
 To connect to a database `test` on mongodb server listening on `localhost:27017` (or any address & port of your choosing)
 use `mongo:connect/1`.
 
@@ -66,7 +69,7 @@ If you set `{register, Name}` option - mc_worker process will be registered on t
 `fun(pid())`, which it runs with self pid.    
 If you set `{login, Login}` and `{password, Password}` options - mc_worker will try to authenticate to the database.  
 
-### mongo: Writing
+### Writing
 After you connected to your database - you can carry out write operations, such as `insert`, `update` and `delete`:
 
     > Collection = <<"test">>.
@@ -90,7 +93,7 @@ You can also use maps instead bson documents:
     > mongo:insert(Connection, Collection, #{<<"name">> => <<"Yankees">>, <<"home">> =>
       #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>}),
 
-### mongo: Reading
+### Reading
 To call read operations use `find`, `find_one`:
 
     > Cursor = mongo:find(Connection, Collection, Selector)
@@ -102,7 +105,7 @@ The difference between `find` and `find_one` is in return. Find_one just returns
     > mc_cursor:close(Cursor),
 __Important!__ Do not forget to close cursors after using them!
 
-### mongo: Advance reading
+### Advance reading
 To search for params - specify `Selector`:
 
     mongo:find_one(Connection, Collection, {<<"key">>, <<"123">>}).
@@ -121,7 +124,7 @@ will return one document from collection Collection with fetching `only` _id and
 will return your data without key and value params. If there is no other data - only _id will be returned.
 __Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
-### mongo: Updating
+### Updating
 To add or update field in document - use `mongo:update` function with `$set` param.
 This updates selected fields:
 
@@ -148,7 +151,7 @@ This will update elements in array.
     mongo:update(Connection, Collection, {'_id', 100}, Command),
 For result of executing this functions - see mongo_SUITE update test.
 
-### mongo: Creating indexes
+### Creating indexes
 To create indexes - use `mongo:ensure_index/3` command:
 
     mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
@@ -161,15 +164,15 @@ specification - as third parameter. In index specification one can set all or on
 If index specification is not full - it is automatically filled with values: `name, Name, unique, false, dropDups,
 false`, where `Name` is index's key.
 
-### mongo: Administering
+### Administering
 This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the
 [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands.
 
-### mongo: Authentication
+### Authentication
 To authenticate use function `mongo:connect`, or `mc_worker:start_link([...{login, <<"login">>}, {password, <<"password">>}...]`  
 Login and password should be binaries!
 
-### mongo: Timeout
+### Timeout
 
 By default timeout for all connections to connection gen_server is `infinity`. If you found problems with it - you can
 modify timeout.
@@ -177,13 +180,15 @@ To modify it just add `mc_worker_call_timeout` with new value to your applicatio
 
 Timeout for operations with cursors may be explicity passed to `mc_cursor:next/2`, `mc_cursor:take/3`, `mc_cursor:rest/2`, and `mc_cursor:foldl/5` functions, by default used value of `cursor_timeout` from application config, or `infinity` if `cursor_timeout` not specified.
 
-### mongo: Pooling
+### Pooling
 
 For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as pool workers.
 
 
+mongoc -- client with automatic MongoDB topology discovery and monitoring
+-------------------------------------------------------------------------
 
-### mongoc: Connection
+### Connection
 
 For opening connection to a MongoDB you can use this call of mongoc:connect method:
 
@@ -191,18 +196,19 @@ For opening connection to a MongoDB you can use this call of mongoc:connect meth
     {ok, Topology} = mongoc:connect( Seed, Options, WorkerOptions )
 
 
-Where *Seed* contains information about host names and ports to connect and info about topology of MongoDB deployment.
+Where **Seed** contains information about host names and ports to connect and info about topology of MongoDB deployment.
 
 So you can pass just a hostname with port (or tuple with single key) for connection to a single server deployment:
 
     "hostname:27017"
     { single, "hostname:27017" }
 
-If you want to connect to a replica set ReplicaSetName use this format of Seeds value:
+
+If you want to connect to a replica set _ReplicaSetName_ use this format of Seeds value:
 
     { rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
 
-To connecto to a sharded cluster of mongos:
+To connect to a sharded cluster of mongos:
 
     { sharded,  "hostname1:port1", "hostname2:port2"] }
 
@@ -211,7 +217,7 @@ And if you want your MongoDB deployment metadata to be auto revered use unknow i
     { unknown,  "hostname1:port1", "hostname2:port2"] }
 
 
-mongoc topology *Options* 
+mongoc topology **Options**
 
     [
         { name,  Name },    % Name should be used for mongoc topology process to be registered with
@@ -235,7 +241,7 @@ mongoc topology *Options*
         { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
     ]
 
-mongoc *WorkerOptions* (as described in "mongo: Connecting" )
+mongoc **WorkerOptions** (as described in mongo Connecting chapter)
 
     -type arg() :: {database, database()}     % default database and it is also the initial db for auth purposes, later you can give other db name in requests
     | {login, binary()}
