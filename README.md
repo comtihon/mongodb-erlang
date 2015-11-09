@@ -28,8 +28,11 @@ The mongodb application needs be started before using (to initialize an internal
 
 	> application:start (mongodb).
 
-Although the mongodb application includes several modules, you should only need to use *mongo*, which is the top-level
-interface for the driver. Likewise, you should only need to use the *bson* module in the bson application.
+Although the mongodb application includes several modules, you should only need to use top-level driver interfaces *mongo* or *mongoc*. *mongo* can be used for direct connections to a single mongod or mongos server. Use *mongoc* for connection to sharded or replica set Mongo deployments (As a matter of fact mongoc is built upon mongo module and also can be used for connections to a single server. Also it has built-in support of pooling connections so you won't be in any need of using extra pooling libraries like a poolboy). Likewise, you should only need to use the *bson* module in the bson application.
+
+
+mongo -- direct connection client
+---------------------------------
 
 ### Connecting
 To connect to a database `test` on mongodb server listening on `localhost:27017` (or any address & port of your choosing)
@@ -154,6 +157,7 @@ To create indexes - use `mongo:ensure_index/3` command:
     mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
     mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>}).  %advanced
     mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>, <<"unique">>, true, <<"dropDups">>, true}).  %full
+
 ensure_index takes `mc_worker`' pid or atom name as first parameter, collection, where to create index, as second
 parameter and bson document with index
 specification - as third parameter. In index specification one can set all or only some parameters.
@@ -179,6 +183,88 @@ Timeout for operations with cursors may be explicity passed to `mc_cursor:next/2
 ### Pooling
 
 For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as pool workers.
+
+
+mongoc -- client with automatic MongoDB topology discovery and monitoring
+-------------------------------------------------------------------------
+
+### Connection
+
+For opening connection to a MongoDB you can use this call of mongoc:connect method:
+
+
+    {ok, Topology} = mongoc:connect( Seed, Options, WorkerOptions )
+
+
+Where **Seed** contains information about host names and ports to connect and info about topology of MongoDB deployment.
+
+So you can pass just a hostname with port (or tuple with single key) for connection to a single server deployment:
+
+    "hostname:27017"
+    { single, "hostname:27017" }
+
+
+If you want to connect to a replica set _ReplicaSetName_ use this format of Seeds value:
+
+    { rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
+
+To connect to a sharded cluster of mongos:
+
+    { sharded,  "hostname1:port1", "hostname2:port2"] }
+
+And if you want your MongoDB deployment metadata to be auto revered use unknow id in Seed tuple:   
+
+    { unknown,  "hostname1:port1", "hostname2:port2"] }
+
+
+mongoc topology **Options**
+
+    [
+        { name,  Name },    % Name should be used for mongoc topology process to be registered with
+
+        { minPoolSize, 5 }, % Minimum and Maximum connections pool size
+        { maxPoolSize, 10 },
+
+        { localThresholdMS, 1000 }, % secondaries only which RTTs fit in window from lower RTT to lower RTT + localThresholdMS could be selected for handling user's requests
+
+        { connectTimeoutMS, 20000 },
+        { socketTimeoutMS, 100 },
+
+        { serverSelectionTimeoutMS, 30000 }, % max time appropriate server should be select by
+        { waitQueueTimeoutMS, 1000 }, % max time for waiting worker to be available in the pool
+
+        { heartbeatFrequencyMS, 10000 },    %  delay between Topology rescans
+        { minHeartbeatFrequencyMS, 1000 },
+
+        { rp_mode, primary }, % default ReadPreference mode - primary, secondary, primaryPreferred, secondaryPreferred, nearest
+
+        { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
+    ]
+
+mongoc **WorkerOptions** (as described in mongo Connecting chapter)
+
+    -type arg() :: {database, database()}     % default database and it is also the initial db for auth purposes, later you can give other db name in requests
+    | {login, binary()}
+    | {password, binary()}
+    | {w_mode, write_mode()}.
+
+
+
+mongoc:insert, mongoc:update, mongoc:delete, mongoc:delete_one,  mongoc:ensure_index  methods are all the same as their mongo: analogs, only you must use the result of mongoc:connect result as a Connection identifier.
+
+Also in all mongoc calls you can use tuple { Database, Collection } instead of just Collection name.
+
+
+mongoc:find, mongoc:find_one, mongoc:count, mongoc:command are also similar with mongo: calls but you can pass readPreference options to this calls. 
+
+For example: 
+
+
+    mongoc:find_one(Topology, { <<"dbname", <<"collname">> }, {<<"key">>, <<"123">>}, [{ rp_mode, secondaryPreferred}, { rp_tags, [] } ] ).
+
+
+
+
 
 ### More Documentation
 

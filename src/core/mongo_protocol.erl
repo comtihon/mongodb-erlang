@@ -35,8 +35,13 @@
 -define(KillcursorOpcode, 2007).
 
 
--spec dbcoll(mongo:database(), mongo:collection()) -> bson:utf8().
+-spec dbcoll(database(), colldb()) -> bson:utf8().
+
 %@doc Concat db and collection name with period (.) in between
+dbcoll(Db, {undefined, Coll}) ->
+  dbcoll(Db, Coll);
+dbcoll(_, {Db, Coll}) ->
+  dbcoll(Db, Coll);
 dbcoll(Db, Coll) ->
   <<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
 

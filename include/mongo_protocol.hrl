@@ -2,14 +2,19 @@
 
 -define(GS2_HEADER, <<"n,,">>).
 
+-type colldb() :: collection() | { database(), collection() }.
+-type collection() :: binary() | atom(). % without db prefix
+-type database() :: binary() | atom().
+
+
 %% write
 -record(insert, {
-  collection :: mongo:collection(),
+  collection :: colldb(),
   documents :: [bson:document()]
 }).
 
 -record(update, {
-  collection :: mongo:collection(),
+  collection :: colldb(),
   upsert = false :: boolean(),
   multiupdate = false :: boolean(),
   selector :: mongo:selector(),
@@ -17,18 +22,19 @@
 }).
 
 -record(delete, {
-  collection :: mongo:collection(),
+  collection :: colldb(),
   singleremove = false :: boolean(),
   selector :: mongo:selector()
 }).
 
 %% read
 -record('query', {
+  collection :: colldb(),
   tailablecursor = false :: boolean(),
   slaveok = false :: boolean(),
+  sok_overriden = false :: boolean(),
   nocursortimeout = false :: boolean(),
   awaitdata = false :: boolean(),
-  collection :: mongo:collection(),
   skip = 0 :: mongo:skip(),
   batchsize = 0 :: mongo:batchsize(),
   selector :: mongo:selector(),
@@ -36,14 +42,14 @@
 }).
 
 -record(getmore, {
-  collection :: mongo:collection(),
+  collection :: colldb(),
   batchsize = 0 :: mongo:batchsize(),
   cursorid :: mongo:cursorid()
 }).
 
 %% system
 -record(ensure_index, {
-  collection :: mongo:collection(),
+  collection :: colldb(),
   index_spec
 }).
 

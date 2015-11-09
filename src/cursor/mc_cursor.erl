@@ -36,7 +36,10 @@
   monitor :: reference
 }).
 
--spec create(mc_worker:connection(), atom(), integer(), integer(), [bson:document()]) -> pid().
+
+
+
+-spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->
   {ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
   Pid.
