@@ -42,7 +42,7 @@ is_proplist(List) ->
 -spec encode_name(binary()) -> binary().
 encode_name(Name) ->
   Comma = re:replace(Name, <<"=">>, <<"=3D">>, [{return, binary}]),
-  re:replace(Comma, <<",">>, <<"=2D">>, [{return, binary}]).
+  re:replace(Comma, <<",">>, <<"=2C">>, [{return, binary}]).
 
 -spec random_string(integer()) -> binary().
 random_string(Length) ->
