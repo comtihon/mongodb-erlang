@@ -1,12 +1,7 @@
 %%%-------------------------------------------------------------------
-%%% @author alt
-%%% @copyright (C) 2015, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 20. Окт. 2015 23:18
+%%% @author Alexander Hudich (alttagil@gmail.com)
 %%%-------------------------------------------------------------------
--author("alt").
+-author("alttagil@gmail.com").
 
 
 -record( mc_server, {
