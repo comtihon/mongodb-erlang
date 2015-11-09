@@ -106,7 +106,6 @@ handle_call(Request, From, State = #state{socket = Socket, conn_state = ConnStat
         selector = bson:append({<<"getlasterror">>, 1}, Params)
       },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
-      inet:setopts(Socket, [{active, once}]),
       RespFun = mc_worker_logic:get_resp_fun(Request, From),
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
