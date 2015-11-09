@@ -2,7 +2,7 @@
 %%% @author Alexander Hudich (alttagil@gmail.com)
 %%% @copyright (C) 2015, Alexander Hudich
 %%% @doc
-%%%
+%%% mongoc internal module for monitoring one mongodb server and providing information to a topology module
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mc_monitor).

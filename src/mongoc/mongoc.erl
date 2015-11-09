@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author Alexander Hudich (alttagil@gmail.com)
 %%% @doc
-%%%
+%%% Client for a MongoDB instance, a replica set, or a set of mongoses.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoc).
@@ -102,6 +102,8 @@
 
 %			).
 
+%% @doc Creates new topology discoverer, return its pid
+
 connect( Seeds, Options, WorkerOptions ) ->
 	mc_topology:start_link( Seeds, Options, WorkerOptions ).
 
@@ -111,6 +113,8 @@ disconnect( Topology ) ->
 
 
 
+%% @doc Inserts a document or multiple documents into a collection.
+%%      Returns the document or documents with an auto-generated _id if missing.
 
 insert( Topology, Coll, Doc ) when is_tuple(Doc); is_map(Doc) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
@@ -133,6 +137,8 @@ insert( Topology, Coll, Doc ) when is_tuple(Doc); is_map(Doc) ->
 	end.
 
 
+%% @doc Replaces the document matching criteria entirely with the new Document.
+
 update( Topology, Coll, Selector, Doc) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
 		{ ok, #{ pool := C } } ->
@@ -151,6 +157,7 @@ update( Topology, Coll, Selector, Doc) ->
 	end.
 
 
+%% @doc Deletes selected documents
 
 delete(Topology, Coll, Selector) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
@@ -170,6 +177,7 @@ delete(Topology, Coll, Selector) ->
 	end.
 
 
+%% @doc Deletes first selected document.
 
 delete_one(Topology, Coll, Selector) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
@@ -189,6 +197,7 @@ delete_one(Topology, Coll, Selector) ->
 	end.
 
 
+%% @doc Returns first selected document, if any
 
 find_one(Topology, Coll, Selector) ->
 	find_one(Topology, Coll, Selector, []).
@@ -210,6 +219,8 @@ find_one(Topology, Coll, Selector, Options) ->
 	end.
 
 
+%% @doc Returns projection of selected documents.
+%%      Empty projection [] means full projection.
 
 find(Topology, Coll, Selector) ->
 	find(Topology, Coll, Selector, []).
@@ -234,6 +245,12 @@ find(Topology, Coll, Selector, Options) ->
 
 
 
+%% @doc Creates index on collection according to given spec.
+%%      The key specification is a bson documents with the following fields:
+%%      key      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
+%%      name     :: bson:utf8()
+%%      unique   :: boolean()
+%%      dropDups :: boolean()
 
 ensure_index( Topology, Coll, IndexSpec ) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
@@ -254,12 +271,17 @@ ensure_index( Topology, Coll, IndexSpec ) ->
 
 
 
+%% @doc Counts selected documents
 
 count( Topology, Coll, Selector ) ->
 	count(Topology, Coll, Selector, [], 0).
 
 count( Topology, Coll, Selector, Options ) ->
 	count(Topology, Coll, Selector, Options, 0).
+
+
+%% @doc Count selected documents up to given max number; 0 means no max.
+%%     Ie. stops counting when max is reached to save processing time.
 
 count( Topology, {Db, Coll}, Selector, Options, Limit ) when Limit =< 0 ->
 	{true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),

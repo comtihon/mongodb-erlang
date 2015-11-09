@@ -2,7 +2,7 @@
 %%% @author Alexander Hudich (alttagil@gmail.com)
 %%% @copyright (C) 2015, Alexander Hudich
 %%% @doc
-%%%
+%%% mongoc internal module for handling server's connection pool and monitoring
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mc_server).
