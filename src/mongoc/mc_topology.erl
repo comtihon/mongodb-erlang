@@ -268,9 +268,7 @@ handle_server_to_unknown( Server, #state{ servers = Tab } = State  ) ->
 	ToUpdate = #mc_server{
 		pid = Saved#mc_server.pid,
 		mref = Saved#mc_server.mref,
-
 		host = Saved#mc_server.host,
-
 		type = unknown
 	},
 
@@ -368,7 +366,7 @@ update_topology_state(
 	#mc_server{ type = standalone, pid = Pid },
 	#state{ type = unknown , seeds = Seeds } = State )
 	->
-	SeedsLen = lists:flatlength( Seeds ),
+	SeedsLen = length( Seeds ),
 	if
 		SeedsLen =< 1  ->
 			State#state{ type = standalone };
@@ -696,7 +694,7 @@ select_candidate( primary, _, [Primary] ) ->
 	Primary;
 
 select_candidate( secondary, _, List ) ->
-	Len = lists:flatlength( List ),
+	Len = length( List ),
 	pick_random( List, Len ).
 
 
@@ -739,8 +737,8 @@ is_candidate( _, _, _, _ ) ->
 
 
 check_tags( Server, Tags, STags ) ->
-	ResL = lists:flatlength( lists:subtract( STags, lists:subtract( STags, Tags ) ) ),
-	L = lists:flatlength( Tags ),
+	ResL = length( lists:subtract( STags, lists:subtract( STags, Tags ) ) ),
+	L = length( Tags ),
 	if
 		ResL =/= L ->
 			false;
