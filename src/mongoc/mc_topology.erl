@@ -693,6 +693,10 @@ select_candidate( _, _, [] ) ->
 select_candidate( primary, _, [Primary] ) ->
 	Primary;
 
+select_candidate( primary, sharded, List ) ->
+	Len = length( List ),
+	pick_random( List, Len );
+
 select_candidate( secondary, _, List ) ->
 	Len = length( List ),
 	pick_random( List, Len ).
