@@ -9,7 +9,7 @@
 
 -include("mongo_protocol.hrl").
 
--export([connect/3, disconnect/1, command/2, command/3, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3]).
+-export([connect/3, disconnect/1, command/2, command/3, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3, update/5]).
 
 
 -type selector() :: bson:document().
@@ -51,6 +51,7 @@
 -spec disconnect(pid()) -> ok.
 -spec insert(pid(), colldb(), A) -> A | { error, reason() }.
 -spec update(pid(), colldb(), selector(), bson:document()) -> ok | { error, reason() }.
+-spec update(pid(), colldb(), selector(), bson:document(), proplists:proplist()) -> ok | { error, reason() }.
 -spec delete(pid(), colldb(), selector()) -> ok | { error, reason() }.
 -spec delete_one(pid(), colldb(), selector()) -> ok | { error, reason() }.
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
@@ -116,7 +117,7 @@ disconnect( Topology ) ->
 %% @doc Inserts a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 
-insert( Topology, Coll, Doc ) when is_tuple(Doc); is_map(Doc) ->
+insert( Topology, Coll, Doc ) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
 		{ ok, #{ pool := C } } ->
 			try	mongo:insert( C, Coll, Doc ) of
@@ -139,10 +140,13 @@ insert( Topology, Coll, Doc ) when is_tuple(Doc); is_map(Doc) ->
 
 %% @doc Replaces the document matching criteria entirely with the new Document.
 
-update( Topology, Coll, Selector, Doc) ->
+update( Topology, Coll, Selector, Doc ) ->
+	update( Topology, Coll, Selector, Doc, [] ).
+
+update( Topology, Coll, Selector, Doc, Options ) ->
 	case mc_topology:get_pool( Topology, [{rp_mode, primary}] ) of
 		{ ok, #{ pool := C } } ->
-			try	mongo:update( C, Coll, Selector, Doc ) of
+			try	mongo:update( C, Coll, Selector, Doc, Options) of
 				R -> R
 			catch
 				error:not_master ->
