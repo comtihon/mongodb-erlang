@@ -63,7 +63,10 @@
   selector/0,
   skip/0,
   batchsize/0,
-  modifier/0]).
+  modifier/0,
+  write_mode/0,
+  read_mode/0,
+  cursor/0]).
 
 
 %% @doc Make one connection to server, return its pid
