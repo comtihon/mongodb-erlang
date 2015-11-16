@@ -55,11 +55,6 @@
 -type reason() :: atom().
 
 
-
--spec find(pid(), colldb(), mongo:selector()) -> mongo:cursor().
--spec find(pid(), colldb(), mongo:selector(), readprefs()) -> mongo:cursor().
-
-
 %% @doc Creates new topology discoverer, return its pid
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
@@ -119,7 +114,7 @@ transaction_query(Topology, Transaction, Options) ->
       Error
   end.
 
--spec find_one(pid(), colldb(), mongo:selector(), readprefs()) -> map().
+-spec find_one(map(), colldb(), mongo:selector(), readprefs()) -> map().
 find_one(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Coll, Selector, Options) ->
   Projector = mc_utils:get_value(projector, Options, []),
   Skip = mc_utils:get_value(skip, Options, 0),
@@ -133,9 +128,11 @@ find_one(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, C
 
 %% @doc Returns projection of selected documents.
 %%      Empty projection [] means full projection.
+-spec find(map(), colldb(), mongo:selector()) -> mongo:cursor().
 find(Pool, Coll, Selector) ->
   find(Pool, Coll, Selector, []).
 
+-spec find(map(), colldb(), mongo:selector(), readprefs()) -> mongo:cursor().
 find(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Coll, Selector, Options) ->
   Projector = mc_utils:get_value(projector, Options, []),
   Skip = mc_utils:get_value(skip, Options, 0),
@@ -179,7 +176,7 @@ count(Pool, Coll, Selector, Limit) ->
 command(Pool, Command) ->
   command(Pool, Command, undefined).
 
--spec command(pid(), bson:document(), readprefs()) -> {boolean(), bson:document()} | {error, reason()}. % Action
+-spec command(map(), bson:document(), readprefs()) -> {boolean(), bson:document()} | {error, reason()}. % Action
 command(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Command, Db) ->
   Q = #'query'{
     collection = {Db, <<"$cmd">>},
