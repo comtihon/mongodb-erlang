@@ -58,6 +58,7 @@
 %% @doc Creates new topology discoverer, return its pid
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
+  mc_pool_sup:start_link(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
 -spec disconnect(pid()) -> ok.
@@ -67,9 +68,9 @@ disconnect(Topology) ->
 %% @doc Get worker from pool and run transaction with it. Suitable for all write transactions
 -spec transaction(pid(), fun()) -> any().
 transaction(Topology, Transaction) ->
-  case mc_topology:get_pool(Topology, [{rp_mode, primary}]) of  %TODO transaction in pool!
+  case mc_topology:get_pool(Topology, [{rp_mode, primary}]) of
     {ok, #{pool := C}} ->
-      try Transaction(C)
+      try poolboy:transaction(C, Transaction)
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
@@ -85,11 +86,11 @@ transaction(Topology, Transaction) ->
       Error
   end.
 
-%% @doc Get worker from pool and run transaction with it. Suitable for command transacctions
+%% @doc Get worker from pool and run transaction with it. Suitable for command transactions
 transaction(Topology, Transaction, Options) ->
   case mc_topology:get_pool(Topology, Options) of
-    {ok, Pool} ->
-      try Transaction(Pool)
+    {ok, Pool = #{pool := C}} ->
+      try poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end)
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
@@ -107,9 +108,9 @@ transaction_query(Topology, Transaction) ->
   transaction_query(Topology, Transaction, []).
 
 transaction_query(Topology, Transaction, Options) ->
-  case mc_topology:get_pool(Topology, Options) of   %TODO transaction in pool!
-    {ok, Pool} ->
-      Transaction(Pool);
+  case mc_topology:get_pool(Topology, Options) of
+    {ok, Pool = #{pool := C}} ->
+      poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end);
     Error ->
       Error
   end.
