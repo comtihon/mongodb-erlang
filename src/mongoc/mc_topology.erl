@@ -492,7 +492,7 @@ update_topology_state(
 	#state{	setName = undefined, maxElectionId = MaxElectionId, servers = Tab  } = State )
 		when ElectionId =/= undefined, MaxElectionId =/= undefined, ElectionId < MaxElectionId
 	->
-	ets:insert( #mc_server{ pid = Pid, host = Host, type = unknown } ),
+	ets:insert(Tab, #mc_server{ pid = Pid, host = Host, type = unknown } ),
 	State#state{ type = checkIfHasPrimary( Tab ) };
 
 update_topology_state(
@@ -509,7 +509,7 @@ update_topology_state(
 	#state{ setName = CSetName, servers = Tab  } = State )
 	when SSetName =/= CSetName
 	->
-	ets:insert( #mc_server{ pid = Pid, host = Host, type = deleted } ),
+	ets:insert(Tab, #mc_server{ pid = Pid, host = Host, type = deleted } ),
 	exit( Pid, kill ),
 	State#state{ type = checkIfHasPrimary( Tab ) };
 
