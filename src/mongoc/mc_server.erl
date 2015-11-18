@@ -31,7 +31,8 @@
   rs = undefined,
   type = undefined,
   me,
-  max_pool,
+  size :: integer(),
+  max_overflow :: integer(),
   connect_to,
   socket_to,
   topology,
@@ -61,10 +62,11 @@ start(Topology, HostPort, Topts, Wopts) ->
 init([Topology, Addr, TopologyOptions, Wopts]) ->
   process_flag(trap_exit, true),
   {Host, Port} = parse_seed(Addr),
-  PoolSize = proplists:get_value(maxPoolSize, TopologyOptions, 10),
-  ConnectTimeoutMS = proplists:get_value(connectTimeoutMS, TopologyOptions, 20000),
-  SocketTimeoutMS = proplists:get_value(socketTimeoutMS, TopologyOptions, 100),
-  ReplicaSet = proplists:get_value(rs, TopologyOptions, undefined),
+  PoolSize = mc_utils:get_value(pool_size, TopologyOptions, 10),
+  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
+  ConnectTimeoutMS = mc_utils:get_value(connectTimeoutMS, TopologyOptions, 20000),
+  SocketTimeoutMS = mc_utils:get_value(socketTimeoutMS, TopologyOptions, 100),
+  ReplicaSet = mc_utils:get_value(rs, TopologyOptions, undefined),
   MRef = erlang:monitor(process, Topology),
   gen_server:cast(self(), init_monitor),
   {ok, #state{
@@ -73,7 +75,8 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
     host = Host,
     port = Port,
     rs = ReplicaSet,
-    max_pool = PoolSize,
+    size = PoolSize,
+    max_overflow = Overflow,
     connect_to = ConnectTimeoutMS,
     socket_to = SocketTimeoutMS,
     topology_opts = TopologyOptions,
@@ -162,9 +165,9 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
   mc_monitor:start_link(Topology, self(), {Host, Port}, Topts, Wopts).
 
 %% @private
-init_pool(#state{host = Host, port = Port, max_pool = MaxPool, worker_opts = Wopts}) ->
+init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
   WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  mc_pool_sup:start_pool(mc_worker, [{size, MaxPool}, {max_overflow, 0}], WO).
+  mc_pool_sup:start_pool(mc_worker, [{size, Size}, {max_overflow, Overflow}], WO).
 
 %% @private
 parse_seed(Addr) when is_binary(Addr) ->
