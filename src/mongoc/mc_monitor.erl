@@ -147,10 +147,10 @@ maybe_recheck(_, Topology, Server, ConnectArgs, HB_MS, MinHB_MS) ->
 
 %% @private
 check(ConnectArgs, Server) ->
-  Start = erlang:now(),
+  Start = os:timestamp(),
   {ok, Conn} = mongo:connect(ConnectArgs),
   {true, IsMaster} = mongo:command(Conn, {isMaster, 1}),
-  Finish = erlang:now(),
+  Finish = os:timestamp(),
   mongo:disconnect(Conn),
   {monitor_ismaster, Server, IsMaster, timer:now_diff(Finish, Start)}.
 

@@ -163,7 +163,7 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
 
 %% @private
 init_pool(#state{host = Host, port = Port, max_pool = MaxPool, worker_opts = Wopts}) ->
-  WO = lists:append([{host, Host}, {port, Port}, {proxy, true}], Wopts),
+  WO = lists:append([{host, Host}, {port, Port}], Wopts),
   mc_pool_sup:start_pool(mc_worker, [{size, MaxPool}, {max_overflow, 0}], WO).
 
 %% @private
