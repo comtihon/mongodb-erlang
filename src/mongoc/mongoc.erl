@@ -58,6 +58,7 @@
 %% @doc Creates new topology discoverer, return its pid
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
+  application:ensure_started(poolboy),
   mc_pool_sup:start_link(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
