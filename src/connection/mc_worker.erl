@@ -43,14 +43,6 @@ init(Options) ->
   mc_auth:auth(Socket, Options, ConnState#conn_state.database),
   gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState}).
 
-update_dbcoll({Db, _}, Coll) -> {Db, Coll}; %TODO move me to other module
-update_dbcoll(_, Coll) -> Coll.
-
-collection(#'query'{collection = Coll}) -> Coll; %TODO move me to other module
-collection(#'insert'{collection = Coll}) -> Coll;
-collection(#'update'{collection = Coll}) -> Coll;
-collection(#'delete'{collection = Coll}) -> Coll.
-
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
@@ -61,12 +53,12 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
   {ok, _} = mc_worker_logic:make_request(
     Socket,
     ConnState#conn_state.database,
-    #insert{collection = update_dbcoll(Coll, <<"system.indexes">>),
+    #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>),
       documents = [Index]}),
   {reply, ok, State};
 handle_call(Request, From,
     State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor})
-  when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->% write requests
+  when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests
   case ConnState#conn_state.write_mode of
     unsafe ->   %unsafe (just write)
       {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
@@ -77,7 +69,7 @@ handle_call(Request, From,
         #'query'
         { % check-write read request
           batchsize = -1,
-          collection = update_dbcoll(collection(Request), <<"$cmd">>),
+          collection = mc_worker_logic:update_dbcoll(mc_worker_logic:collection(Request), <<"$cmd">>),
           selector = bson:append({<<"getlasterror">>, 1}, Params)
         },
       {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
