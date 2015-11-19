@@ -26,6 +26,8 @@ start_link(Options) ->
 %% Make worker to go into hibernate. Any next call will wake it.
 %% It should be done if you have problems with memory while fetching > 64B binaries from db.
 -spec hibernate(pid()) -> ok.
+hibernate(#{pool := Worker}) ->
+  hibernate(Worker);
 hibernate(Worker) ->
   gen_server:cast(Worker, hibernate).
 

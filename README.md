@@ -222,8 +222,8 @@ mongoc topology **Options**
     [
         { name,  Name },    % Name should be used for mongoc topology process to be registered with
 
-        { minPoolSize, 5 }, % Minimum and Maximum connections pool size
-        { maxPoolSize, 10 },
+        { pool_size, 5 }, % pool size on start
+        { max_overflow, 10 },	%max pool size
 
         { localThresholdMS, 1000 }, % secondaries only which RTTs fit in window from lower RTT to lower RTT + localThresholdMS could be selected for handling user's requests
 
@@ -248,22 +248,33 @@ mongoc **WorkerOptions** (as described in mongo Connecting chapter)
     | {password, binary()}
     | {w_mode, write_mode()}.
 
+Use transaction poolboy-like interface for mongoc:
 
+	mongoc:transaction_query(?DBPOOL,
+        fun(Conf) ->
+          mongoc:find_one(Conf, Collection, Key, [{projector, Projector}])
+        end)
 
-mongoc:insert, mongoc:update, mongoc:delete, mongoc:delete_one,  mongoc:ensure_index  methods are all the same as their mongo: analogs, only you must use the result of mongoc:connect result as a Connection identifier.
+	mongoc:transaction_query(?DBPOOL,
+        fun(Conf) ->
+          Res = mongoc:find_one(Conf, Collection, Key, [{projector, Projector}]),
+          mc_worker:hibernate(Conf),
+          Res
+        end)
+        
+    mongoc:transaction(?DBPOOL, fun(Conf) -> mongoc:count(Conf, Collection, Value, 1) end, [])
 
-Also in all mongoc calls you can use tuple { Database, Collection } instead of just Collection name.
+	mongoc:transaction(?DBPOOL,
+        fun(Worker) -> mongo:update(Worker, Collection, Key, Command, [{upsert, Upsert}, {multi, Multi}]) end)
 
+Notice, that all write operations like `update`, `insert`, `delete` do with **mongo**, but all read operations 
+do with **mongoc**.  
+You can set up your read preferences when reading:
 
-mongoc:find, mongoc:find_one, mongoc:count, mongoc:command are also similar with mongo: calls but you can pass readPreference options to this calls. 
-
-For example: 
-
-
-    mongoc:find_one(Topology, { <<"dbname", <<"collname">> }, {<<"key">>, <<"123">>}, [{ rp_mode, secondaryPreferred}, { rp_tags, [] } ] ).
-
-
-
+	mongoc:transaction_query(?DBPOOL,
+        fun(Conf) ->
+          mongoc:find_one(Conf#{read_preference => secondaryPreferred}, Collection, Key, [{projector, Projector}])
+        end)
 
 
 ### More Documentation

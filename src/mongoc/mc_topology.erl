@@ -147,7 +147,7 @@ get_pool( RPMode, RPTags, State ) ->
 		{ Pid, { error, Reason }, _ } ->
 			{ error, Reason };
 		{ Pid, Pool, Type } ->
-			{ ok, #{ pool => Pool, server_type => Type, readPreference => #{ mode => RPMode, tags => RPTags} } }
+			{ ok, #{ pool => Pool, server_type => Type, read_preference => #{ mode => RPMode, tags => RPTags} } }
  	after
 		ServerSelectionTimeoutMS ->
 			exit( Pid, timeout ),

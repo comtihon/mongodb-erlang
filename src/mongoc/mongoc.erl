@@ -117,7 +117,7 @@ transaction_query(Topology, Transaction, Options) ->
   end.
 
 -spec find_one(map(), colldb(), mongo:selector(), readprefs()) -> map().
-find_one(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Coll, Selector, Options) ->
+find_one(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Coll, Selector, Options) ->
   Projector = mc_utils:get_value(projector, Options, []),
   Skip = mc_utils:get_value(skip, Options, 0),
   Q = #'query'{
@@ -135,7 +135,7 @@ find(Pool, Coll, Selector) ->
   find(Pool, Coll, Selector, []).
 
 -spec find(map(), colldb(), mongo:selector(), readprefs()) -> mongo:cursor().
-find(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Coll, Selector, Options) ->
+find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Coll, Selector, Options) ->
   Projector = mc_utils:get_value(projector, Options, []),
   Skip = mc_utils:get_value(skip, Options, 0),
   BatchSize = mc_utils:get_value(batchsize, Options, 0),
@@ -179,7 +179,7 @@ command(Pool, Command) ->
   command(Pool, Command, undefined).
 
 -spec command(map(), bson:document(), readprefs()) -> {boolean(), bson:document()} | {error, reason()}. % Action
-command(#{pool := Pool, server_type := ServerType, readPreference := RPrefs}, Command, Db) ->
+command(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Command, Db) ->
   Q = #'query'{
     collection = {Db, <<"$cmd">>},
     selector = Command
