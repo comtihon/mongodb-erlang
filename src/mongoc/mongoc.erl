@@ -21,7 +21,10 @@
   count/4,
   transaction_query/2,
   transaction_query/3,
-  transaction/2, transaction/3]).
+  transaction/2,
+  transaction/3]).
+
+-define(TRANSACTION_TIMEOUT, 5000).
 
 
 -type readmode() :: primary | secondary | primaryPreferred | secondaryPreferred | nearest.
@@ -67,11 +70,15 @@ disconnect(Topology) ->
   mc_topology:disconnect(Topology).
 
 %% @doc Get worker from pool and run transaction with it. Suitable for all write transactions
--spec transaction(pid(), fun()) -> any().
+-spec transaction(pid() | atom(), fun()) -> any().
 transaction(Topology, Transaction) ->
+  transaction(Topology, Transaction, ?TRANSACTION_TIMEOUT).
+
+-spec transaction(pid() | atom(), fun(), integer() | infinity | proplists:proplist()) -> any().
+transaction(Topology, Transaction, Timeout) when is_integer(Timeout); Timeout =:= infinity ->
   case mc_topology:get_pool(Topology, [{rp_mode, primary}]) of
     {ok, #{pool := C}} ->
-      try poolboy:transaction(C, Transaction)
+      try poolboy:transaction(C, Transaction, Timeout)
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
@@ -85,13 +92,16 @@ transaction(Topology, Transaction) ->
       end;
     Error ->
       Error
-  end.
+  end;
+transaction(Topology, Transaction, Options) ->
+  transaction(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
 
 %% @doc Get worker from pool and run transaction with it. Suitable for command transactions
-transaction(Topology, Transaction, Options) ->
+-spec transaction(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
+transaction(Topology, Transaction, Options, Timeout) ->
   case mc_topology:get_pool(Topology, Options) of
     {ok, Pool = #{pool := C}} ->
-      try poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end)
+      try poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end, Timeout)
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
