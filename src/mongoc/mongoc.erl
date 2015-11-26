@@ -21,6 +21,7 @@
   count/4,
   transaction_query/2,
   transaction_query/3,
+  transaction_query/4,
   transaction/2,
   transaction/3]).
 
@@ -119,9 +120,13 @@ transaction_query(Topology, Transaction) ->
   transaction_query(Topology, Transaction, []).
 
 transaction_query(Topology, Transaction, Options) ->
+  transaction_query(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
+
+-spec transaction_query(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
+transaction_query(Topology, Transaction, Options, Timeout) ->
   case mc_topology:get_pool(Topology, Options) of
     {ok, Pool = #{pool := C}} ->
-      poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end);
+      poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end, Timeout);
     Error ->
       Error
   end.
