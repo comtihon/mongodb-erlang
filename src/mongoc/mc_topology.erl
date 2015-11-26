@@ -133,14 +133,14 @@ get_pool(Topology) ->
 get_pool(Topology, Options) ->
   State = mc_topology:get_state(Topology),
 
-  RPMode = proplists:get_value(rp_mode, Options, State#state.rp_mode),
-  RPTags = proplists:get_value(rp_tags, Options, State#state.rp_tags),
+  RPMode = mc_utils:get_value(rp_mode, Options, State#state.rp_mode),
+  RPTags = mc_utils:get_value(rp_tags, Options, State#state.rp_tags),
 
   get_pool(RPMode, RPTags, State).
 
 get_pool(RPMode, RPTags, State) ->
   TO = State#state.topology_opts,
-  ServerSelectionTimeoutMS = proplists:get_value(serverSelectionTimeoutMS, TO, 30000),
+  ServerSelectionTimeoutMS = mc_utils:get_value(serverSelectionTimeoutMS, TO, 30000),
 
   Pid = spawn(?MODULE, get_pool, [self(), State, RPMode, RPTags]),
   receive
