@@ -23,7 +23,8 @@
   transaction_query/3,
   transaction_query/4,
   transaction/2,
-  transaction/3]).
+  transaction/3,
+  transaction/4]).
 
 -define(TRANSACTION_TIMEOUT, 5000).
 
