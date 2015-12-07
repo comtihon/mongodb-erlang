@@ -143,9 +143,8 @@ handle_cast({update_unknown}, State = #state{monitor = Monitor, pool = Pool}) ->
 handle_cast(_Request, State) ->
   {noreply, State}.
 
-handle_info({'DOWN', MRef, _, _, _}, State = #state{topology_mref = MRef}) ->
-  exit(kill),
-  {noreply, State};
+handle_info({'DOWN', MRef, _, _, Reason}, State = #state{topology_mref = MRef}) ->
+  {stop, Reason, State};
 handle_info({'EXIT', Pid, _Reason}, State = #state{topology = Topology, pool = Pid}) ->
   gen_server:cast(Topology, {server_to_unknown, self()}),
   {noreply, State#state{pool = undefined}};
