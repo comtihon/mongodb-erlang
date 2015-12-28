@@ -148,9 +148,10 @@ handle_info({'DOWN', MRef, _, _, Reason}, State = #state{topology_mref = MRef}) 
 handle_info({'EXIT', Pid, _Reason}, State = #state{topology = Topology, pool = Pid}) ->
   gen_server:cast(Topology, {server_to_unknown, self()}),
   {noreply, State#state{pool = undefined}};
-handle_info({'EXIT', Pid, _Reason}, State = #state{monitor = Pid}) ->
-  exit(kill),
-  {noreply, State};
+handle_info({'EXIT', Pid, _Reason}, State = #state{monitor = Pid, pool = Pool}) ->
+  mc_pool_sup:stop_pool(Pool),
+  mc_monitor:stop(Pid),
+  {stop, normal, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -165,13 +166,8 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
 
 %% @private
 init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
-  case whereis(mc_worker) of
-    undefined ->
-      WO = lists:append([{host, Host}, {port, Port}], Wopts),
-      mc_pool_sup:start_pool(mc_worker, [{size, Size}, {max_overflow, Overflow}], WO);
-    Pid when is_pid(Pid) ->
-      {ok, Pid}
-  end.
+  WO = lists:append([{host, Host}, {port, Port}], Wopts),
+  mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO).
 
 %% @private
 parse_seed(Addr) when is_binary(Addr) ->

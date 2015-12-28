@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_pool/3]).
+-export([start_link/0, start_pool/2, stop_pool/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -23,10 +23,12 @@
 %%%===================================================================
 %%% API functions
 %%%===================================================================
-start_pool(Name, SizeArgs, WorkerArgs) ->
-  PoolArgs = [{name, {local, Name}}, {worker_module, mc_worker}] ++ SizeArgs,
-  Spec = poolboy:child_spec(Name, PoolArgs, WorkerArgs),
-  supervisor:start_child(?MODULE, Spec).
+start_pool(SizeArgs, WorkerArgs) ->
+  PoolArgs = [{worker_module, mc_worker}] ++ SizeArgs,
+  supervisor:start_child(?MODULE, [PoolArgs, WorkerArgs]).
+
+stop_pool(Pid) ->
+  poolboy:stop(Pid).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -61,7 +63,8 @@ start_link() ->
   ignore |
   {error, Reason :: term()}).
 init([]) ->
-  {ok, {{one_for_one, 10, 10}, []}}.
+  {ok, {{simple_one_for_one, 10, 10},
+    [{worker_pool, {poolboy, start_link, []}, transient, 5000, worker, [poolboy]}]}}.
 
 %%%===================================================================
 %%% Internal functions

@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/5, do_timeout/2, next_loop/1, update_type/2]).
+-export([start_link/5, do_timeout/2, next_loop/1, update_type/2, stop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -47,6 +47,9 @@
 
 start_link(Topology, Server, HostPort, Topts, Wopts) ->
   gen_server:start_link(?MODULE, [Topology, Server, HostPort, Topts, Wopts], []).
+
+stop(Pid) ->
+  gen_server:cast(Pid, halt).
 
 
 %%%===================================================================
@@ -93,6 +96,8 @@ handle_cast(loopn, State = #state{timer = PausePid}) ->
   send_stop(PausePid),
   NState = loop(State),
   {noreply, NState};
+handle_cast(halt, State) ->
+  {stop, normal, State};
 handle_cast(_Request, State) ->
   {noreply, State}.
 
