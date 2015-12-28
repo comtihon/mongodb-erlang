@@ -165,8 +165,13 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
 
 %% @private
 init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
-  WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  mc_pool_sup:start_pool(mc_worker, [{size, Size}, {max_overflow, Overflow}], WO).
+  case whereis(mc_worker) of
+    undefined ->
+      WO = lists:append([{host, Host}, {port, Port}], Wopts),
+      mc_pool_sup:start_pool(mc_worker, [{size, Size}, {max_overflow, Overflow}], WO);
+    Pid when is_pid(Pid) ->
+      {ok, Pid}
+  end.
 
 %% @private
 parse_seed(Addr) when is_binary(Addr) ->
