@@ -27,8 +27,10 @@ start_pool(SizeArgs, WorkerArgs) ->
   PoolArgs = [{worker_module, mc_worker}] ++ SizeArgs,
   supervisor:start_child(?MODULE, [PoolArgs, WorkerArgs]).
 
-stop_pool(Pid) ->
-  poolboy:stop(Pid).
+stop_pool(Pid) when is_pid(Pid) ->
+  poolboy:stop(Pid);
+stop_pool(_) ->
+  ok.
 
 %%--------------------------------------------------------------------
 %% @doc
