@@ -17,7 +17,7 @@
 
 -record(state, {
 	supervisor  :: pid(),
-	connections :: array(),
+	connections :: array:array(),
 	monitors    :: orddict:orddict()
 }).
 
@@ -39,7 +39,7 @@ get(Pool) ->
 
 %% @hidden
 init([Size, Sup]) ->
-	random:seed(erlang:now()),
+	random:seed(os:timestamp()),
 	{ok, #state{
 		supervisor = Sup,
 		connections = array:new(Size, [{fixed, false}, {default, undefined}]),
