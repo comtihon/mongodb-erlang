@@ -13,7 +13,7 @@
 
 %% API
 -export([encode_requests/2, decode_responses/1, process_responses/2]).
--export([gen_index_name/1, make_request/3, get_resp_fun/2, update_dbcoll/2, collection/1]).
+-export([gen_index_name/1, make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1]).
 
 encode_requests(Database, Request) when not is_list(Request) ->
   encode_requests(Database, [Request]);
@@ -56,9 +56,9 @@ gen_index_name(KeyOrder) ->
       $_, (mc_utils:value_to_binary(Order))/binary>>
     end, <<"i">>, KeyOrder).
 
-make_request(Socket, Database, Request) ->
+make_request(Socket, NetModule, Database, Request) ->
   {Packet, Id} = encode_requests(Database, Request),
-  {gen_tcp:send(Socket, Packet), Id}.
+  {NetModule:send(Socket, Packet), Id}.
 
 update_dbcoll({Db, _}, Coll) -> {Db, Coll};
 update_dbcoll(_, Coll) -> Coll.

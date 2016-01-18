@@ -15,20 +15,20 @@
 -define(UNAUTHORIZED_ERROR, 10057).
 
 %% API
--export([reply/1, request_async/2, process_reply/2, request_sync/3]).
+-export([reply/1, request_async/2, process_reply/2, request_sync/4]).
 
 -spec request_async(pid(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_async(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_sync(port(), mongo:database(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
-request_sync(Socket, Database, Request) ->
+-spec request_sync(port(), mongo:database(), bson:document(), module()) -> ok | {non_neg_integer(), [bson:document()]}.
+request_sync(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
-  inet:setopts(Socket, [{active, false}]),
-  {ok, _} = mc_worker_logic:make_request(Socket, Database, Request),
-  {ok, Packet} = gen_tcp:recv(Socket, 0, Timeout),
-  inet:setopts(Socket, [{active, true}]),
+  NetModule:setopts(Socket, [{active, false}]),
+  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
+  {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
+  NetModule:setopts(Socket, [{active, true}]),
   {Responses, _} = mc_worker_logic:decode_responses(Packet),
   {_, Reply} = hd(Responses),
   reply(Reply).

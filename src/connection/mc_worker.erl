@@ -13,10 +13,11 @@
   code_change/3]).
 
 -record(state, {
-  socket :: gen_tcp:socket(),
-  request_storage = dict:new(),  %dict:dict()
+  socket :: gen_tcp:socket() | ssl:sslsocket(),
+  request_storage = dict:new() :: dict:dict(),
   buffer = <<>> :: binary(),
-  conn_state
+  conn_state,
+  net_module :: ssl | get_tcp
 }).
 
 -spec start_link(proplists:proplist()) -> {ok, pid()}.
@@ -39,29 +40,33 @@ init(Options) ->
   {ok, Socket} = mc_auth:connect_to_database(Options),
   ConnState = form_state(Options),
   try_register(Options),
+  NetModule = get_set_opts_module(Options),
+  Login = mc_utils:get_value(login, Options),
+  Password = mc_utils:get_value(password, Options),
+  gen_server:cast(self(), {auth, Login, Password}),
   proc_lib:init_ack({ok, self()}),
-  mc_auth:auth(Socket, Options, ConnState#conn_state.database),
-  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState}).
+  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule}).
 
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
-    State = #state{conn_state = ConnState, socket = Socket}) -> % ensure index request with insert request
+    State = #state{conn_state = ConnState, socket = Socket, net_module = NetModule}) -> % ensure index request with insert request
   Key = maps:get(<<"key">>, IndexSpec),
   Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
   Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
   {ok, _} = mc_worker_logic:make_request(
     Socket,
+    NetModule,
     ConnState#conn_state.database,
     #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>),
       documents = [Index]}),
   {reply, ok, State};
-handle_call(Request, From,
-    State = #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor})
+handle_call(Request, From, State =
+  #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor, net_module = NetModule})
   when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests
   case ConnState#conn_state.write_mode of
     unsafe ->   %unsafe (just write)
-      {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
+      {ok, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
       {reply, ok, State};
     SafeMode -> %safe (write and check)
       Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
@@ -72,12 +77,14 @@ handle_call(Request, From,
           collection = mc_worker_logic:update_dbcoll(mc_worker_logic:collection(Request), <<"$cmd">>),
           selector = bson:append({<<"getlasterror">>, 1}, Params)
         },
-      {ok, Id} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
+      {ok, Id} = mc_worker_logic:make_request(
+        Socket, NetModule, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
       RespFun = mc_worker_logic:get_resp_fun(Request, From),
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
   end;
-handle_call(Request, From, State = #state{socket = Socket, request_storage = RequestStorage, conn_state = CS}) % read requests
+handle_call(Request, From, State =
+  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule}) % read requests
   when is_record(Request, 'query'); is_record(Request, getmore) ->
   UpdReq = case is_record(Request, 'query') of
              true ->
@@ -89,18 +96,22 @@ handle_call(Request, From, State = #state{socket = Socket, request_storage = Req
                end;
              false -> Request
            end,
-  {ok, Id} = mc_worker_logic:make_request(Socket, CS#conn_state.database, UpdReq),
+  {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
   RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
   URStorage = dict:store(Id, RespFun, RequestStorage),
   {noreply, State#state{request_storage = URStorage}};
-handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState}) when is_record(Request, killcursor) ->
-  {ok, _} = mc_worker_logic:make_request(Socket, ConnState#conn_state.database, Request),
+handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
+  when is_record(Request, killcursor) ->
+  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
   {reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
   {stop, normal, ok, State}.
 
 
 %% @hidden
+handle_cast({auth, Login, Password}, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule}) ->
+  mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
+  {noreply, State};
 handle_cast(halt, State) ->
   {stop, normal, State};
 handle_cast(hibernate, State) ->
@@ -110,25 +121,24 @@ handle_cast(_, State) ->
 
 
 %% @hidden
-handle_info({tcp, _Socket, Data}, State = #state{request_storage = RequestStorage}) ->
+handle_info({Net, _Socket, Data}, State = #state{request_storage = RequestStorage}) when Net =:= tcp; Net =:= ssl ->
   Buffer = <<(State#state.buffer)/binary, Data/binary>>,
   {Responses, Pending} = mc_worker_logic:decode_responses(Buffer),
   UReqStor = mc_worker_logic:process_responses(Responses, RequestStorage),
   {noreply, State#state{buffer = Pending, request_storage = UReqStor}};
-handle_info({tcp_closed, _Socket}, State) ->
+handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_closed ->
   {stop, tcp_closed, State};
-handle_info({tcp_error, _Socket, Reason}, State) ->
+handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_errror; NetR =:= ssl_error ->
   {stop, Reason, State}.
 
 
 %% @hidden
-terminate(_, State) ->
-    catch gen_tcp:close(State#state.socket).
+terminate(_, State = #state{net_module = NetModule}) ->
+    catch NetModule:close(State#state.socket).
 
 %% @hidden
 code_change(_Old, State, _Extra) ->
   {ok, State}.
-
 
 %% @private
 %% Parses proplist to record
@@ -138,7 +148,6 @@ form_state(Options) ->
   WMode = mc_utils:get_value(w_mode, Options, unsafe),
   #conn_state{database = Database, read_mode = RMode, write_mode = WMode}.
 
-
 %% @private
 %% Register this process if needed
 try_register(Options) ->
@@ -146,4 +155,11 @@ try_register(Options) ->
     false -> ok;
     {_, Name} when is_atom(Name) -> register(Name, self());
     {_, RegFun} when is_function(RegFun) -> RegFun(self())
+  end.
+
+%% @private
+get_set_opts_module(Options) ->
+  case mc_utils:get_value(ssl, Options, false) of
+    true -> ssl;
+    false -> gen_tcp
   end.

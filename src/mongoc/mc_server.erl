@@ -114,7 +114,7 @@ handle_call(get_pool, _From, State = #state{type = unknown}) ->
 handle_call(get_pool, _From, State = #state{ismaster = undefined}) ->
   {reply, {error, server_unknown}, State};
 handle_call(get_pool, _From, State = #state{pool = undefined}) ->
-  {ok, Pid} = init_pool(State),
+  Pid = init_pool(State),
   {reply, Pid, State#state{pool = Pid}};
 handle_call(get_pool, _From, State = #state{pool = Pid}) ->
   {reply, Pid, State};
@@ -125,7 +125,7 @@ handle_cast(init_monitor, State) ->
   {ok, Pid} = init_monitor(State),
   {noreply, State#state{monitor = Pid}};
 handle_cast(start_pool, State = #state{pool = undefined}) ->
-  {ok, Pid} = init_pool(State),
+  Pid = init_pool(State),
   {noreply, State#state{pool = Pid}};
 handle_cast({update_ismaster, Type, IsMaster}, State = #state{monitor = undefined}) ->
   {noreply, State#state{type = Type, ismaster = IsMaster}};
@@ -169,7 +169,9 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
 %% @private
 init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
   WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO).
+  {ok, Child} = mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO),
+  link(Child),
+  Child.
 
 %% @private
 parse_seed(Addr) when is_binary(Addr) ->

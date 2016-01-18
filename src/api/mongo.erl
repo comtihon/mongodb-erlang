@@ -25,7 +25,7 @@
 ]).
 -export([
   command/2,
-  sync_command/3,
+  sync_command/4,
   ensure_index/3
 ]).
 
@@ -45,6 +45,8 @@
 | {r_mode, read_mode()}
 | {host, list()}
 | {port, integer()}
+| {ssl, boolean()}
+| {ssl_opts, proplists:proplist()}
 | {register, atom() | fun()}.
 -type write_mode() :: unsafe | safe | {safe, bson:document()}.
 -type read_mode() :: master | slave_ok.
@@ -186,12 +188,12 @@ command(Connection, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @doc Execute MongoDB command in this thread
--spec sync_command(port(), binary(), bson:document()) -> {boolean(), bson:document()}.
-sync_command(Socket, Database, Command) ->
+-spec sync_command(port(), binary(), bson:document(), module()) -> {boolean(), bson:document()}.
+sync_command(Socket, Database, Command, SetOpts) ->
   Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
     collection = <<"$cmd">>,
     selector = Command
-  }),
+  }, SetOpts),
   mc_connection_man:process_reply(Doc, Command).
 
 %% @private
