@@ -35,3 +35,8 @@ instead of '$set' as it will lead to crash.
 * fasten mc_worker spawning by moving sending ack before auth 
 * made mc_cursor return `error` instead `[]` when connection is down.
 * mc_worker's socket is now `{active, true}`, which allows to handle disconnect at a moment
+
+#### 3.3 (tag v0.8.2)
+
+* add ssl support
+* add return ok | error for write requests

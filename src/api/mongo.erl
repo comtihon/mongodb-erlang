@@ -82,37 +82,38 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), colldb(), A) -> A.
+-spec insert(pid(), colldb(), list() | map() | bson:document()) -> {ok | {error, any()}, list() | map()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
-  hd(insert(Connection, Coll, [Doc]));
+  {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
+  {Res, UDoc};
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
-  mc_connection_man:request_async(Connection, #insert{collection = Coll, documents = Converted}),
-  Converted.
+  Res = mc_connection_man:request_worker(Connection, #insert{collection = Coll, documents = Converted}),
+  {Res, Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document()) -> ok.
+-spec update(pid(), colldb(), selector(), bson:document()) -> ok | {error, any()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, []).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document(), proplists:proplist()) -> ok.
+-spec update(pid(), colldb(), selector(), bson:document(), proplists:proplist()) -> ok | {error, any()}.
 update(Connection, Coll, Selector, Doc, Args) ->
   Upsert = mc_utils:get_value(upsert, Args, false),
   MultiUpdate = mc_utils:get_value(multi, Args, false),
   Converted = prepare_and_assign(Doc),
-  mc_connection_man:request_async(Connection, #update{collection = Coll, selector = Selector,
+  mc_connection_man:request_worker(Connection, #update{collection = Coll, selector = Selector,
     updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
 
 %% @doc Delete selected documents
--spec delete(pid(), colldb(), selector()) -> ok.
+-spec delete(pid(), colldb(), selector()) -> ok | {error, any()}.
 delete(Connection, Coll, Selector) ->
-  mc_connection_man:request_async(Connection, #delete{collection = Coll, singleremove = false, selector = Selector}).
+  mc_connection_man:request_worker(Connection, #delete{collection = Coll, singleremove = false, selector = Selector}).
 
 %% @doc Delete first selected document.
--spec delete_one(pid(), colldb(), selector()) -> ok.
+-spec delete_one(pid(), colldb(), selector()) -> ok | {error, any()}.
 delete_one(Connection, Coll, Selector) ->
-  mc_connection_man:request_async(Connection, #delete{collection = Coll, singleremove = true, selector = Selector}).
+  mc_connection_man:request_worker(Connection, #delete{collection = Coll, singleremove = true, selector = Selector}).
 
 %% @doc Return first selected document, if any
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
@@ -174,9 +175,9 @@ count(Connection, Coll, Selector, Limit) ->
 %%      name     :: bson:utf8()
 %%      unique   :: boolean()
 %%      dropDups :: boolean()
--spec ensure_index(pid(), colldb(), bson:document()) -> ok.
+-spec ensure_index(pid(), colldb(), bson:document()) -> ok | {error, any()}.
 ensure_index(Connection, Coll, IndexSpec) ->
-  mc_connection_man:request_async(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
+  mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action

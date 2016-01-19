@@ -35,7 +35,7 @@ get_resp_fun(Read, From) when is_record(Read, query); is_record(Read, getmore) -
 get_resp_fun(Write, From) when is_record(Write, insert); is_record(Write, update); is_record(Write, delete) ->
   process_write_response(From).
 
--spec process_responses(Responses :: list(), RequestStorage :: dict) -> UpdStorage :: dict.  %dict:dict()
+-spec process_responses(Responses :: list(), RequestStorage :: dict:dict()) -> UpdStorage :: dict:dict().
 process_responses(Responses, RequestStorage) ->
   lists:foldl(
     fun({Id, Response}, UReqStor) ->
