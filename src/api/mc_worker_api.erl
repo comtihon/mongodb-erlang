@@ -87,7 +87,7 @@ insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   insert(Connection, Coll, [Doc]);
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
-  {command(Connection, #{<<"insert">> => Coll, <<"documents">> => Converted}), Converted}.
+  {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), colldb(), selector(), bson:document()) -> true | {error, any()}.
