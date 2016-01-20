@@ -59,7 +59,7 @@ insert_and_find(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
-  Teams = mc_worker_api:insert(Connection, Collection, [
+  {{true, _}, Teams} = mc_worker_api:insert(Connection, Collection, [
     {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
     {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
     {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},

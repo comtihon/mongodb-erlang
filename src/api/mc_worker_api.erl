@@ -82,37 +82,37 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), colldb(), list() | map() | bson:document()) -> {ok | {error, any()}, list() | map()}.
+-spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{true | {error, any()}, list() | map()}, list()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   insert(Connection, Coll, [Doc]);
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
-  command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}).
+  {command(Connection, #{<<"insert">> => Coll, <<"documents">> => Converted}), Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document()) -> ok | {error, any()}.
+-spec update(pid(), colldb(), selector(), bson:document()) -> true | {error, any()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document(), boolean(), boolean()) -> ok | {error, any()}.
+-spec update(pid(), colldb(), selector(), bson:document(), boolean(), boolean()) -> true | {error, any()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare_and_assign(Doc),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
   [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Delete selected documents
--spec delete(pid(), colldb(), selector()) -> ok | {error, any()}.
+-spec delete(pid(), colldb(), selector()) -> true | {error, any()}.
 delete(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 0).
 
 %% @doc Delete first selected document.
--spec delete_one(pid(), colldb(), selector()) -> ok | {error, any()}.
+-spec delete_one(pid(), colldb(), selector()) -> true | {error, any()}.
 delete_one(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 1).
 
 %% @doc Delete selected documents
--spec delete_limit(pid(), colldb(), selector(), integer()) -> ok | {error, any()}.
+-spec delete_limit(pid(), colldb(), selector(), integer()) -> true | {error, any()}.
 delete_limit(Connection, Coll, Selector, N) ->
   command(Connection, {<<"delete">>, Coll, <<"deletes">>,
   [#{<<"q">> => Selector, <<"limit">> => N}]}).
