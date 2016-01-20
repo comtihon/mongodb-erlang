@@ -11,8 +11,11 @@
 -author("tihon").
 
 %% API
--export([insert/4, find/5, update/5, delete/4, count/5, find_one/5]).
+-export([insert/4, find/5, update/5, delete/4, count/5, find_one/5, connect/4]).
 
+-spec connect(atom(), list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
+connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
+  mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
 
 -spec insert(atom() | pid(), binary(), list() | map() | bson:document(), integer() | infinity) ->
   {ok | {error, any()}, map()}.
