@@ -84,7 +84,8 @@ disconnect(Connection) ->
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{true | {error, any()}, list() | map()}, list()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
-  insert(Connection, Coll, [Doc]);
+  {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
+  {Res, UDoc};
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
   {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
@@ -99,7 +100,7 @@ update(Connection, Coll, Selector, Doc) ->
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare_and_assign(Doc),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
-  [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
+    [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Delete selected documents
 -spec delete(pid(), colldb(), selector()) -> true | {error, any()}.
@@ -115,7 +116,7 @@ delete_one(Connection, Coll, Selector) ->
 -spec delete_limit(pid(), colldb(), selector(), integer()) -> true | {error, any()}.
 delete_limit(Connection, Coll, Selector, N) ->
   command(Connection, {<<"delete">>, Coll, <<"deletes">>,
-  [#{<<"q">> => Selector, <<"limit">> => N}]}).
+    [#{<<"q">> => Selector, <<"limit">> => N}]}).
 
 %% @doc Return first selected document, if any
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
