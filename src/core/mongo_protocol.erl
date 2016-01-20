@@ -45,7 +45,7 @@ dbcoll(_, {Db, Coll}) ->
 dbcoll(Db, Coll) ->
   <<(binarize(Db))/binary, $., (binarize(Coll))/binary>>.
 
--spec put_message(mongo:database(), message(), requestid()) -> binary().
+-spec put_message(mc_worker_api:database(), message(), requestid()) -> binary().
 put_message(Db, #insert{collection = Coll, documents = Docs}, _RequestId) ->
   <<?put_header(?InsertOpcode),
   ?put_int32(0),

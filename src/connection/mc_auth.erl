@@ -36,7 +36,7 @@ auth(Socket, Login, Password, Database, NetModule) ->
 %% Get server version. This is need to choose default authentication method.
 -spec get_version(port(), binary(), module()) -> float().
 get_version(Socket, Database, SetOpts) ->
-  {true, #{<<"version">> := Version}} = mongo:sync_command(Socket, Database, {<<"buildinfo">>, 1}, SetOpts),
+  {true, #{<<"version">> := Version}} = mc_worker_api:sync_command(Socket, Database, {<<"buildinfo">>, 1}, SetOpts),
   {VFloat, _} = string:to_float(binary_to_list(Version)),
   VFloat.
 

@@ -14,8 +14,8 @@
   disconnect/1,
   command/2,
   command/3,
-  find_one/4,
-  find/4,
+  find_one/5,
+  find/6,
   find/3,
   count/3,
   count/4,
@@ -53,7 +53,7 @@
 -type woption() :: {database, database()}
 | {login, binary()}
 | {password, binary()}
-| {w_mode, mongo:write_mode()}.
+| {w_mode, mc_worker_api:write_mode()}.
 -type readprefs() :: [readpref()].
 -type readpref() :: {rp_mode, readmode()}
 |{rp_tags, [tuple()]}.
@@ -132,10 +132,9 @@ transaction_query(Topology, Transaction, Options, Timeout) ->
       Error
   end.
 
--spec find_one(map(), colldb(), mongo:selector(), readprefs()) -> map().
-find_one(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Coll, Selector, Options) ->
-  Projector = mc_utils:get_value(projector, Options, []),
-  Skip = mc_utils:get_value(skip, Options, 0),
+-spec find_one(map(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer()) -> map().
+find_one(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
+    Coll, Selector, Projector, Skip) ->
   Q = #'query'{
     collection = Coll,
     selector = Selector,
@@ -146,15 +145,14 @@ find_one(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, 
 
 %% @doc Returns projection of selected documents.
 %%      Empty projection [] means full projection.
--spec find(map(), colldb(), mongo:selector()) -> mongo:cursor().
+-spec find(map(), colldb(), mc_worker_api:selector()) -> mc_worker_api:cursor().
 find(Pool, Coll, Selector) ->
-  find(Pool, Coll, Selector, []).
+  find(Pool, Coll, Selector, [], 0, 0).
 
--spec find(map(), colldb(), mongo:selector(), readprefs()) -> mongo:cursor().
-find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Coll, Selector, Options) ->
-  Projector = mc_utils:get_value(projector, Options, []),
-  Skip = mc_utils:get_value(skip, Options, 0),
-  BatchSize = mc_utils:get_value(batchsize, Options, 0),
+-spec find(map(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer(), integer()) ->
+  mc_worker_api:cursor().
+find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
+    Coll, Selector, Projector, Skip, BatchSize) ->
   Q = #'query'{
     collection = Coll,
     selector = Selector,
@@ -165,14 +163,14 @@ find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Coll
   mc_action_man:read(Pool, mongos_query_transform(ServerType, Q, RPrefs)).
 
 %% @doc Counts selected documents
--spec count(pid(), colldb(), mongo:selector()) -> integer().
+-spec count(pid(), colldb(), mc_worker_api:selector()) -> integer().
 count(Pool, Coll, Selector) ->
   count(Pool, Coll, Selector, 0).
 
 
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(pid(), colldb(), mongo:selector(), integer()) -> integer().
+-spec count(pid(), colldb(), mc_worker_api:selector(), integer()) -> integer().
 count(Pool, {Db, Coll}, Selector, Limit) when Limit =< 0 ->
   {true, #{<<"n">> := N}} = command(Pool,
     {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Db),

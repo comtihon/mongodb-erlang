@@ -1,7 +1,7 @@
 %% API for standalone mongo client. You get connection pid of gen_server via connect/2
 %% and then pass it to all functions
 
--module(mongo).
+-module(mc_worker_api).
 
 -include("mongo_protocol.hrl").
 
@@ -10,9 +10,9 @@
   disconnect/1,
   insert/3,
   update/4,
-  update/5,
+  update/6,
   delete/3,
-  delete_one/3]).
+  delete_one/3, delete_limit/4]).
 -export([
   find_one/3,
   find_one/4,
@@ -84,47 +84,49 @@ disconnect(Connection) ->
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), colldb(), list() | map() | bson:document()) -> {ok | {error, any()}, list() | map()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
-  {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
-  {Res, UDoc};
+  insert(Connection, Coll, [Doc]);
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
-  Res = mc_connection_man:request_worker(Connection, #insert{collection = Coll, documents = Converted}),
-  {Res, Converted}.
+  command(Connection, #{<<"insert">> => Coll, <<"documents">> => Converted}).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), colldb(), selector(), bson:document()) -> ok | {error, any()}.
 update(Connection, Coll, Selector, Doc) ->
-  update(Connection, Coll, Selector, Doc, []).
+  update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document(), proplists:proplist()) -> ok | {error, any()}.
-update(Connection, Coll, Selector, Doc, Args) ->
-  Upsert = mc_utils:get_value(upsert, Args, false),
-  MultiUpdate = mc_utils:get_value(multi, Args, false),
+-spec update(pid(), colldb(), selector(), bson:document(), boolean(), boolean()) -> ok | {error, any()}.
+update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare_and_assign(Doc),
-  mc_connection_man:request_worker(Connection, #update{collection = Coll, selector = Selector,
-    updater = Converted, upsert = Upsert, multiupdate = MultiUpdate}).
+  command(Connection, #{<<"update">> => Coll, <<"updates">> =>
+  [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Delete selected documents
 -spec delete(pid(), colldb(), selector()) -> ok | {error, any()}.
 delete(Connection, Coll, Selector) ->
-  mc_connection_man:request_worker(Connection, #delete{collection = Coll, singleremove = false, selector = Selector}).
+  delete_limit(Connection, Coll, Selector, 0).
 
 %% @doc Delete first selected document.
 -spec delete_one(pid(), colldb(), selector()) -> ok | {error, any()}.
 delete_one(Connection, Coll, Selector) ->
-  mc_connection_man:request_worker(Connection, #delete{collection = Coll, singleremove = true, selector = Selector}).
+  delete_limit(Connection, Coll, Selector, 1).
+
+%% @doc Delete selected documents
+-spec delete_limit(pid(), colldb(), selector(), integer()) -> ok | {error, any()}.
+delete_limit(Connection, Coll, Selector, N) ->
+  command(Connection, #{<<"delete">> => Coll, <<"deletes">> =>
+  [#{<<"q">> => Selector, <<"limit">> => N}]}).
 
 %% @doc Return first selected document, if any
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
 find_one(Connection, Coll, Selector) ->
-  find_one(Connection, Coll, Selector, []).
+  find_one(Connection, Coll, Selector, #{}).
 
 %% @doc Return first selected document, if any
--spec find_one(pid(), colldb(), selector(), proplists:proplist()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector(), map()) -> {} | {bson:document()}.
 find_one(Connection, Coll, Selector, Args) ->
-  Projector = mc_utils:get_value(projector, Args, []),
-  Skip = mc_utils:get_value(skip, Args, 0),
+  Projector = maps:get(projector, Args, []),
+  Skip = maps:get(skip, Args, 0),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
     selector = Selector,
@@ -135,15 +137,15 @@ find_one(Connection, Coll, Selector, Args) ->
 %% @doc Return selected documents.
 -spec find(pid(), colldb(), selector()) -> cursor().
 find(Connection, Coll, Selector) ->
-  find(Connection, Coll, Selector, []).
+  find(Connection, Coll, Selector, #{}).
 
 %% @doc Return projection of selected documents.
 %%      Empty projection [] means full projection.
--spec find(pid(), colldb(), selector(), proplists:proplist()) -> cursor().
+-spec find(pid(), colldb(), selector(), map()) -> cursor().
 find(Connection, Coll, Selector, Args) ->
-  Projector = mc_utils:get_value(projector, Args, []),
-  Skip = mc_utils:get_value(skip, Args, 0),
-  BatchSize = mc_utils:get_value(batchsize, Args, 0),
+  Projector = maps:get(projector, Args, []),
+  Skip = maps:get(skip, Args, 0),
+  BatchSize = maps:get(batchsize, Args, 0),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
     selector = Selector,
@@ -152,13 +154,13 @@ find(Connection, Coll, Selector, Args) ->
     batchsize = BatchSize
   }).
 
-%@doc Count selected documents
+%% @doc Count selected documents
 -spec count(pid(), colldb(), selector()) -> integer().
 count(Connection, Coll, Selector) ->
   count(Connection, Coll, Selector, 0).
 
-%@doc Count selected documents up to given max number; 0 means no max.
-%     Ie. stops counting when max is reached to save processing time.
+%% @doc Count selected documents up to given max number; 0 means no max.
+%%     Ie. stops counting when max is reached to save processing time.
 -spec count(pid(), colldb(), selector(), integer()) -> integer().
 count(Connection, Coll, Selector, Limit) when not is_binary(Coll) ->
   count(Connection, mc_utils:value_to_binary(Coll), Selector, Limit);
@@ -196,6 +198,7 @@ sync_command(Socket, Database, Command, SetOpts) ->
     selector = Command
   }, SetOpts),
   mc_connection_man:process_reply(Doc, Command).
+
 
 %% @private
 prepare_and_assign(Docs) when is_tuple(Docs) ->

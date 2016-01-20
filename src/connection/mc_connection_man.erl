@@ -22,7 +22,7 @@ request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_raw(port(), mongo:database(), bson:document(), module()) -> ok | {non_neg_integer(), [bson:document()]}.
+-spec request_raw(port(), mc_worker_api:database(), bson:document(), module()) -> ok | {non_neg_integer(), [bson:document()]}.
 request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
   set_opts(Socket, NetModule, false),
