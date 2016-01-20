@@ -87,7 +87,7 @@ insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   insert(Connection, Coll, [Doc]);
 insert(Connection, Coll, Docs) ->
   Converted = prepare_and_assign(Docs),
-  command(Connection, #{<<"insert">> => Coll, <<"documents">> => Converted}).
+  command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), colldb(), selector(), bson:document()) -> ok | {error, any()}.
@@ -98,7 +98,7 @@ update(Connection, Coll, Selector, Doc) ->
 -spec update(pid(), colldb(), selector(), bson:document(), boolean(), boolean()) -> ok | {error, any()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare_and_assign(Doc),
-  command(Connection, #{<<"update">> => Coll, <<"updates">> =>
+  command(Connection, {<<"update">>, Coll, <<"updates">>,
   [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Delete selected documents
@@ -114,7 +114,7 @@ delete_one(Connection, Coll, Selector) ->
 %% @doc Delete selected documents
 -spec delete_limit(pid(), colldb(), selector(), integer()) -> ok | {error, any()}.
 delete_limit(Connection, Coll, Selector, N) ->
-  command(Connection, #{<<"delete">> => Coll, <<"deletes">> =>
+  command(Connection, {<<"delete">>, Coll, <<"deletes">>,
   [#{<<"q">> => Selector, <<"limit">> => N}]}).
 
 %% @doc Return first selected document, if any
