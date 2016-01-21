@@ -82,7 +82,7 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{true | {error, any()}, list() | map()}, list()}.
+-spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
   {Res, UDoc};
@@ -91,29 +91,29 @@ insert(Connection, Coll, Docs) ->
   {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), map()) -> true | {error, any()}.
+-spec update(pid(), colldb(), selector(), map()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> true | {error, any()}.
+-spec update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare(Doc, fun(D) -> D end),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
     [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Delete selected documents
--spec delete(pid(), colldb(), selector()) -> true | {error, any()}.
+-spec delete(pid(), colldb(), selector()) -> {boolean(), map()}.
 delete(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 0).
 
 %% @doc Delete first selected document.
--spec delete_one(pid(), colldb(), selector()) -> true | {error, any()}.
+-spec delete_one(pid(), colldb(), selector()) -> {boolean(), map()}.
 delete_one(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 1).
 
 %% @doc Delete selected documents
--spec delete_limit(pid(), colldb(), selector(), integer()) -> true | {error, any()}.
+-spec delete_limit(pid(), colldb(), selector(), integer()) -> {boolean(), map()}.
 delete_limit(Connection, Coll, Selector, N) ->
   command(Connection, {<<"delete">>, Coll, <<"deletes">>,
     [#{<<"q">> => Selector, <<"limit">> => N}]}).
@@ -183,7 +183,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), bson:document()) -> {boolean(), bson:document()}. % Action
+-spec command(pid(), bson:document()) -> {boolean(), map()}. % Action
 command(Connection, Command) ->
   Doc = mc_action_man:read_one(Connection, #'query'{
     collection = <<"$cmd">>,
@@ -192,7 +192,7 @@ command(Connection, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @doc Execute MongoDB command in this thread
--spec sync_command(port(), binary(), bson:document(), module()) -> {boolean(), bson:document()}.
+-spec sync_command(port(), binary(), bson:document(), module()) -> {boolean(), map()}.
 sync_command(Socket, Database, Command, SetOpts) ->
   Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
     collection = <<"$cmd">>,

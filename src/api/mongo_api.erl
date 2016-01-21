@@ -18,12 +18,12 @@ connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
   mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
 
 -spec insert(atom() | pid(), binary(), list() | map() | bson:document(), integer() | infinity) ->
-{{true | {error, any()}, map()}, list()}.
+{{boolean(), map()}, list()}.
 insert(Topology, Collection, Document, TTL) ->
   mongoc:transaction(Topology, fun(Worker) -> mc_worker_api:insert(Worker, Collection, Document) end, TTL).
 
 -spec update(atom() | pid(), binary(), mc_worker_api:selector(), map(), proplists:proplist()) ->
-  {true | {error, any()}, map()}.
+  {boolean(), map()}.
 update(Topology, Collection, Selector, Doc, Opts) ->
   TTL = maps:get(ttl, Opts, infinity),
   Upsert = maps:get(upsert, Opts, false),
@@ -34,7 +34,7 @@ update(Topology, Collection, Selector, Doc, Opts) ->
     end, TTL).
 
 -spec delete(atom() | pid(), binary(), mc_worker_api:selector(), integer() | infinity) ->
-  true | {error, any()}.
+  {boolean(), map()}.
 delete(Topology, Collection, Selector, TTL) ->
   mongoc:transaction(Topology, fun(Worker) -> mc_worker_api:delete(Worker, Collection, Selector) end, TTL).
 
