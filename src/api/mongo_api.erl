@@ -22,7 +22,7 @@ connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
 insert(Topology, Collection, Document, TTL) ->
   mongoc:transaction(Topology, fun(Worker) -> mc_worker_api:insert(Worker, Collection, Document) end, TTL).
 
--spec update(atom() | pid(), binary(), mc_worker_api:selector(), map() | bson:document(), proplists:proplist()) ->
+-spec update(atom() | pid(), binary(), mc_worker_api:selector(), map(), proplists:proplist()) ->
   {true | {error, any()}, map()}.
 update(Topology, Collection, Selector, Doc, Opts) ->
   TTL = maps:get(ttl, Opts, infinity),

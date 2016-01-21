@@ -26,8 +26,8 @@
 -export([
   command/2,
   sync_command/4,
-  ensure_index/3
-  , prepare_and_assign/1]).
+  ensure_index/3,
+  prepare/2]).
 
 
 -type cursorid() :: integer().
@@ -87,18 +87,18 @@ insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
   {Res, UDoc};
 insert(Connection, Coll, Docs) ->
-  Converted = prepare_and_assign(Docs),
+  Converted = prepare(Docs, fun assign_id/1),
   {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document()) -> true | {error, any()}.
+-spec update(pid(), colldb(), selector(), map()) -> true | {error, any()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), bson:document(), boolean(), boolean()) -> true | {error, any()}.
+-spec update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> true | {error, any()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
-  Converted = prepare_and_assign(Doc),
+  Converted = prepare(Doc, fun(D) -> D end),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
     [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
@@ -200,26 +200,27 @@ sync_command(Socket, Database, Command, SetOpts) ->
   }, SetOpts),
   mc_connection_man:process_reply(Doc, Command).
 
-prepare_and_assign(Docs) when is_tuple(Docs) ->
+-spec prepare(tuple() | list() | map(), fun()) -> list().
+prepare(Docs, AssignFun) when is_tuple(Docs) ->
   case element(1, Docs) of
     <<"$", _/binary>> -> Docs;  %command
     _ ->  %document
-      case prepare_doc(Docs) of
+      case prepare_doc(Docs, AssignFun) of
         Res when is_tuple(Res) -> [Res];
         List -> List
       end
   end;
-prepare_and_assign(Doc) when is_map(Doc), map_size(Doc) == 1 ->
+prepare(Doc, AssignFun) when is_map(Doc), map_size(Doc) == 1 ->
   case maps:keys(Doc) of
     [<<"$", _/binary>>] -> Doc; %command
     _ ->  %document
-      case prepare_doc(Doc) of
+      case prepare_doc(Doc, AssignFun) of
         Res when is_tuple(Res) -> [Res];
         List -> List
       end
   end;
-prepare_and_assign(Docs) ->
-  case prepare_doc(Docs) of
+prepare(Docs, AssignFun) ->
+  case prepare_doc(Docs, AssignFun) of
     Res when not is_list(Res) -> [Res];
     List -> List
   end.
@@ -227,13 +228,13 @@ prepare_and_assign(Docs) ->
 
 %% @private
 %% Convert maps or proplists to bson
-prepare_doc(Docs) when is_list(Docs) ->  %list of documents
+prepare_doc(Docs, AssignFun) when is_list(Docs) ->  %list of documents
   case mc_utils:is_proplist(Docs) of
-    true -> prepare_doc(maps:from_list(Docs)); %proplist
-    false -> lists:map(fun prepare_doc/1, Docs)
+    true -> prepare_doc(maps:from_list(Docs), AssignFun); %proplist
+    false -> lists:map(fun(Doc) -> prepare_doc(Doc, AssignFun) end, Docs)
   end;
-prepare_doc(Doc) ->
-  assign_id(Doc).
+prepare_doc(Doc, AssignFun) ->
+  AssignFun(Doc).
 
 %% @private
 -spec assign_id(bson:document() | map()) -> bson:document().
