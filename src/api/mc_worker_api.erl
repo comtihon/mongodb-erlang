@@ -27,7 +27,7 @@
   command/2,
   sync_command/4,
   ensure_index/3
-]).
+  , prepare_and_assign/1]).
 
 
 -type cursorid() :: integer().
@@ -200,8 +200,6 @@ sync_command(Socket, Database, Command, SetOpts) ->
   }, SetOpts),
   mc_connection_man:process_reply(Doc, Command).
 
-
-%% @private
 prepare_and_assign(Docs) when is_tuple(Docs) ->
   case element(1, Docs) of
     <<"$", _/binary>> -> Docs;  %command
@@ -225,6 +223,7 @@ prepare_and_assign(Docs) ->
     Res when not is_list(Res) -> [Res];
     List -> List
   end.
+
 
 %% @private
 %% Convert maps or proplists to bson
