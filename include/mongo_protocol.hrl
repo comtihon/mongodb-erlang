@@ -2,7 +2,7 @@
 
 -define(GS2_HEADER, <<"n,,">>).
 
--type colldb() :: collection() | { database(), collection() }.
+-type colldb() :: collection() | {database(), collection()}.
 -type collection() :: binary() | atom(). % without db prefix
 -type database() :: binary() | atom().
 

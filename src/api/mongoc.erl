@@ -12,13 +12,11 @@
 -export([
   connect/3,
   disconnect/1,
-  command/2,
-  command/3,
+  command/4,
   find_one/5,
   find/6,
   find/3,
-  count/3,
-  count/4,
+  count/5,
   transaction_query/2,
   transaction_query/3,
   transaction_query/4,
@@ -162,38 +160,34 @@ find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
   },
   mc_action_man:read(Pool, mongos_query_transform(ServerType, Q, RPrefs)).
 
-%% @doc Counts selected documents
--spec count(pid(), colldb(), mc_worker_api:selector()) -> integer().
-count(Pool, Coll, Selector) ->
-  count(Pool, Coll, Selector, 0).
-
-
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(pid(), colldb(), mc_worker_api:selector(), integer()) -> integer().
-count(Pool, {Db, Coll}, Selector, Limit) when Limit =< 0 ->
+-spec count(map(), colldb(), mc_worker_api:selector(), readprefs(), integer()) -> integer().
+count(Pool, {Db, Coll}, Selector, Options, Limit) when Limit =< 0 ->
   {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Db),
+    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),
   trunc(N);
-count(Pool, {Db, Coll}, Selector, Limit) ->
+count(Pool, {Db, Coll}, Selector, Options, Limit) ->
   {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Db),
+    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, Db),
   trunc(N); % Server returns count as float
-count(Pool, Coll, Selector, Limit) when Limit =< 0 ->
+count(Pool, Coll, Selector, Options, Limit) when Limit =< 0 ->
   {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}),
+    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, undefined),
   trunc(N);
-count(Pool, Coll, Selector, Limit) ->
+count(Pool, Coll, Selector, Options, Limit) ->
   {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}),
+    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, undefined),
   trunc(N). % Server returns count as float
 
--spec command(pid(), bson:document()) -> {boolean(), bson:document()} | {error, reason()}. % Action
-command(Pool, Command) ->
-  command(Pool, Command, undefined).
-
--spec command(map(), bson:document(), readprefs()) -> {boolean(), bson:document()} | {error, reason()}. % Action
-command(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Command, Db) ->
+-spec command(map(), bson:document(), readprefs(), undefined | colldb()) ->
+  {boolean(), bson:document()} | {error, reason()}. % Action
+command(Pid, Command, Options, Db) when is_pid(Pid) ->
+  case mc_topology:get_pool(Pid, Options) of
+    {ok, Pool} -> command(Pool, Command, Options, Db);
+    Error -> Error
+  end;
+command(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Command, _, Db) ->
   Q = #'query'{
     collection = {Db, <<"$cmd">>},
     selector = Command

@@ -52,4 +52,4 @@ find_one(Topology, Collection, Selector, Projector, TTL) ->
 
 -spec count(atom() | pid(), binary(), mc_worker_api:selector(), map() | list(), integer() | infinity) -> integer().
 count(Topology, Collection, Selector, Limit, TTL) ->
-  mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, Limit) end, [], TTL).
+  mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, [], Limit) end, [], TTL).
