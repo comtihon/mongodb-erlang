@@ -51,50 +51,50 @@ init_per_testcase(Case, Config) ->
 
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),
-  Collection = ?config(collection, Config).
-  %mongo:delete(Connection, Collection, {}).
+  Collection = ?config(collection, Config),
+  mc_worker_api:delete(Connection, Collection, {}).
 
 %% Tests
 insert_and_find(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
-  Teams = mongo:insert(Connection, Collection, [
+  {{true, _}, Teams} = mc_worker_api:insert(Connection, Collection, [
     {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
     {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
     {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
     {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
   ]),
-  4 = mongo:count(Connection, Collection, {}),
+  4 = mc_worker_api:count(Connection, Collection, {}),
   Teams2 = find(Connection, Collection, {}),
   true = match_bson(Teams, Teams2),
 
   NationalTeams = [Team || Team <- Teams, bson:at(<<"league">>, Team) == <<"National">>],
   NationalTeams2 = find(Connection, Collection, {<<"league">>, <<"National">>}),
   true = match_bson(NationalTeams, NationalTeams2),
-  2 = mongo:count(Connection, Collection, {<<"league">>, <<"National">>}),
+  2 = mc_worker_api:count(Connection, Collection, {<<"league">>, <<"National">>}),
   TeamNames = [bson:include([<<"name">>], Team) || Team <- Teams],
   TeamNamesMap = find(Connection, Collection, {}, {<<"_id">>, 0, <<"name">>, 1}),
   TeamNames = lists:foldr(fun(M, A) -> maps:to_list(M) ++ A end, [], TeamNamesMap),
 
   BostonTeam = lists:last(Teams),
-  BostonTeam2 = mongo:find_one(Connection, Collection, {<<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}}),
+  BostonTeam2 = mc_worker_api:find_one(Connection, Collection, {<<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}}),
   true = match_bson([BostonTeam], [maps:to_list(BostonTeam2)]).
 
 insert_and_delete(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
-  mongo:insert(Connection, Collection, [
+  mc_worker_api:insert(Connection, Collection, [
     {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
     {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
     {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
     {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
   ]),
-  4 = mongo:count(Connection, Collection, {}),
+  4 = mc_worker_api:count(Connection, Collection, {}),
 
-  mongo:delete_one(Connection, Collection, {}),
-  3 = mongo:count(Connection, Collection, {}).
+  mc_worker_api:delete_one(Connection, Collection, {}),
+  3 = mc_worker_api:count(Connection, Collection, {}).
 
 insert_map(Config) ->
   Connection = ?config(connection, Config),
@@ -102,7 +102,7 @@ insert_map(Config) ->
 
   Map = #{<<"name">> => <<"Yankees">>, <<"home">> =>
   #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>},
-  mongo:insert(Connection, Collection, Map),
+  mc_worker_api:insert(Connection, Collection, Map),
 
   [Res] = find(Connection, Collection, {<<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}}),
   #{<<"home">> := #{<<"city">> := <<"New York">>, <<"state">> := <<"NY">>},
@@ -114,7 +114,7 @@ search_and_query(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mongo:insert(Connection, Collection, [
+  mc_worker_api:insert(Connection, Collection, [
     #{<<"name">> => <<"Yankees">>, <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>},
     #{<<"name">> => <<"Mets">>, <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"National">>},
     {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
@@ -142,7 +142,7 @@ sort_and_limit(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mongo:insert(Connection, Collection, [
+  mc_worker_api:insert(Connection, Collection, [
     {<<"key">>, <<"test">>, <<"value">>, <<"two">>, <<"tag">>, 2},
     {<<"key">>, <<"test">>, <<"value">>, <<"one">>, <<"tag">>, 1},
     {<<"key">>, <<"test">>, <<"value">>, <<"four">>, <<"tag">>, 4},
@@ -151,7 +151,7 @@ sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  {true, #{<<"result">> := Res}} = mongo:command(Connection,
+  {true, #{<<"result">> := Res}} = mc_worker_api:command(Connection,
     {<<"aggregate">>, Collection, <<"pipeline">>, [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}]}),
   ct:pal("Got ~p", [Res]),
 
@@ -163,7 +163,7 @@ sort_and_limit(Config) ->
   ] = Res,
 
   %test match & sort with limit
-  {true, #{<<"result">> := Res1}} = mongo:command(Connection,
+  {true, #{<<"result">> := Res1}} = mc_worker_api:command(Connection,
     {<<"aggregate">>, Collection, <<"pipeline">>,
       [
         {<<"$match">>, {<<"key">>, <<"test">>}},
@@ -181,7 +181,7 @@ update(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mongo:insert(Connection, Collection,
+  mc_worker_api:insert(Connection, Collection,
     {<<"_id">>, 100,
       <<"sku">>, <<"abc123">>,
       <<"quantity">>, 250,
@@ -242,7 +242,7 @@ update(Config) ->
     <<"details">> => #{<<"model">> => "14Q3"},  %with flatten_map there is no need to specify non-changeble data
     <<"tags">> => ["coats", "outerwear", "clothing"]
   },
-  mongo:update(Connection, Collection, {<<"_id">>, 100}, #{<<"$set">> => bson:flatten_map(Command)}),
+  mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, #{<<"$set">> => bson:flatten_map(Command)}),
 
   %check data updated
   [Res1] = find(Connection, Collection, {<<"_id">>, 100}),
@@ -258,7 +258,7 @@ update(Config) ->
 
   %update non existent fields
   Command1 = {<<"$set">>, {<<"expired">>, true}},
-  mongo:update(Connection, Collection, {<<"_id">>, 100}, Command1),
+  mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command1),
 
   %check data updated
   [Res2] = find(Connection, Collection, {<<"_id">>, 100}),
@@ -275,7 +275,7 @@ update(Config) ->
 
   %update embedded fields
   Command2 = {<<"$set">>, {<<"details.make">>, "zzz"}},
-  mongo:update(Connection, Collection, {<<"_id">>, 100}, Command2),
+  mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command2),
 
   %check data updated
   [Res3] = find(Connection, Collection, {<<"_id">>, 100}),
@@ -295,7 +295,7 @@ update(Config) ->
     <<"tags.1">>, "rain gear",
     <<"ratings.0.rating">>, 2
   }},
-  mongo:update(Connection, Collection, {<<"_id">>, 100}, Command3),
+  mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command3),
   [Res4] = find(Connection, Collection, {<<"_id">>, 100}),
   ct:log("Got ~p", [Res4]),
   #{<<"_id">> := 100,
@@ -316,7 +316,7 @@ find(Connection, Collection, Selector) ->
 
 %% @private
 find(Connection, Collection, Selector, Projector) ->
-  Cursor = mongo:find(Connection, Collection, Selector, [{projector, Projector}]),
+  Cursor = mc_worker_api:find(Connection, Collection, Selector, [{projector, Projector}]),
   Result = mc_cursor:rest(Cursor),
   mc_cursor:close(Cursor),
   Result.

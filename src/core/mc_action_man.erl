@@ -12,21 +12,21 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([read/2, read_one/2, read_one_sync/3]).
+-export([read/2, read_one/2, read_one_sync/4]).
 
 read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}) ->
-  {Cursor, Batch} = mc_connection_man:request_async(Connection, Request),
+  {Cursor, Batch} = mc_connection_man:request_worker(Connection, Request),
   mc_cursor:create(Connection, Collection, Cursor, BatchSize, Batch).
 
 read_one(Connection, Request) ->
-  {0, Docs} = mc_connection_man:request_async(Connection, Request#'query'{batchsize = -1}),
+  {0, Docs} = mc_connection_man:request_worker(Connection, Request#'query'{batchsize = -1}),
   case Docs of
     [] -> #{};
     [Doc | _] -> Doc
   end.
 
-read_one_sync(Socket, Database, Request) ->
-  {0, Docs} = mc_connection_man:request_sync(Socket, Database, Request#'query'{batchsize = -1}),
+read_one_sync(Socket, Database, Request, SetOpts) ->
+  {0, Docs} = mc_connection_man:request_raw(Socket, Database, Request#'query'{batchsize = -1}, SetOpts),
   case Docs of
     [] -> #{};
     [Doc | _] -> Doc

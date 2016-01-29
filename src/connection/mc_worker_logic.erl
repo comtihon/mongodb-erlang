@@ -13,7 +13,7 @@
 
 %% API
 -export([encode_requests/2, decode_responses/1, process_responses/2]).
--export([gen_index_name/1, make_request/3, get_resp_fun/2]).
+-export([gen_index_name/1, make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1]).
 
 encode_requests(Database, Request) when not is_list(Request) ->
   encode_requests(Database, [Request]);
@@ -35,7 +35,7 @@ get_resp_fun(Read, From) when is_record(Read, query); is_record(Read, getmore) -
 get_resp_fun(Write, From) when is_record(Write, insert); is_record(Write, update); is_record(Write, delete) ->
   process_write_response(From).
 
--spec process_responses(Responses :: list(), RequestStorage :: dict) -> UpdStorage :: dict.  %dict:dict()
+-spec process_responses(Responses :: list(), RequestStorage :: dict:dict()) -> UpdStorage :: dict:dict().
 process_responses(Responses, RequestStorage) ->
   lists:foldl(
     fun({Id, Response}, UReqStor) ->
@@ -56,9 +56,17 @@ gen_index_name(KeyOrder) ->
       $_, (mc_utils:value_to_binary(Order))/binary>>
     end, <<"i">>, KeyOrder).
 
-make_request(Socket, Database, Request) ->
+make_request(Socket, NetModule, Database, Request) ->
   {Packet, Id} = encode_requests(Database, Request),
-  {gen_tcp:send(Socket, Packet), Id}.
+  {NetModule:send(Socket, Packet), Id}.
+
+update_dbcoll({Db, _}, Coll) -> {Db, Coll};
+update_dbcoll(_, Coll) -> Coll.
+
+collection(#'query'{collection = Coll}) -> Coll;
+collection(#'insert'{collection = Coll}) -> Coll;
+collection(#'update'{collection = Coll}) -> Coll;
+collection(#'delete'{collection = Coll}) -> Coll.
 
 
 %% @private

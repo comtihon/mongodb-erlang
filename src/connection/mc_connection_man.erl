@@ -15,18 +15,20 @@
 -define(UNAUTHORIZED_ERROR, 10057).
 
 %% API
--export([reply/1, request_async/2, process_reply/2, request_sync/3]).
+-export([reply/1, request_worker/2, process_reply/2, request_raw/4]).
 
--spec request_async(pid(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
-request_async(Connection, Request) ->  %request to worker
+-spec request_worker(pid(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
+request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_sync(port(), mongo:database(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
-request_sync(Socket, Database, Request) ->
+-spec request_raw(port(), mc_worker_api:database(), bson:document(), module()) -> ok | {non_neg_integer(), [bson:document()]}.
+request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
-  {ok, _} = mc_worker_logic:make_request(Socket, Database, Request),
-  {ok, Packet} = gen_tcp:recv(Socket, 0, Timeout),
+  set_opts(Socket, NetModule, false),
+  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
+  {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
+  set_opts(Socket, NetModule, true),
   {Responses, _} = mc_worker_logic:decode_responses(Packet),
   {_, Reply} = hd(Responses),
   reply(Reply).
@@ -54,3 +56,9 @@ process_error(?UNAUTHORIZED_ERROR, _) ->
   erlang:error(unauthorized);
 process_error(_, Doc) ->
   erlang:error({bad_query, Doc}).
+
+%% @private
+set_opts(Socket, ssl, Value) ->
+  ssl:setopts(Socket, [{active, Value}]);
+set_opts(Socket, gen_tcp, Value) ->
+  inet:setopts(Socket, [{active, Value}]).

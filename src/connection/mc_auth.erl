@@ -12,7 +12,7 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([auth/3, connect_to_database/1, get_version/2]).
+-export([auth/5, connect_to_database/1]).
 
 %% Make connection to database and return socket
 -spec connect_to_database(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
@@ -20,28 +20,37 @@ connect_to_database(Conf) ->  %TODO scram server-first auth case
   Timeout = mc_utils:get_value(timeout, Conf, infinity),
   Host = mc_utils:get_value(host, Conf, "127.0.0.1"),
   Port = mc_utils:get_value(port, Conf, 27017),
-  gen_tcp:connect(Host, Port, [binary, {active, false}, {packet, raw}], Timeout).
-
-%% Get server version. This is need to choose default authentification method.
--spec get_version(port(), binary()) -> float().
-get_version(Socket, Database) ->
-  {true, #{<<"version">> := Version}} = mongo:sync_command(Socket, Database, {<<"buildinfo">>, 1}),
-  {VFloat, _} = string:to_float(binary_to_list(Version)),
-  VFloat.
+  SSL = mc_utils:get_value(ssl, Conf, false),
+  SslOpts = mc_utils:get_value(ssl_opts, Conf, []),
+  do_connect(Host, Port, Timeout, SSL, SslOpts).
 
 %% Authorize on database synchronously
--spec auth(port(), proplists:proplist(), binary()) -> {boolean(), bson:document()}.
-auth(Socket, Conf, Database) ->
-  Version = get_version(Socket, Database),
-  Login = mc_utils:get_value(login, Conf),
-  Password = mc_utils:get_value(password, Conf),
-  do_auth(Version, Socket, Database, Login, Password).
+-spec auth(port(), binary() | undefined, binary() | undefined, binary(), module()) ->
+  {boolean(), bson:document()}.
+auth(Socket, Login, Password, Database, NetModule) ->
+  Version = get_version(Socket, Database, NetModule),
+  do_auth(Version, Socket, Database, Login, Password, NetModule).
 
 
 %% @private
--spec do_auth(float(), port(), binary(), binary() | undefined, binary() | undefined) -> boolean().
-do_auth(_, _, _, Login, Pass) when Login == undefined; Pass == undefined -> true; %do nothing
-do_auth(Version, Socket, Database, Login, Password) when Version > 2.7 ->  %new authorisation
-  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password);
-do_auth(_, Socket, Database, Login, Password) ->   %old authorisation
-  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password).
+%% Get server version. This is need to choose default authentication method.
+-spec get_version(port(), binary(), module()) -> float().
+get_version(Socket, Database, SetOpts) ->
+  {true, #{<<"version">> := Version}} = mc_worker_api:sync_command(Socket, Database, {<<"buildinfo">>, 1}, SetOpts),
+  {VFloat, _} = string:to_float(binary_to_list(Version)),
+  VFloat.
+
+%% @private
+-spec do_auth(float(), port(), binary(), binary() | undefined, binary() | undefined, fun()) -> boolean().
+do_auth(_, _, _, Login, Pass, _) when Login == undefined; Pass == undefined -> true; %do nothing
+do_auth(Version, Socket, Database, Login, Password, SetOptsFun) when Version > 2.7 ->  %new authorisation
+  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password, SetOptsFun);
+do_auth(_, Socket, Database, Login, Password, SetOptsFun) ->   %old authorisation
+  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password, SetOptsFun).
+
+%% @private
+do_connect(Host, Port, Timeout, true, Opts) ->
+  application:ensure_all_started(ssl),
+  ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
+do_connect(Host, Port, Timeout, false, _) ->
+  gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).

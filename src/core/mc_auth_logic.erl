@@ -21,21 +21,21 @@
   }).
 
 %% API
--export([mongodb_cr_auth/4, scram_sha_1_auth/4, compose_first_message/2, compose_second_message/5]).
+-export([mongodb_cr_auth/5, scram_sha_1_auth/5, compose_first_message/2, compose_second_message/5]).
 
--spec mongodb_cr_auth(port(), binary(), binary(), binary()) -> true.
-mongodb_cr_auth(Socket, Database, Login, Password) ->
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"getnonce">>, 1}),
+-spec mongodb_cr_auth(port(), binary(), binary(), binary(), module()) -> true.
+mongodb_cr_auth(Socket, Database, Login, Password, SetOpts) ->
+  {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"getnonce">>, 1}, SetOpts),
   Nonce = maps:get(<<"nonce">>, Res),
-  case mongo:sync_command(Socket, Database, ?AUTH_CMD(Login, Nonce, Password)) of
+  case mc_worker_api:sync_command(Socket, Database, ?AUTH_CMD(Login, Nonce, Password), SetOpts) of
     {true, _} -> true;
     {false, Reason} -> erlang:error(Reason)
   end.
 
--spec scram_sha_1_auth(port(), binary(), binary(), binary()) -> boolean().
-scram_sha_1_auth(Socket, Database, Login, Password) ->
+-spec scram_sha_1_auth(port(), binary(), binary(), binary(), fun()) -> boolean().
+scram_sha_1_auth(Socket, Database, Login, Password, SetOptsFun) ->
   try
-    scram_first_step(Socket, Database, Login, Password)
+    scram_first_step(Socket, Database, Login, Password, SetOptsFun)
   catch
     _:_ ->
       erlang:error(<<"Can't pass authentification">>)
@@ -43,38 +43,38 @@ scram_sha_1_auth(Socket, Database, Login, Password) ->
 
 
 %% @private
-scram_first_step(Socket, Database, Login, Password) ->
+scram_first_step(Socket, Database, Login, Password, SetOpts) ->
   RandomBString = list_to_binary(mc_utils:random_string(?RANDOM_LENGTH)),
   FirstMessage = compose_first_message(Login, RandomBString),
-  Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>), %TODO investigate need of encoding!
-  {true, Res} = mongo:sync_command(Socket, Database,
-    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"autoAuthorize">>, 1, <<"payload">>, Message}),
+  Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>),
+  {true, Res} = mc_worker_api:sync_command(Socket, Database,
+    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"autoAuthorize">>, 1, <<"payload">>, Message}, SetOpts),
   ConversationId = maps:get(<<"conversationId">>, Res, {}),
   Payload = maps:get(<<"payload">>, Res),
-  scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage).
+  scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage, SetOpts).
 
 %% @private
-scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage) ->
+scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage, SetOpts) ->
   Decoded = base64:decode(Payload),
   {Signature, ClientFinalMessage} = compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage),
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, base64:encode(ClientFinalMessage)}),
-  scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database).
+  {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId,
+    <<"payload">>, base64:encode(ClientFinalMessage)}, SetOpts),
+  scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database, SetOpts).
 
 %% @private
-scram_third_step(ServerSignature, Response, ConversationId, Socket, Database) ->
+scram_third_step(ServerSignature, Response, ConversationId, Socket, Database, SetOpts) ->
   Payload = maps:get(<<"payload">>, Response),
   Done = maps:get(<<"done">>, Response, false),
   ParamList = parse_server_responce(base64:decode(Payload)),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList),
-  scram_forth_step( Done, ConversationId, Socket, Database ).
+  scram_forth_step(Done, ConversationId, Socket, Database, SetOpts).
 
 %% @private
-scram_forth_step( true, _, _, _ ) ->
-    ok;
-scram_forth_step( false, ConversationId, Socket, Database ) ->
-  {true, Res} = mongo:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId, <<"payload">>, <<>> } ),
+scram_forth_step(true, _, _, _, _) -> ok;
+scram_forth_step(false, ConversationId, Socket, Database, SetOpts) ->
+  {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>,
+    ConversationId, <<"payload">>, <<>>}, SetOpts),
   true = maps:get(<<"done">>, Res, false).
-
 
 
 %% Export for test purposes
