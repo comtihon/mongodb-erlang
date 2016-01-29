@@ -198,7 +198,7 @@ prepare_and_assign(Docs) when is_tuple(Docs) ->
     <<"$", _/binary>> -> Docs;  %command
     _ ->  %document
       case prepare_doc(Docs) of
-        Res when is_tuple(Res) -> [Res];
+        Res when is_tuple(Res) -> Res;
         List -> List
       end
   end;
@@ -207,13 +207,13 @@ prepare_and_assign(Doc) when is_map(Doc), map_size(Doc) == 1 ->
     [<<"$", _/binary>>] -> Doc; %command
     _ ->  %document
       case prepare_doc(Doc) of
-        Res when is_tuple(Res) -> [Res];
+        Res when is_tuple(Res) -> Res;
         List -> List
       end
   end;
 prepare_and_assign(Docs) ->
   case prepare_doc(Docs) of
-    Res when not is_list(Res) -> [Res];
+    Res when not is_list(Res) -> Res;
     List -> List
   end.
 
