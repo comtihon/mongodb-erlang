@@ -203,7 +203,6 @@ update(Config) ->
     <<"tags">> := ["apparel", "clothing"],
     <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
 
-
   %update full document
   NewDoc =  {<<"_id">>, 100,
         <<"sku">>, <<"abc123">>,
@@ -213,6 +212,15 @@ update(Config) ->
         <<"details">>, {<<"model">>, "14Q2", <<"make">>, "xyz"},
         <<"tags">>, ["apparel", "clothing"],
         <<"ratings">>, [{<<"by">>, "ijk", <<"rating">>, 4}]},
+  %update full document
+  NewDoc =  {<<"_id">>, 100,
+    <<"sku">>, <<"abc123">>,
+    <<"quantity">>, 1000,
+    <<"instock">>, true,
+    <<"reorder">>, false,
+    <<"details">>, {<<"model">>, "14Q2", <<"make">>, "xyz"},
+    <<"tags">>, ["apparel", "clothing"],
+    <<"ratings">>, [{<<"by">>, "ijk", <<"rating">>, 4}]},
   mongo:update(Connection, Collection, {<<"_id">>, 100},NewDoc),
 
   %Check full document
