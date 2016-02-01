@@ -40,3 +40,8 @@ instead of '$set' as it will lead to crash.
 
 * add ssl support
 * add return ok | error for write requests
+
+### 4.0 (tag v0.9)
+* mongo.erl -> mc_worker_api.erl
+* mongo_api.erl with api functions for mongoc
+* changed api for mc_worker_api and mongoc

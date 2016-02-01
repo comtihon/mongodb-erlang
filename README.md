@@ -31,17 +31,17 @@ The mongodb application needs be started before using (to initialize an internal
 Although the mongodb application includes several modules, you should only need to use top-level driver interfaces *mongo* or *mongoc*. *mongo* can be used for direct connections to a single mongod or mongos server. Use *mongoc* for connection to sharded or replica set Mongo deployments (As a matter of fact mongoc is built upon mongo module and also can be used for connections to a single server. Also it has built-in support of pooling connections so you won't be in any need of using extra pooling libraries like a poolboy). Likewise, you should only need to use the *bson* module in the bson application.
 
 
-mongo -- direct connection client
+mc_worker_api -- direct connection client
 ---------------------------------
 
 ### Connecting
 To connect to a database `test` on mongodb server listening on `localhost:27017` (or any address & port of your choosing)
-use `mongo:connect/1`.
+use `mc_worker_api:connect/1`.
 
 	> Database = <<"test">>.
-	> {ok, Connection} = mongo:connect ([{database, Database}]).
+	> {ok, Connection} = mc_worker_api:connect ([{database, Database}]).
 
-`mongo:connect` returns `{error, Reason}` if it failed to connect. See arguments you can pass in `mongo.erl` type spec:
+`mc_worker_api:connect` returns `{error, Reason}` if it failed to connect. See arguments you can pass in `mc_worker_api.erl` type spec:
 
     -type arg() :: {database, database()}
     | {login, binary()}
@@ -73,30 +73,30 @@ If you set `{login, Login}` and `{password, Password}` options - mc_worker will 
 After you connected to your database - you can carry out write operations, such as `insert`, `update` and `delete`:
 
     > Collection = <<"test">>.
-    > mongo:insert(Connection, Collection, [
+    > mc_worker_api:insert(Connection, Collection, [
           {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
           {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
           {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
           {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
         ]),
-An insert example (from `mongo_SUITE` test module). `Connection` is your Connection, got `from mongo:connect`, `Collection`
+An insert example (from `mongo_SUITE` test module). `Connection` is your Connection, got `from mc_worker_api:connect`, `Collection`
 is your collection name, `Doc` is something, you want to save.
 Doc will be returned, if insert succeeded. If Doc doesn't contains `_id` field - an updated Doc will be returned - with
 automatically generated '_id' fields. If error occurred - Connection will fall.
 
-    > mongo:delete(Connection, Collection, Selector).
+    > mc_worker_api:delete(Connection, Collection, Selector).
 Delete example. `Connection` is your Connection, `Collection` - is a collection you want to clean. `Selector` is the
 rules for cleaning. If you want to clean everything - pass empty `{}`.  
 You can also use maps instead bson documents:
 
     > Collection = <<"test">>.
-    > mongo:insert(Connection, Collection, #{<<"name">> => <<"Yankees">>, <<"home">> =>
+    > mc_worker_api:insert(Connection, Collection, #{<<"name">> => <<"Yankees">>, <<"home">> =>
       #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>}, <<"league">> => <<"American">>}),
 
 ### Reading
 To call read operations use `find`, `find_one`:
 
-    > Cursor = mongo:find(Connection, Collection, Selector)
+    > Cursor = mc_worker_api:find(Connection, Collection, Selector)
 All params similar to `delete`.
 The difference between `find` and `find_one` is in return. Find_one just returns your result, while find returns you a
 `Cursor` - special process' pid. You can query data through the process with the help of `mc_cursor' module.
@@ -108,24 +108,24 @@ __Important!__ Do not forget to close cursors after using them!
 ### Advance reading
 To search for params - specify `Selector`:
 
-    mongo:find_one(Connection, Collection, {<<"key">>, <<"123">>}).
+    mc_worker_api:find_one(Connection, Collection, {<<"key">>, <<"123">>}).
 will return one document from collection Collection with key == <<"123">>.
 
-    mongo:find_one(Connection, Collection, {<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}).
+    mc_worker_api:find_one(Connection, Collection, {<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}).
 will return one document from collection Collection with key == <<"123">> `and` value == <<"built_in">>.
 Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}` are selectors.
 
 For filtering result - use `Projector`:
 
-    mongo:find_one(Connection, Collection, {}, [{projector, {<<"value">>, true}]).
+    mc_worker_api:find_one(Connection, Collection, {}, [{projector, {<<"value">>, true}]).
 will return one document from collection Collection with fetching `only` _id and value.
 
-    mongo:find_one(Connection, Collection, {}, [{projector, {<<"key">>, false, <<"value">>, false}}]).
+    mc_worker_api:find_one(Connection, Collection, {}, [{projector, {<<"key">>, false, <<"value">>, false}}]).
 will return your data without key and value params. If there is no other data - only _id will be returned.
 __Important!__ For empty projector use `[]` instead `{}`. For empty selector use `{}`.
 
 ### Updating
-To add or update field in document - use `mongo:update` function with `$set` param.
+To add or update field in document - use `mc_worker_api:update` function with `$set` param.
 This updates selected fields:
 
     Command = {<<"$set">>, {
@@ -133,30 +133,30 @@ This updates selected fields:
         <<"details">>, {<<"model">>, "14Q3", <<"make">>, "xyz"},
         <<"tags">>, ["coats", "outerwear", "clothing"]
     }},
-    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will add new field `expired`, if there is no such field, and set it to true.
 
     Command = {<<"$set">>, {<<"expired">>, true}},
-    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will update fields in nested documents.
 
     Command = {<<"$set">>, {<<"details.make">>, "zzz"}},
-    mongo:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
 This will update elements in array.
 
     Command = {<<"$set">>, {
         <<"tags.1">>, "rain gear",
         <<"ratings.0.rating">>, 2
       }},
-    mongo:update(Connection, Collection, {'_id', 100}, Command),
+    mc_worker_api:update(Connection, Collection, {'_id', 100}, Command),
 For result of executing this functions - see mongo_SUITE update test.
 
 ### Creating indexes
-To create indexes - use `mongo:ensure_index/3` command:
+To create indexes - use `mc_worker_api:ensure_index/3` command:
 
-    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
-    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>}).  %advanced
-    mongo:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>, <<"unique">>, true, <<"dropDups">>, true}).  %full
+    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
+    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>}).  %advanced
+    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>, <<"unique">>, true, <<"dropDups">>, true}).  %full
 
 ensure_index takes `mc_worker`' pid or atom name as first parameter, collection, where to create index, as second
 parameter and bson document with index
@@ -165,11 +165,11 @@ If index specification is not full - it is automatically filled with values: `na
 false`, where `Name` is index's key.
 
 ### Administering
-This driver does not provide helper functions for commands. Use `mongo:command` directly and refer to the
+This driver does not provide helper functions for commands. Use `mc_worker_api:command` directly and refer to the
 [MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) for how to issue raw commands.
 
 ### Authentication
-To authenticate use function `mongo:connect`, or `mc_worker:start_link([...{login, <<"login">>}, {password, <<"password">>}...]`  
+To authenticate use function `mc_worker_api:connect`, or `mc_worker:start_link([...{login, <<"login">>}, {password, <<"password">>}...]`  
 Login and password should be binaries!
 
 ### Timeout
@@ -188,12 +188,16 @@ For pooling use [Poolboy](https://github.com/devinus/poolboy) with mc_worker as 
 mongoc -- client with automatic MongoDB topology discovery and monitoring
 -------------------------------------------------------------------------
 
+You can use `mongo_api.erl` for easy working with mongoc, or as an example of building your own api.
+
 ### Connection
 
 For opening connection to a MongoDB you can use this call of mongoc:connect method:
 
 
     {ok, Topology} = mongoc:connect( Seed, Options, WorkerOptions )
+    % or
+    {ok, Topology} = mongo_api:connect(Type, Hosts, Options, WorkerOptions)
 
 
 Where **Seed** contains information about host names and ports to connect and info about topology of MongoDB deployment.
@@ -216,6 +220,7 @@ And if you want your MongoDB deployment metadata to be auto revered use unknow i
 
     { unknown,  "hostname1:port1", "hostname2:port2"] }
 
+Type in `mongo_api:connect` is topology type (`unknown` | `sharded`). 
 
 mongoc topology **Options**
 
@@ -252,20 +257,20 @@ Use transaction poolboy-like interface for mongoc:
 
 	mongoc:transaction_query(?DBPOOL,
         fun(Conf) ->
-          mongoc:find_one(Conf, Collection, Key, [{projector, Projector}])
+          mongoc:find_one(Conf, Collection, Key, Projector, 0)
         end)
 
 	mongoc:transaction_query(?DBPOOL,
         fun(Conf) ->
-          Res = mongoc:find_one(Conf, Collection, Key, [{projector, Projector}]),
+          Res = mongoc:find_one(Conf, Collection, Key, Projector, 0),
           mc_worker:hibernate(Conf),
           Res
         end)
         
-    mongoc:transaction(?DBPOOL, fun(Conf) -> mongoc:count(Conf, Collection, Value, 1) end, [])
+    mongoc:transaction(?DBPOOL, fun(Conf) -> mongoc:count(Conf, Collection, Value, [], 1) end, [])
 
 	mongoc:transaction(?DBPOOL,
-        fun(Worker) -> mongo:update(Worker, Collection, Key, Command, [{upsert, Upsert}, {multi, Multi}]) end)
+        fun(Worker) -> mc_worker_api:update(Worker, Collection, Key, Command, Upsert, Multi) end)
 
 Notice, that all write operations like `update`, `insert`, `delete` do with **mongo**, but all read operations 
 do with **mongoc**.  
@@ -273,7 +278,7 @@ You can set up your read preferences when reading:
 
 	mongoc:transaction_query(?DBPOOL,
         fun(Conf) ->
-          mongoc:find_one(Conf#{read_preference => secondaryPreferred}, Collection, Key, [{projector, Projector}])
+          mongoc:find_one(Conf#{read_preference => secondaryPreferred}, Collection, Key, Projector, 0)
         end)
 
 
