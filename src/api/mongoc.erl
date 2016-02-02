@@ -36,8 +36,9 @@
 | {sharded, [host()]}.
 -type connectoptions() :: [coption()].
 -type coption() :: {name, atom()}
-|{minPoolSize, integer()}
-|{maxPoolSize, integer()}
+|{register, atom()}
+|{pool_size, integer()}
+|{max_overflow, integer()}
 |{localThresholdMS, integer()}
 |{connectTimeoutMS, integer()}
 |{socketTimeoutMS, integer()}
