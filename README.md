@@ -214,7 +214,7 @@ If you want to connect to a replica set _ReplicaSetName_ use this format of Seed
 
 To connect to a sharded cluster of mongos:
 
-    { sharded,  "hostname1:port1", "hostname2:port2"] }
+    { sharded,  ["hostname1:port1", "hostname2:port2"] }
 
 And if you want your MongoDB deployment metadata to be auto revered use unknow id in Seed tuple:   
 
@@ -225,7 +225,8 @@ Type in `mongo_api:connect` is topology type (`unknown` | `sharded`).
 mongoc topology **Options**
 
     [
-        { name,  Name },    % Name should be used for mongoc topology process to be registered with
+        { name,  Name },    % Name should be used for mongoc pool to be registered with
+        { register,  Name },    % Name should be used for mongoc topology process to be registered with
 
         { pool_size, 5 }, % pool size on start
         { max_overflow, 10 },	%max pool size
