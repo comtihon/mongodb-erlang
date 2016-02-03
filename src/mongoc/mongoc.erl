@@ -90,7 +90,7 @@
 %							{ minHeartbeatFrequencyMS, 1000 },
 
 %							{ rp_mode, primary },
-%							{ rp_tags, [{tag,1}] },
+%							{ rp_tags, [{tag1,1},{tag2,2}] },
 
 %						]
 
@@ -354,24 +354,29 @@ exec_command( C, Command ) ->
 mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := primary } ) ->
 	Q#'query'{ selector = S, slaveok = false, sok_overriden = true };
 
-mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := secondary, tags := Tags } ) ->
-	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', [ { mode, secondary }, {tags,Tags} ] } ] ), slaveok = true, sok_overriden = true };
-
 mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := primaryPreferred, tags := [] } ) ->
 	Q#'query'{ selector = S, slaveok = true, sok_overriden = true };
 
 mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := primaryPreferred, tags := Tags } ) ->
-	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', [ { mode, secondary }, {tags,Tags} ] } ] ), slaveok = true, sok_overriden = true };
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"primaryPreferred">>, tags, bson:document( Tags ) } } ] ), slaveok = true, sok_overriden = true };
 
-mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := primaryPreffered, tags := Tags } ) ->
-	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', [ { mode, primaryPreffered }, {tags,Tags} ] } ] ), slaveok = true, sok_overriden = true };
+mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := secondary, tags := [] } ) ->
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"secondary">> } } ] ), slaveok = true, sok_overriden = true };
+
+mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := secondary, tags := Tags } ) ->
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"secondary">>, tags, bson:document( Tags ) } } ] ), slaveok = true, sok_overriden = true };
+
+mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := secondaryPreferred, tags := [] } ) ->
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"secondaryPreferred">> } } ] ), slaveok = true, sok_overriden = true };
+
+mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := secondaryPreferred, tags := Tags } ) ->
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"secondaryPreferred">>, tags, bson:document( Tags ) } } ] ), slaveok = true, sok_overriden = true };
+
+mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := nearest, tags := [] } ) ->
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"nearest">> } } ] ), slaveok = true, sok_overriden = true };
 
 mongos_query_transform( mongos, #'query'{ selector = S } = Q, #{ mode := nearest, tags := Tags } ) ->
-	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', [ { mode, nearest }, {tags,Tags} ] } ] ), slaveok = true, sok_overriden = true };
-
-% for test purposes only ->
-% mongos_query_transform( rsSecondary, #'query'{ selector = S } = Q, #{ mode := secondary, tags := Tags } ) ->
-%	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', [ { mode, secondary }, {tags,Tags} ] } ] ), slaveok = true, sok_overriden = true };
+	Q#'query'{ selector = bson:document( [ { '$query', S }, { '$readPreference', { mode, <<"nearest">>, tags, bson:document( Tags ) } } ] ), slaveok = true, sok_overriden = true };
 
 mongos_query_transform( _, Q, #{ mode := primary } ) ->
 	Q#'query'{ slaveok = false, sok_overriden = true };

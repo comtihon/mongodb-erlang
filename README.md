@@ -238,7 +238,7 @@ mongoc topology **Options**
 
         { rp_mode, primary }, % default ReadPreference mode - primary, secondary, primaryPreferred, secondaryPreferred, nearest
 
-        { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
+        { rp_tags, [ {tag,1}, {tag2,2} ] }, % tags mongodb servers should be tagged with for becoming candidates for server selection ( [] is a default value, no tags will be checked )
     ]
 
 mongoc **WorkerOptions** (as described in mongo Connecting chapter)
