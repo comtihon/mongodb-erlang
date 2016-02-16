@@ -12,7 +12,12 @@
   update/4,
   update/6,
   delete/3,
-  delete_one/3, delete_limit/4]).
+  delete_one/3,
+  delete_limit/4,
+  insert/4,
+  update/7,
+  delete_limit/5]).
+
 -export([
   find_one/3,
   find_one/4,
@@ -82,7 +87,7 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
+-spec insert(pid(), collection(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
   {Res, UDoc};
@@ -90,33 +95,55 @@ insert(Connection, Coll, Docs) ->
   Converted = prepare(Docs, fun assign_id/1),
   {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
 
+-spec insert(pid(), collection(), list() | map() | bson:document(), bson:document()) -> {{boolean(), map()}, list()}.
+insert(Connection, Coll, Doc, WC) when is_tuple(Doc); is_map(Doc) ->
+  {Res, [UDoc | _]} = insert(Connection, Coll, [Doc], WC),
+  {Res, UDoc};
+insert(Connection, Coll, Docs, WC) ->
+  Converted = prepare(Docs, fun assign_id/1),
+  {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted, <<"writeConcern">>, WC}), Converted}.
+
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), map()) -> {boolean(), map()}.
+-spec update(pid(), collection(), selector(), map()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
--spec update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
+-spec update(pid(), collection(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare(Doc, fun(D) -> D end),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
     [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
+%% @doc Replace the document matching criteria entirely with the new Document.
+-spec update(pid(), collection(), selector(), map(), boolean(), boolean(), bson:document()) -> {boolean(), map()}.
+update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate, WC) ->
+  Converted = prepare(Doc, fun(D) -> D end),
+  command(Connection, {<<"update">>, Coll, <<"updates">>,
+    [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}],
+    <<"writeConcern">>, WC}).
+
 %% @doc Delete selected documents
--spec delete(pid(), colldb(), selector()) -> {boolean(), map()}.
+-spec delete(pid(), collection(), selector()) -> {boolean(), map()}.
 delete(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 0).
 
 %% @doc Delete first selected document.
--spec delete_one(pid(), colldb(), selector()) -> {boolean(), map()}.
+-spec delete_one(pid(), collection(), selector()) -> {boolean(), map()}.
 delete_one(Connection, Coll, Selector) ->
   delete_limit(Connection, Coll, Selector, 1).
 
 %% @doc Delete selected documents
--spec delete_limit(pid(), colldb(), selector(), integer()) -> {boolean(), map()}.
+-spec delete_limit(pid(), collection(), selector(), integer()) -> {boolean(), map()}.
 delete_limit(Connection, Coll, Selector, N) ->
   command(Connection, {<<"delete">>, Coll, <<"deletes">>,
     [#{<<"q">> => Selector, <<"limit">> => N}]}).
+
+%% @doc Delete selected documents
+-spec delete_limit(pid(), collection(), selector(), integer(), bson:document()) -> {boolean(), map()}.
+delete_limit(Connection, Coll, Selector, N, WC) ->
+  command(Connection, {<<"delete">>, Coll, <<"deletes">>,
+    [#{<<"q">> => Selector, <<"limit">> => N}], <<"writeConcern">>, WC}).
 
 %% @doc Return first selected document, if any
 -spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
