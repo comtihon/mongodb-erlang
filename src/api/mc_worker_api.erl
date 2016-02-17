@@ -36,8 +36,8 @@
 
 
 -type cursorid() :: integer().
--type selector() :: bson:document().
--type projector() :: bson:document().
+-type selector() :: map().
+-type projector() :: map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
 -type modifier() :: bson:document().
