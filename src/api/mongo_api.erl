@@ -10,6 +10,8 @@
 -module(mongo_api).
 -author("tihon").
 
+-include("mongo_protocol.hrl").
+
 %% API
 -export([insert/4, find/5, update/5, delete/4, count/5, find_one/5, connect/4]).
 
@@ -17,12 +19,12 @@
 connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
   mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
 
--spec insert(atom() | pid(), binary(), list() | map() | bson:document(), integer() | infinity) ->
+-spec insert(atom() | pid(), colldb(), list() | map() | bson:document(), integer() | infinity) ->
 {{boolean(), map()}, list()}.
 insert(Topology, Collection, Document, TTL) ->
   mongoc:transaction(Topology, fun(Worker) -> mc_worker_api:insert(Worker, Collection, Document) end, TTL).
 
--spec update(atom() | pid(), binary(), mc_worker_api:selector(), map(), map()) ->
+-spec update(atom() | pid(), colldb(), mc_worker_api:selector(), map(), map()) ->
   {boolean(), map()}.
 update(Topology, Collection, Selector, Doc, Opts) ->
   TTL = maps:get(ttl, Opts, infinity),
@@ -33,23 +35,23 @@ update(Topology, Collection, Selector, Doc, Opts) ->
       mc_worker_api:update(Worker, Collection, Selector, Doc, Upsert, MultiUpdate)
     end, TTL).
 
--spec delete(atom() | pid(), binary(), mc_worker_api:selector(), integer() | infinity) ->
+-spec delete(atom() | pid(), colldb(), mc_worker_api:selector(), integer() | infinity) ->
   {boolean(), map()}.
 delete(Topology, Collection, Selector, TTL) ->
   mongoc:transaction(Topology, fun(Worker) -> mc_worker_api:delete(Worker, Collection, Selector) end, TTL).
 
--spec find(atom() | pid(), binary(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
+-spec find(atom() | pid(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
   mc_worker_api:cursor().
 find(Topology, Collection, Selector, Projector, TTL) ->
   mongoc:transaction_query(Topology,
     fun(Conf) -> mongoc:find(Conf, Collection, Selector, Projector, 0, 0) end, [], TTL).
 
--spec find_one(atom() | pid(), binary(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
+-spec find_one(atom() | pid(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
   mc_worker_api:cursor().
 find_one(Topology, Collection, Selector, Projector, TTL) ->
   mongoc:transaction_query(Topology,
     fun(Conf) -> mongoc:find_one(Conf, Collection, Selector, Projector, 0) end, [], TTL).
 
--spec count(atom() | pid(), binary(), mc_worker_api:selector(), map() | list(), integer() | infinity) -> integer().
+-spec count(atom() | pid(), colldb(), mc_worker_api:selector(), map() | list(), integer() | infinity) -> integer().
 count(Topology, Collection, Selector, Limit, TTL) ->
   mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, [], Limit) end, [], TTL).
