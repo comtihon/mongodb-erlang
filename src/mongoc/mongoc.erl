@@ -9,7 +9,7 @@
 
 -include("mongo_protocol.hrl").
 
--export([connect/3, disconnect/1, command/2, command/3, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3, update/5]).
+-export([connect/3, disconnect/1, command/2, command/3, command/4, insert/3, update/4, delete/3, delete_one/3, find_one/3, find_one/4, find/4, find/3, count/3, count/4, count/5, ensure_index/3, update/5]).
 
 
 -type selector() :: bson:document().
@@ -64,6 +64,7 @@
 -spec ensure_index(pid(), colldb(), bson:document()) -> ok | { error, reason() }.
 -spec command(pid(), bson:document()) -> {boolean(), bson:document()} | { error, reason() }. % Action
 -spec command(pid(), bson:document(), readprefs()) -> {boolean(), bson:document()} | { error, reason() }. % Action
+-spec command(pid(), bson:document(), readprefs(), database()) -> {boolean(), bson:document()} | { error, reason() }. % Action
 
 
 % mongoc:connect( stat,
