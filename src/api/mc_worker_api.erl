@@ -88,7 +88,7 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
-%%      Note: for mongodb < 2.6 getting true as a result doesn't always mean a successful insert due to mongo api limitation; Number of success is also not available for < 2.6.
+%%      Note: for mongodb &lt; 2.6 getting true as a result doesn't always mean a successful insert due to mongo api limitation; Number of success is also not available for &lt; 2.6.
 -spec insert(pid(), colldb(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
@@ -107,7 +107,7 @@ insert(Connection, Coll, Docs) ->
   end.
 
 %% @doc Insert a document or multiple documents into a collection with write concern option.
-%%      Note: this is not supported for mongodb < 2.6 due to mongo api limitation.
+%%      Note: this is not supported for mongodb &lt; 2.6 due to mongo api limitation.
 -spec insert(pid(), colldb(), list() | map() | bson:document(), bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc, WC) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc], WC),
@@ -120,13 +120,13 @@ insert(Connection, Coll, Docs, WC) ->
   {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted, <<"writeConcern">>, WC}), Converted}.
 
 %% @doc Replace the document matching criteria entirely with the new Document, with option upsert false and multi false.
-%%      Note: for mongodb < 2.6 getting true as a result doesn't always mean a successful update due to mongo api limitation; Number of success is also not available for < 2.6.
+%%      Note: for mongodb &lt; 2.6 getting true as a result doesn't always mean a successful update due to mongo api limitation; Number of success is also not available for &lt; 2.6.
 -spec update(pid(), colldb(), selector(), map()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc) ->
   update(Connection, Coll, Selector, Doc, false, false).
 
 %% @doc Replace the document matching criteria entirely with the new Document, with upsert and multi options.
-%%      Note: for mongodb < 2.6 getting true as a result doesn't always mean a successful update due to mongo api limitation; Number of success is also not available for < 2.6.
+%%      Note: for mongodb &lt; 2.6 getting true as a result doesn't always mean a successful update due to mongo api limitation; Number of success is also not available for &lt; 2.6.
 -spec update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
 update(Connection, Coll = {Db, Collection}, Selector, Doc, Upsert, MultiUpdate) ->
   Converted = prepare(Doc, fun(D) -> D end),
@@ -144,7 +144,7 @@ update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
   end.
 
 %% @doc Replace the document matching criteria entirely with the new Document, with upsert and multi options and write concern.
-%%      Note: this is not supported for mongodb < 2.6 due to mongo api limitation.
+%%      Note: this is not supported for mongodb &lt; 2.6 due to mongo api limitation.
 -spec update(pid(), colldb(), selector(), map(), boolean(), boolean(), bson:document()) -> {boolean(), map()}.
 update(Connection, {Db, Collection}, Selector, Doc, Upsert, MultiUpdate, WC) ->
   Converted = prepare(Doc, fun(D) -> D end),
@@ -158,7 +158,7 @@ update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate, WC) ->
     <<"writeConcern">>, WC}).
 
 %% @doc Delete selected documents
-%%      Note: for mongodb < 2.6 getting true as a result doesn't always mean a successful delete due to mongo api limitation; Number of success is also not available for < 2.6.
+%%      Note: for mongodb &lt; 2.6 getting true as a result doesn't always mean a successful delete due to mongo api limitation; Number of success is also not available for &lt; 2.6.
 -spec delete(pid(), colldb(), selector()) -> {boolean(), map()}.
 delete(Connection, Coll, Selector) ->
   case application:get_env(mongodb, version, latest) < 2.6 of
@@ -167,7 +167,7 @@ delete(Connection, Coll, Selector) ->
   end.
 
 %% @doc Delete first selected document.
-%%      Note: for mongodb < 2.6 getting true as a result doesn't always mean a successful delete due to mongo api limitation; Number of success is also not available for < 2.6.
+%%      Note: for mongodb &lt; 2.6 getting true as a result doesn't always mean a successful delete due to mongo api limitation; Number of success is also not available for &lt; 2.6.
 -spec delete_one(pid(), colldb(), selector()) -> {boolean(), map()}.
 delete_one(Connection, Coll, Selector) ->
   case application:get_env(mongodb, version, latest) < 2.6 of
@@ -176,7 +176,7 @@ delete_one(Connection, Coll, Selector) ->
   end.
 
 %% @doc Delete selected documents
-%%      Note: this is not supported for mongodb < 2.6 due to mongo api limitation.
+%%      Note: this is not supported for mongodb &lt; 2.6 due to mongo api limitation.
 -spec delete_limit(pid(), colldb(), selector(), integer()) -> {boolean(), map()}.
 delete_limit(Connection, {Db, Collection}, Selector, N) ->
   command(Connection, {<<"delete">>, Collection, <<"deletes">>,
@@ -186,7 +186,7 @@ delete_limit(Connection, Coll, Selector, N) ->
           [#{<<"q">> => Selector, <<"limit">> => N}]}).
 
 %% @doc Delete selected documents
-%%      Note: this is not supported for mongodb < 2.6 due to mongo api limitation.
+%%      Note: this is not supported for mongodb &lt; 2.6 due to mongo api limitation.
 -spec delete_limit(pid(), colldb(), selector(), integer(), bson:document()) -> {boolean(), map()}.
 delete_limit(Connection, {Db, Collection}, Selector, N, WC) ->
   command(Connection, {<<"delete">>, Collection, <<"deletes">>,
@@ -337,7 +337,7 @@ assign_id(Doc) ->
   end.
 
 %% @private
-%% Legacy insert for mongodb < 2.6
+%% Legacy insert for mongodb &lt; 2.6
 %% Note there is no response to an OP_INSERT message so getting true as a result doesn't always mean a successful insert.
 -spec legacy_insert(pid(), colldb(), bson:document()) -> {{boolean(), map()}, list()}.
 legacy_insert(Connection, Coll, Converted) ->
@@ -349,7 +349,7 @@ legacy_insert(Connection, Coll, Converted) ->
   end.
 
 %% @private
-%% Legacy update for mongodb < 2.6
+%% Legacy update for mongodb &lt; 2.6
 %% Note there is no response to an OP_UPDATE message so getting true as a result doesn't always mean a successful update.
 -spec legacy_update(pid(), colldb(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
 legacy_update(Connection, Coll, Selector, Converted, Upsert, MultiUpdate) ->
@@ -362,7 +362,7 @@ legacy_update(Connection, Coll, Selector, Converted, Upsert, MultiUpdate) ->
   end.
 
   %% @private
-  %% Legacy delete for mongodb < 2.6
+  %% Legacy delete for mongodb &lt; 2.6
   %% Note there is no response to an OP_DELETE message so getting true as a result doesn't always mean a successful delete.
 -spec legacy_delete(pid(), colldb(), selector()) -> {boolean(), map()}.
 legacy_delete(Connection, Coll, Selector) ->
