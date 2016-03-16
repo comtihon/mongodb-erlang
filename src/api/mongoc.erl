@@ -101,7 +101,7 @@ transaction(Topology, Transaction, Options) ->
 -spec status(pid() | atom()) -> {atom(), integer(), integer(), integer()}.
 status(Topology) ->
   Res = mc_topology:get_pool(Topology, []),
-  {ok, #{pool => Pid}} = Res,
+  {ok, #{pool := Pid}} = Res,
   poolboy:status(Pid).
 
 
