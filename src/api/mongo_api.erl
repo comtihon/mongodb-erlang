@@ -47,7 +47,7 @@ find(Topology, Collection, Selector, Projector, TTL) ->
     fun(Conf) -> mongoc:find(Conf, Collection, Selector, Projector, 0, 0) end, [], TTL).
 
 -spec find_one(atom() | pid(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
-  mc_worker_api:cursor().
+  map().
 find_one(Topology, Collection, Selector, Projector, TTL) ->
   mongoc:transaction_query(Topology,
     fun(Conf) -> mongoc:find_one(Conf, Collection, Selector, Projector, 0) end, [], TTL).
