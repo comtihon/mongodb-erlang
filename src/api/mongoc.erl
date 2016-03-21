@@ -22,7 +22,8 @@
   transaction_query/4,
   transaction/2,
   transaction/3,
-  transaction/4]).
+  transaction/4,
+  status/1]).
 
 -define(TRANSACTION_TIMEOUT, 5000).
 
@@ -96,6 +97,13 @@ transaction(Topology, Transaction, Timeout) when is_integer(Timeout); Timeout =:
   end;
 transaction(Topology, Transaction, Options) ->
   transaction(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
+
+-spec status(pid() | atom()) -> {atom(), integer(), integer(), integer()}.
+status(Topology) ->
+  Res = mc_topology:get_pool(Topology, []),
+  {ok, #{pool := Pid}} = Res,
+  poolboy:status(Pid).
+
 
 %% @doc Get worker from pool and run transaction with it. Suitable for command transactions
 -spec transaction(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
