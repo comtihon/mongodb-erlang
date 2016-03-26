@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1]).
+-export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1, start_pool/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -41,7 +41,8 @@
   worker_opts = [],
   ismaster = undefined,
   monitor = undefined,
-  pool = undefined
+  pool = undefined,
+  on_start_callback
 }).
 
 %%%===================================================================
@@ -53,6 +54,9 @@ start_link(Topology, HostPort, Topts, Wopts) ->
 
 start(Topology, HostPort, Topts, Wopts) ->
   gen_server:start(?MODULE, [Topology, HostPort, Topts, Wopts], []).
+
+start_pool(Server) ->
+  gen_server:cast(Server, start_pool).
 
 
 %%%===================================================================
@@ -67,6 +71,7 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
   ConnectTimeoutMS = mc_utils:get_value(connectTimeoutMS, TopologyOptions, 20000),
   SocketTimeoutMS = mc_utils:get_value(socketTimeoutMS, TopologyOptions, 100),
   ReplicaSet = mc_utils:get_value(rs, TopologyOptions, undefined),
+  OnStartCallback = mc_utils:get_value(callback, TopologyOptions, undefined),
   MRef = erlang:monitor(process, Topology),
   gen_server:cast(self(), init_monitor),
   {ok, #state{
@@ -80,7 +85,8 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
     connect_to = ConnectTimeoutMS,
     socket_to = SocketTimeoutMS,
     topology_opts = TopologyOptions,
-    worker_opts = Wopts
+    worker_opts = Wopts,
+    on_start_callback = OnStartCallback
   }}.
 
 
@@ -167,9 +173,11 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
   mc_monitor:start_link(Topology, self(), {Host, Port}, Topts, Wopts).
 
 %% @private
-init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
+init_pool(#state{host = Host, port = Port, size = Size,
+  max_overflow = Overflow, worker_opts = Wopts, on_start_callback = OnStartCallback}) ->
   WO = lists:append([{host, Host}, {port, Port}], Wopts),
   {ok, Child} = mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO),
+  execute_callback(OnStartCallback),
   link(Child),
   Child.
 
@@ -179,3 +187,7 @@ parse_seed(Addr) when is_binary(Addr) ->
 parse_seed(Addr) when is_list(Addr) ->
   [Host, Port] = string:tokens(Addr, ":"),
   {Host, list_to_integer(Port)}.
+
+%% @private
+execute_callback(undefined) -> ok;
+execute_callback(Callback) -> Callback().

@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/3, drop_server/2, update_topology_state/2, update_topology/1, get_state/1, get_pool/2, select_server/3, get_pool/4, get_pool/1, disconnect/1]).
+-export([start_link/3, drop_server/2, update_topology_state/2, update_topology/1, get_state/1, get_pool/2, select_server/5, get_pool/4, get_pool/1, disconnect/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -155,8 +155,8 @@ get_pool(RPMode, RPTags, State) ->
       {error, timeout}
   end.
 
-get_pool(From, #state{self = Topology} = State, RPMode, Tags) ->
-  case select_server(Topology, RPMode, Tags) of
+get_pool(From, #state{type = TType, servers = Tab, localThresholdMS = Threshold} = State, RPMode, Tags) ->
+  case select_server(RPMode, Tags, TType, Tab, Threshold) of
     #mc_server{pid = Pid, type = Type} ->
       Pool = mc_server:get_pool(Pid),
       From ! {self(), Pool, Type};
@@ -185,6 +185,7 @@ handle_cast(halt, State) ->
 
 handle_cast(init_seeds, State) ->
   init_seeds(State),
+  start_pool(State),
   {noreply, State};
 
 handle_cast({monitor_ismaster, Server, IsMaster, RTT}, State) ->
@@ -229,6 +230,15 @@ handle_info(_Info, State) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+%% @private
+start_pool(State = #state{rp_mode = RPMode, rp_tags = Tags, type = TType, servers = Tab, localThresholdMS = Threshold}) ->
+  case select_server(RPMode, Tags, TType, Tab, Threshold) of
+    #mc_server{pid = Pid} ->
+      mc_server:start_pool(Pid);
+    undefined ->
+      timer:sleep(100),
+      start_pool(State)
+  end.
 
 init_seeds(#state{seeds = Seeds, topology_opts = Topts, worker_opts = Wopts, servers = Tab} = _State) ->
   init_seeds(Seeds, Tab, Topts, Wopts).
@@ -609,30 +619,23 @@ parse_seeds(Addr) when is_list(Addr) ->
   {single, undefined, [Addr]}.
 
 
-
-
-select_server(Topology, primaryPreferred, Tags) ->
-  case select_server(Topology, primary, Tags) of
+select_server(primaryPreferred, Tags, TType, Tab, Threshold) ->
+  case select_server(primary, Tags, TType, Tab, Threshold) of
     undefined ->
-      select_server(Topology, secondary, Tags);
+      select_server(secondary, Tags, TType, Tab, Threshold);
     Primary ->
       Primary
   end;
-
-select_server(Topology, secondaryPreferred, Tags) ->
-  case select_server(Topology, secondary, Tags) of
+select_server(secondaryPreferred, Tags, TType, Tab, Threshold) ->
+  case select_server(secondary, Tags, TType, Tab, Threshold) of
     undefined ->
-      select_server(Topology, primary, Tags);
+      select_server(primary, Tags, TType, Tab, Threshold);
     Primary ->
       Primary
   end;
-
-select_server(Topology, nearest, Tags) ->
-  get_nearest(select_server(Topology, primary, Tags), select_server(Topology, secondary, Tags));
-
-select_server(Topology, Mode, Tags) ->
-  #state{servers = Tab, type = TType, localThresholdMS = Threshold} = get_state(Topology),
-
+select_server(nearest, Tags, TType, Tab, Threshold) ->
+  get_nearest(select_server(primary, Tags, TType, Tab, Threshold), select_server(secondary, Tags, TType, Tab, Threshold));
+select_server(Mode, Tags, TType, Tab, Threshold) ->
   LowestRTT = ets:foldl(
     fun
       (#mc_server{rtt = RTT, type = Type}, Acc) when Type =:= rsSecondary; Type =:= mongos; Type =:= standalone ->
@@ -661,8 +664,6 @@ select_server(Topology, Mode, Tags) ->
       end
     end,
     [], Tab),
-
-
   select_candidate(Mode, TType, Candidates).
 
 
