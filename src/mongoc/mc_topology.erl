@@ -37,7 +37,8 @@
   localThresholdMS = 200,
 
   worker_opts = [],
-  topology_opts = []
+  topology_opts = [],
+  get_pool_timeout :: integer()
 }).
 
 
@@ -70,11 +71,12 @@ init([SeedsList, TopologyOptions, WorkerOptions]) ->
 
   {Type, SetName, Seeds} = parse_seeds(SeedsList),
 
-  ServerSelectionTimeoutMS = proplists:get_value(serverSelectionTimeoutMS, TopologyOptions, 30000),
-  LocalThresholdMS = proplists:get_value(localThresholdMS, TopologyOptions, 200),
+  ServerSelectionTimeoutMS = mc_utils:get_value(serverSelectionTimeoutMS, TopologyOptions, 30000),
+  LocalThresholdMS = mc_utils:get_value(localThresholdMS, TopologyOptions, 200),
 
-  RPmode = proplists:get_value(rp_mode, TopologyOptions, primary),
-  RPTags = proplists:get_value(tags, TopologyOptions, []),
+  RPmode = mc_utils:get_value(rp_mode, TopologyOptions, primary),
+  RPTags = mc_utils:get_value(tags, TopologyOptions, []),
+  GetPoolTimeout = mc_utils:get_value(get_pool_timeout, TopologyOptions, 5000),
 
   Servers = ets:new(mc_servers, [set, {keypos, 2}]),
 
@@ -94,7 +96,8 @@ init([SeedsList, TopologyOptions, WorkerOptions]) ->
     localThresholdMS = LocalThresholdMS,
 
     topology_opts = TopologyOptions,
-    worker_opts = WorkerOptions
+    worker_opts = WorkerOptions,
+    get_pool_timeout = GetPoolTimeout
   },
 
   gen_server:cast(self(), init_seeds),
@@ -155,10 +158,10 @@ get_pool(RPMode, RPTags, State) ->
       {error, timeout}
   end.
 
-get_pool(From, #state{self = Topology} = State, RPMode, Tags) ->
+get_pool(From, #state{self = Topology, get_pool_timeout = TM} = State, RPMode, Tags) ->
   case select_server(Topology, RPMode, Tags) of
     #mc_server{pid = Pid, type = Type} ->
-      Pool = mc_server:get_pool(Pid),
+      Pool = mc_server:get_pool(Pid, TM),
       From ! {self(), Pool, Type};
 
     undefined ->
