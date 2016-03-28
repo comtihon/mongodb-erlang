@@ -111,14 +111,14 @@ update(Connection, Coll, Selector, Doc) ->
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), map(), boolean(), boolean()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate) ->
-  Converted = prepare(Doc, fun(D) -> D end),
+  [Converted] = prepare(Doc, fun(D) -> D end),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
     [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}]}).
 
 %% @doc Replace the document matching criteria entirely with the new Document.
 -spec update(pid(), collection(), selector(), map(), boolean(), boolean(), bson:document()) -> {boolean(), map()}.
 update(Connection, Coll, Selector, Doc, Upsert, MultiUpdate, WC) ->
-  Converted = prepare(Doc, fun(D) -> D end),
+  [Converted] = prepare(Doc, fun(D) -> D end),
   command(Connection, {<<"update">>, Coll, <<"updates">>,
     [#{<<"q">> => Selector, <<"u">> => Converted, <<"upsert">> => Upsert, <<"multi">> => MultiUpdate}],
     <<"writeConcern">>, WC}).
