@@ -12,20 +12,20 @@
 -export([
   connect/3,
   disconnect/1,
+  command/2,
+  command/3,
   command/4,
+  find/3,
   find_one/5,
   find/6,
-  find/3,
+  count/3,
+  count/4,
   count/5,
-  transaction_query/2,
-  transaction_query/3,
-  transaction_query/4,
-  transaction/2,
+  status/1,
   transaction/3,
-  transaction/4,
-  status/1]).
-
--define(TRANSACTION_TIMEOUT, 5000).
+  transaction_query/2,
+  transaction_query/3
+]).
 
 
 -type readmode() :: primary | secondary | primaryPreferred | secondaryPreferred | nearest.
@@ -38,8 +38,8 @@
 -type connectoptions() :: [coption()].
 -type coption() :: {name, atom()}
 |{register, atom()}
-|{pool_size, integer()}
-|{max_overflow, integer()}
+|{minPoolSize, integer()}
+|{maxPoolSize, integer()}
 |{localThresholdMS, integer()}
 |{connectTimeoutMS, integer()}
 |{socketTimeoutMS, integer()}
@@ -63,54 +63,24 @@
 %% @doc Creates new topology discoverer, return its pid
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
-  application:ensure_started(poolboy),
-  mc_pool_sup:start_link(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
 -spec disconnect(pid()) -> ok.
 disconnect(Topology) ->
   mc_topology:disconnect(Topology).
 
-%% @doc Get worker from pool and run transaction with it. Suitable for all write transactions
--spec transaction(pid() | atom(), fun()) -> any().
-transaction(Topology, Transaction) ->
-  transaction(Topology, Transaction, ?TRANSACTION_TIMEOUT).
-
--spec transaction(pid() | atom(), fun(), integer() | infinity | proplists:proplist()) -> any().
-transaction(Topology, Transaction, Timeout) when is_integer(Timeout); Timeout =:= infinity ->
-  case mc_topology:get_pool(Topology, [{rp_mode, primary}]) of
-    {ok, #{pool := C}} ->
-      try poolboy:transaction(C, Transaction, Timeout)
-      catch
-        error:not_master ->
-          mc_topology:update_topology(Topology),
-          {error, not_master};
-        error:{bad_query, {not_master, _}} ->
-          mc_topology:update_topology(Topology),
-          {error, not_master};
-        _:R ->
-          mc_topology:update_topology(Topology),
-          {error, R}
-      end;
-    Error ->
-      Error
-  end;
-transaction(Topology, Transaction, Options) ->
-  transaction(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
-
 -spec status(pid() | atom()) -> {atom(), integer(), integer(), integer()}.
 status(Topology) ->
   Res = mc_topology:get_pool(Topology, []),
   {ok, #{pool := Pid}} = Res,
-  poolboy:status(Pid).
-
+  gen_server_pool:get_stats(Pid).
 
 %% @doc Get worker from pool and run transaction with it. Suitable for command transactions
--spec transaction(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
-transaction(Topology, Transaction, Options, Timeout) ->
+-spec transaction(pid() | atom(), fun(), proplists:proplist()) -> any().
+transaction(Topology, Transaction, Options) ->
   case mc_topology:get_pool(Topology, Options) of
-    {ok, Pool = #{pool := C}} ->
-      try poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end, Timeout)
+    {ok, #{pool := C}} ->
+      try Transaction(C)
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
@@ -123,18 +93,15 @@ transaction(Topology, Transaction, Options, Timeout) ->
       Error
   end.
 
-%% @doc Get worker from pool and run transaction with additioanl query options on it. Suitable for read transactions
+%% @doc Get worker from pool and run transaction with additional query options on it. Suitable for read transactions
 transaction_query(Topology, Transaction) ->
   transaction_query(Topology, Transaction, []).
 
+-spec transaction_query(pid() | atom(), fun()) -> any().
 transaction_query(Topology, Transaction, Options) ->
-  transaction_query(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
-
--spec transaction_query(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
-transaction_query(Topology, Transaction, Options, Timeout) ->
   case mc_topology:get_pool(Topology, Options) of
     {ok, Pool = #{pool := C}} ->
-      poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end, Timeout);
+      Transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end);
     Error ->
       Error
   end.
@@ -169,25 +136,34 @@ find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
   },
   mc_action_man:read(Pool, mongos_query_transform(ServerType, Q, RPrefs)).
 
+%% @doc Counts selected documents
+count(Topology, Coll, Selector) ->
+  count(Topology, Coll, Selector, [], 0).
+
+count(Topology, Coll, Selector, Options) ->
+  count(Topology, Coll, Selector, Options, 0).
+
+
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(map(), colldb(), mc_worker_api:selector(), readprefs(), integer()) -> integer().
-count(Pool, {Db, Coll}, Selector, Options, Limit) when Limit =< 0 ->
-  {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),
+count(Topology, {Db, Coll}, Selector, Options, Limit) when Limit =< 0 ->
+  {true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),
   trunc(N);
-count(Pool, {Db, Coll}, Selector, Options, Limit) ->
-  {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, Db),
+count(Topology, {Db, Coll}, Selector, Options, Limit) ->
+  {true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, Db),
   trunc(N); % Server returns count as float
-count(Pool, Coll, Selector, Options, Limit) when Limit =< 0 ->
-  {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, undefined),
+count(Topology, Coll, Selector, Options, Limit) when Limit =< 0 ->
+  {true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options),
   trunc(N);
-count(Pool, Coll, Selector, Options, Limit) ->
-  {true, #{<<"n">> := N}} = command(Pool,
-    {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, undefined),
+count(Topology, Coll, Selector, Options, Limit) ->
+  {true, #{<<"n">> := N}} = command(Topology, {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options),
   trunc(N). % Server returns count as float
+
+command(Topology, Command) ->
+  command(Topology, Command, []).
+
+command(Topology, Command, Options) ->
+  command(Topology, Command, Options, undefined).
 
 -spec command(map(), bson:document(), readprefs(), undefined | colldb()) ->
   {boolean(), bson:document()} | {error, reason()}. % Action

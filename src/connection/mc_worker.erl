@@ -22,7 +22,7 @@
 
 -spec start_link(proplists:proplist()) -> {ok, pid()}.
 start_link(Options) ->
-  proc_lib:start_link(?MODULE, init, [Options]).
+  gen_server:start_link(?MODULE, Options, []).
 
 %% Make worker to go into hibernate. Any next call will wake it.
 %% It should be done if you have problems with memory while fetching > 64B binaries from db.
@@ -40,12 +40,11 @@ init(Options) ->
   {ok, Socket} = mc_auth:connect_to_database(Options),
   ConnState = form_state(Options),
   try_register(Options),
-  NetModule = get_set_opts_module(Options),
   Login = mc_utils:get_value(login, Options),
   Password = mc_utils:get_value(password, Options),
-  gen_server:cast(self(), {auth, Login, Password}),
-  proc_lib:init_ack({ok, self()}),
-  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule}).
+  NetModule = get_set_opts_module(Options),
+  mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
+  {ok, #state{socket = Socket, conn_state = ConnState, net_module = NetModule}}.
 
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};

@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1, start_pool/1]).
+-export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -25,24 +25,23 @@
 
 -define(SERVER, ?MODULE).
 
--record(state,
-{
+-record(state, {
   host, port,
   rs = undefined,
   type = undefined,
   me,
-  size :: integer(),
-  max_overflow :: integer(),
+  min_pool,
+  max_pool,
   connect_to,
   socket_to,
+  waitqueue_to,
   topology,
   topology_mref,
   topology_opts = [],
   worker_opts = [],
   ismaster = undefined,
   monitor = undefined,
-  pool = undefined,
-  on_start_callback
+  pool = undefined
 }).
 
 %%%===================================================================
@@ -55,9 +54,6 @@ start_link(Topology, HostPort, Topts, Wopts) ->
 start(Topology, HostPort, Topts, Wopts) ->
   gen_server:start(?MODULE, [Topology, HostPort, Topts, Wopts], []).
 
-start_pool(Server) ->
-  gen_server:cast(Server, start_pool).
-
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -66,12 +62,12 @@ start_pool(Server) ->
 init([Topology, Addr, TopologyOptions, Wopts]) ->
   process_flag(trap_exit, true),
   {Host, Port} = parse_seed(Addr),
-  PoolSize = mc_utils:get_value(pool_size, TopologyOptions, 10),
-  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
+  MinPoolSize = mc_utils:get_value(minPoolSize, TopologyOptions, 5),
+  MaxPoolSize = mc_utils:get_value(maxPoolSize, TopologyOptions, 10),
   ConnectTimeoutMS = mc_utils:get_value(connectTimeoutMS, TopologyOptions, 20000),
   SocketTimeoutMS = mc_utils:get_value(socketTimeoutMS, TopologyOptions, 100),
+  WaitQueueTimeoutMS = mc_utils:get_value(waitQueueTimeoutMS, TopologyOptions, 1000),
   ReplicaSet = mc_utils:get_value(rs, TopologyOptions, undefined),
-  OnStartCallback = mc_utils:get_value(callback, TopologyOptions, undefined),
   MRef = erlang:monitor(process, Topology),
   gen_server:cast(self(), init_monitor),
   {ok, #state{
@@ -80,22 +76,14 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
     host = Host,
     port = Port,
     rs = ReplicaSet,
-    size = PoolSize,
-    max_overflow = Overflow,
+    waitqueue_to = WaitQueueTimeoutMS,
+    min_pool = MinPoolSize,
+    max_pool = MaxPoolSize,
     connect_to = ConnectTimeoutMS,
     socket_to = SocketTimeoutMS,
     topology_opts = TopologyOptions,
-    worker_opts = Wopts,
-    on_start_callback = OnStartCallback
+    worker_opts = Wopts
   }}.
-
-
-terminate(_Reason, #state{topology = Topology}) ->
-  mc_topology:drop_server(Topology, self()),
-  ok.
-
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
 
 
 %%%===================================================================
@@ -120,7 +108,7 @@ handle_call(get_pool, _From, State = #state{type = unknown}) ->
 handle_call(get_pool, _From, State = #state{ismaster = undefined}) ->
   {reply, {error, server_unknown}, State};
 handle_call(get_pool, _From, State = #state{pool = undefined}) ->
-  Pid = init_pool(State),
+  {ok, Pid} = init_pool(State),
   {reply, Pid, State#state{pool = Pid}};
 handle_call(get_pool, _From, State = #state{pool = Pid}) ->
   {reply, Pid, State};
@@ -131,7 +119,7 @@ handle_cast(init_monitor, State) ->
   {ok, Pid} = init_monitor(State),
   {noreply, State#state{monitor = Pid}};
 handle_cast(start_pool, State = #state{pool = undefined}) ->
-  Pid = init_pool(State),
+  {ok, Pid} = init_pool(State),
   {noreply, State#state{pool = Pid}};
 handle_cast({update_ismaster, Type, IsMaster}, State = #state{monitor = undefined}) ->
   {noreply, State#state{type = Type, ismaster = IsMaster}};
@@ -149,37 +137,37 @@ handle_cast({update_unknown}, State = #state{monitor = Monitor, pool = Pool}) ->
 handle_cast(_Request, State) ->
   {noreply, State}.
 
-handle_info({'DOWN', MRef, _, _, Reason}, State = #state{topology_mref = MRef, monitor = Pid, pool = Pool}) ->
-  mc_pool_sup:stop_pool(Pool),
-  mc_monitor:stop(Pid),
-  {stop, Reason, State};
+handle_info({'DOWN', MRef, _, _, _}, State = #state{topology_mref = MRef}) ->
+  exit(kill),
+  {noreply, State};
 handle_info({'EXIT', Pid, _Reason}, State = #state{topology = Topology, pool = Pid}) ->
   gen_server:cast(Topology, {server_to_unknown, self()}),
   {noreply, State#state{pool = undefined}};
-handle_info({'EXIT', Pid, _Reason}, State = #state{monitor = Pid, pool = Pool}) ->
-  mc_pool_sup:stop_pool(Pool),
-  mc_monitor:stop(Pid),
-  {stop, normal, State};
+handle_info({'EXIT', Pid, _Reason}, State = #state{monitor = Pid}) ->
+  exit(kill),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
+terminate(_Reason, #state{topology = Topology}) ->
+  mc_topology:drop_server(Topology, self()),
+  ok.
+
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
 %% @private
 init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts = Topts, worker_opts = Wopts}) ->
   mc_monitor:start_link(Topology, self(), {Host, Port}, Topts, Wopts).
 
 %% @private
-init_pool(#state{host = Host, port = Port, size = Size,
-  max_overflow = Overflow, worker_opts = Wopts, on_start_callback = OnStartCallback}) ->
-  WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  {ok, Child} = mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO),
-  execute_callback(OnStartCallback),
-  link(Child),
-  Child.
+init_pool(#state{host = Host, port = Port, min_pool = MinPool, max_pool = MaxPool, worker_opts = Wopts, waitqueue_to = WQ}) ->
+  PoolOptions = [{min_pool_size, MinPool}, {max_pool_size, MaxPool}, {mondemand, false}, {request_max_wait, WQ}],
+  WO = lists:append([{host, Host}, {port, Port}, {proxy, true}], Wopts),
+  gen_server_pool:start_link(mc_worker, WO, [], PoolOptions).
 
 %% @private
 parse_seed(Addr) when is_binary(Addr) ->
@@ -187,7 +175,3 @@ parse_seed(Addr) when is_binary(Addr) ->
 parse_seed(Addr) when is_list(Addr) ->
   [Host, Port] = string:tokens(Addr, ":"),
   {Host, list_to_integer(Port)}.
-
-%% @private
-execute_callback(undefined) -> ok;
-execute_callback(Callback) -> Callback().
