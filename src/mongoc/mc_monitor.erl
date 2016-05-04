@@ -177,6 +177,7 @@ send_stop(PausePid) -> PausePid ! stop.
 %% @private
 form_args(Host, Port, Timeout, WorkerArgs) ->
   case mc_utils:get_value(ssl, WorkerArgs, false) of
-    true -> [{host, Host}, {port, Port}, {timeout, Timeout}, {ssl, true}];
+    true -> [{host, Host}, {port, Port}, {timeout, Timeout}, {ssl, true},
+      {ssl_opts, mc_utils:get_value(ssl_opts, WorkerArgs, [])}];
     false -> [{host, Host}, {port, Port}, {timeout, Timeout}]
   end.
