@@ -22,7 +22,7 @@
   pw_hash/2,
   get_timeout/0,
   encode_name/1,
-  random_string/1,
+  random_binary/1,
   hmac/2,
   is_proplist/1]).
 
@@ -44,8 +44,8 @@ encode_name(Name) ->
   Comma = re:replace(Name, <<"=">>, <<"=3D">>, [{return, binary}]),
   re:replace(Comma, <<",">>, <<"=2C">>, [{return, binary}]).
 
--spec random_string(integer()) -> binary().
-random_string(Length) ->
+-spec random_binary(integer()) -> binary().
+random_binary(Length) ->
   ok = application:ensure_started(crypto),
   crypto:strong_rand_bytes(Length).
 

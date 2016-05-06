@@ -44,7 +44,7 @@ scram_sha_1_auth(Socket, Database, Login, Password, SetOptsFun) ->
 
 %% @private
 scram_first_step(Socket, Database, Login, Password, SetOpts) ->
-  RandomBString = list_to_binary(mc_utils:random_string(?RANDOM_LENGTH)),
+  RandomBString = mc_utils:random_binary(?RANDOM_LENGTH),
   FirstMessage = compose_first_message(Login, RandomBString),
   Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>),
   {true, Res} = mc_worker_api:sync_command(Socket, Database,
