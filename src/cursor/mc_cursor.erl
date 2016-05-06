@@ -94,6 +94,7 @@ foldl(Fun, Acc, Cursor, infinity, Timeout) ->
   lists:foldl(Fun, Acc, rest(Cursor, Timeout));
 foldl(Fun, Acc, Cursor, Max, Timeout) ->
   case next(Cursor, Timeout) of
+	error -> Acc;
     {} -> Acc;
     {Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1, Timeout)
   end.
