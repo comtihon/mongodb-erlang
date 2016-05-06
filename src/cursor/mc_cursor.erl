@@ -33,7 +33,7 @@
   cursor :: integer(),
   batchsize :: integer(),
   batch :: [bson:document()],
-  monitor :: reference
+  monitor :: reference()
 }).
 
 
@@ -48,7 +48,7 @@ create(Connection, Collection, Cursor, BatchSize, Batch) ->
 next(Cursor) ->
   next(Cursor, cursor_default_timeout()).
 
--spec next(pid(), timeout()) -> error | {bson:document()}.
+-spec next(pid(), timeout()) -> error | {} | {bson:document()}.
 next(Cursor, Timeout) ->
   try gen_server:call(Cursor, {next, Timeout}, Timeout) of
     Result -> Result

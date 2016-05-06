@@ -63,8 +63,8 @@
 %% @doc Creates new topology discoverer, return its pid
 -spec connect(seed(), connectoptions(), workeroptions()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
-  application:ensure_started(poolboy),
-  mc_pool_sup:start_link(),
+  ok = application:ensure_started(poolboy),
+  {ok, _} = mc_pool_sup:start_link(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
 -spec disconnect(pid()) -> ok.
@@ -154,7 +154,7 @@ find_one(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
 %%      Empty projection [] means full projection.
 -spec find(map(), colldb(), mc_worker_api:selector()) -> mc_worker_api:cursor().
 find(Pool, Coll, Selector) ->
-  find(Pool, Coll, Selector, [], 0, 0).
+  find(Pool, Coll, Selector, #{}, 0, 0).
 
 -spec find(map(), colldb(), mc_worker_api:selector(), mc_worker_api:projector(), integer(), integer()) ->
   mc_worker_api:cursor().

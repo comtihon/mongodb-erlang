@@ -43,7 +43,7 @@ start_link() ->
 
 %% @hidden
 init([]) ->
-	ets:new(?MODULE, [named_table, public, {write_concurrency, true}, {read_concurrency, true}]),
+	?MODULE = ets:new(?MODULE, [named_table, public, {write_concurrency, true}, {read_concurrency, true}]),
 	ets:insert(?MODULE, [
 		{oid_counter, 0},
 		{oid_machineprocid, oid_machineprocid()},

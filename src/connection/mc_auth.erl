@@ -50,7 +50,7 @@ do_auth(_, Socket, Database, Login, Password, SetOptsFun) ->   %old authorisatio
 
 %% @private
 do_connect(Host, Port, Timeout, true, Opts) ->
-  application:ensure_all_started(ssl),
+  {ok, _} = application:ensure_all_started(ssl),
   ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
 do_connect(Host, Port, Timeout, false, _) ->
   gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).

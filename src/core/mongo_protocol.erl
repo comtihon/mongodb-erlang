@@ -125,10 +125,9 @@ bool(0) -> false;
 bool(1) -> true.
 
 %% @private
-add_proj(Projector) when is_map(Projector) ->
+-spec add_proj(map()) -> binary().
+add_proj(Projector) ->
   case map_size(Projector) of
     0 -> <<>>;
     _ -> bson_binary:put_document(Projector)
-  end;
-add_proj([]) -> <<>>;
-add_proj(Other) -> bson_binary:put_document(Other).
+  end.
