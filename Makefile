@@ -37,12 +37,17 @@ ct:
 	@$(REBAR) ct skip_deps=true
 
 # Dialyzer.
-build-plt:
-	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt \
-		--apps erts kernel stdlib sasl inets crypto public_key ssl mnesia syntax_tools
+.$(PROJECT).plt: 
+	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt -r deps \
+		--apps erts kernel stdlib sasl inets crypto public_key ssl mnesia syntax_tools asn1
 
-dialyze:
-	@$(DIALYZER) --src src --plt .$(PROJECT).plt --no_native \
+clean-plt: 
+	rm -f .$(PROJECT).plt
+
+build-plt: clean-plt .$(PROJECT).plt
+
+dialyze: .$(PROJECT).plt
+	@$(DIALYZER) -I include -I deps --src -r src --plt .$(PROJECT).plt --no_native \
 		-Werror_handling -Wrace_conditions -Wunmatched_returns
 
-.PHONY: deps
+.PHONY: deps clean-plt build-plt dialyze
