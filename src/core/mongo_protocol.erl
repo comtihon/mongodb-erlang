@@ -130,5 +130,4 @@ add_proj(Projector) when is_map(Projector) ->
     0 -> <<>>;
     _ -> bson_binary:put_document(Projector)
   end;
-add_proj([]) -> <<>>;
 add_proj(Other) -> bson_binary:put_document(Other).

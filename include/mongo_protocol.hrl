@@ -10,7 +10,7 @@
 %% write
 -record(insert, {
   collection :: colldb(),
-  documents :: [bson:document()]
+  documents :: [map() | bson:document()]
 }).
 
 -record(update, {

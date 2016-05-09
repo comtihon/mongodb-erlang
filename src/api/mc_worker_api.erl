@@ -36,11 +36,11 @@
 
 
 -type cursorid() :: integer().
--type selector() :: list() | bson:document() | map().
--type projector() :: list() | bson:document() | map().
+-type selector() :: bson:document() | map().
+-type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
--type modifier() :: bson:document().
+-type modifier() :: bson:document() | map().
 -type connection() :: pid().
 -type args() :: [arg()].
 -type arg() :: {database, database()}
@@ -153,7 +153,7 @@ find_one(Connection, Coll, Selector) ->
 %% @doc Return first selected document, if any
 -spec find_one(pid(), colldb(), selector(), map()) -> map().
 find_one(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
@@ -171,7 +171,7 @@ find(Connection, Coll, Selector) ->
 %%      Empty projection [] means full projection.
 -spec find(pid(), colldb(), selector(), map()) -> cursor().
 find(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
   mc_action_man:read(Connection, #'query'{
