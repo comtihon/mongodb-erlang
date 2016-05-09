@@ -23,7 +23,7 @@
 %% API
 -export([mongodb_cr_auth/5, scram_sha_1_auth/5, compose_first_message/2, compose_second_message/5]).
 
--spec mongodb_cr_auth(port(), binary(), binary(), binary(), module()) -> true.
+-spec mongodb_cr_auth(port(), binary(), binary(), binary(), module()) -> boolean().
 mongodb_cr_auth(Socket, Database, Login, Password, SetOpts) ->
   {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"getnonce">>, 1}, SetOpts),
   Nonce = maps:get(<<"nonce">>, Res),
@@ -70,7 +70,7 @@ scram_third_step(ServerSignature, Response, ConversationId, Socket, Database, Se
   scram_forth_step(Done, ConversationId, Socket, Database, SetOpts).
 
 %% @private
-scram_forth_step(true, _, _, _, _) -> ok;
+scram_forth_step(true, _, _, _, _) -> true;
 scram_forth_step(false, ConversationId, Socket, Database, SetOpts) ->
   {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>,
     ConversationId, <<"payload">>, <<>>}, SetOpts),
