@@ -86,8 +86,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({update_type, Type}, State) ->
   {noreply, State#state{type = Type}};
 handle_cast(loop, State) ->
-  loop(State),
-  {noreply, State};
+  {noreply, loop(State)};
 handle_cast({loopn, Pid, TimeOut}, State = #state{timer = PausePid}) ->
   send_stop(PausePid),
   Timer = spawn_link(?MODULE, do_timeout, [Pid, TimeOut]),
