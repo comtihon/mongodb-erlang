@@ -12,7 +12,7 @@
 -include_lib("bson/include/bson_binary.hrl").
 
 % A notice is an asynchronous message sent to the server (no reply expected)
--type notice() :: #insert{} | #update{} | #delete{} | #killcursor{}.
+-type notice() :: #insert{} | #update{} | #delete{} | #killcursor{} | #ensure_index{}.
 % A request is a syncronous message sent to the server (reply expected)
 -type request() :: #'query'{} | #getmore{}.
 % A reply to a request
