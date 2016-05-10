@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1]).
+-export([start_link/4, start/4, get_pool/1, get_pool/2, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -97,7 +97,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 get_pool(Pid) ->
-  gen_server:call(Pid, get_pool).
+  get_pool(Pid, 5000).
+
+-spec get_pool(pid(), integer() | infinity) -> pid().
+get_pool(Pid, Timeout) ->
+  gen_server:call(Pid, get_pool, Timeout).
 
 update_ismaster(Pid, {Type, IsMaster}) ->
   gen_server:cast(Pid, {update_ismaster, Type, IsMaster}).

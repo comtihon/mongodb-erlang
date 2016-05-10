@@ -37,14 +37,14 @@ disconnect(Worker) ->
   gen_server:cast(Worker, halt).
 
 init(Options) ->
+  proc_lib:init_ack({ok, self()}),
   {ok, Socket} = mc_auth:connect_to_database(Options),
   ConnState = form_state(Options),
   try_register(Options),
   NetModule = get_set_opts_module(Options),
   Login = mc_utils:get_value(login, Options),
   Password = mc_utils:get_value(password, Options),
-  gen_server:cast(self(), {auth, Login, Password}),
-  proc_lib:init_ack({ok, self()}),
+  mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
   gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule}).
 
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
@@ -109,9 +109,6 @@ handle_call({stop, _}, _From, State) -> % stop request
 
 
 %% @hidden
-handle_cast({auth, Login, Password}, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule}) ->
-  mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
-  {noreply, State};
 handle_cast(halt, State) ->
   {stop, normal, State};
 handle_cast(hibernate, State) ->
