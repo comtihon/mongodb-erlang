@@ -189,7 +189,7 @@ count(Pool, Coll, Selector, Options, Limit) ->
     {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, undefined),
   trunc(N). % Server returns count as float
 
--spec command(map(), bson:document(), readprefs(), undefined | colldb()) ->
+-spec command(map(), bson:document(), readprefs(), undefined | database()) ->
   {boolean(), bson:document()} | {error, reason()}. % Action
 command(Pid, Command, Options, Db) when is_pid(Pid) ->
   case mc_topology:get_pool(Pid, Options) of

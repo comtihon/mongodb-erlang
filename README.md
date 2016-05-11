@@ -21,7 +21,7 @@ The bson application needs to be started before starting mongodb application
     > application:start (bson).
 
 The crypto application needs to be started if you plan to use authorization to mongodb-server 3+.
-    
+
     > application:start (crypto).
 
 The mongodb application needs be started before using (to initialize an internal ets table of counters)
@@ -54,7 +54,7 @@ use `mc_worker_api:connect/1`.
 To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` instead and pass all args to it.
 
 `safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are write-modes. Safe mode makes a *getLastError* request
-after every write in the sequence. If the reply says it failed then the rest of the sequence is aborted and returns 
+after every write in the sequence. If the reply says it failed then the rest of the sequence is aborted and returns
 `{failure, {write_failure, Reason}}`, or `{failure, not_master}` when connected to a slave. An example write
 failure is attempting to insert a duplicate key that is indexed to be unique. Alternatively, unsafe mode issues every
 write without a confirmation, so if a write fails you won't know about it and remaining operations will be executed.
@@ -65,7 +65,7 @@ a master/primary server). If the connected server is not a master then the first
 will be aborted, and `mongo:do` will return `{failure, not_master}`. `slave_ok` means every query is allowed to read
 stale data from a slave/secondary (fresh data from a master is fine too).  
 
-If you set `{register, Name}` option - mc_worker process will be registered on this Name, or you can pass function 
+If you set `{register, Name}` option - mc_worker process will be registered on this Name, or you can pass function
 `fun(pid())`, which it runs with self pid.    
 If you set `{login, Login}` and `{password, Password}` options - mc_worker will try to authenticate to the database.  
 
@@ -220,7 +220,7 @@ And if you want your MongoDB deployment metadata to be auto revered use unknow i
 
     { unknown,  "hostname1:port1", "hostname2:port2"] }
 
-Type in `mongo_api:connect` is topology type (`unknown` | `sharded`). 
+Type in `mongo_api:connect` is topology type (`unknown` | `sharded`).
 
 mongoc topology **Options**
 
@@ -267,13 +267,13 @@ Use transaction poolboy-like interface for mongoc:
           mc_worker:hibernate(Conf),
           Res
         end)
-        
+
     mongoc:transaction(?DBPOOL, fun(Conf) -> mongoc:count(Conf, Collection, Value, [], 1) end, [])
 
 	mongoc:transaction(?DBPOOL,
         fun(Worker) -> mc_worker_api:update(Worker, Collection, Key, Command, Upsert, Multi) end)
 
-Notice, that all write operations like `update`, `insert`, `delete` do with **mongo**, but all read operations 
+Notice, that all write operations like `update`, `insert`, `delete` do with **mongo**, but all read operations
 do with **mongoc**.  
 You can set up your read preferences when reading:
 
@@ -282,6 +282,10 @@ You can set up your read preferences when reading:
           mongoc:find_one(Conf#{read_preference => secondaryPreferred}, Collection, Key, Projector, 0)
         end)
 
+### For MongoDB < 2.6
+
+In your config, set:
+`{mongodb, [{version, 2.4}]}`
 
 ### More Documentation
 
