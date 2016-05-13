@@ -17,18 +17,19 @@
 %% API
 -export([reply/1, request_worker/2, process_reply/2, request_raw/4]).
 
--spec request_worker(pid(), bson:document()) -> ok | {non_neg_integer(), [bson:document()]}.
+-spec request_worker(pid(), mongo_protocol:message()) -> ok | {non_neg_integer(), [map()]}.
 request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_raw(port(), mc_worker_api:database(), bson:document(), module()) -> ok | {non_neg_integer(), [bson:document()]}.
+-spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) -> 
+	ok | {non_neg_integer(), [map()]}.
 request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
-  set_opts(Socket, NetModule, false),
+  ok = set_opts(Socket, NetModule, false),
   {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
   {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
-  set_opts(Socket, NetModule, true),
+  ok = set_opts(Socket, NetModule, true),
   {Responses, _} = mc_worker_logic:decode_responses(Packet),
   {_, Reply} = hd(Responses),
   reply(Reply).
@@ -50,6 +51,7 @@ process_reply(Doc, Command) -> %unknown result
   erlang:error({bad_command, Doc}, [Command]).
 
 %% @private
+-spec process_error(atom() | integer(), term()) -> no_return().
 process_error(?NOT_MASTER_ERROR, _) ->
   erlang:error(not_master);
 process_error(?UNAUTHORIZED_ERROR, _) ->

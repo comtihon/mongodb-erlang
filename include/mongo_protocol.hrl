@@ -10,7 +10,7 @@
 %% write
 -record(insert, {
   collection :: colldb(),
-  documents :: [bson:document()]
+  documents :: [map() | bson:document()]
 }).
 
 -record(update, {
@@ -38,7 +38,7 @@
   skip = 0 :: mc_worker_api:skip(),
   batchsize = 0 :: mc_worker_api:batchsize(),
   selector :: mc_worker_api:selector(),
-  projector = [] :: mc_worker_api:projector()
+  projector = #{} :: mc_worker_api:projector()
 }).
 
 -record(getmore, {
@@ -69,5 +69,5 @@
   awaitcapable :: boolean(),
   cursorid :: mc_worker_api:cursorid(),
   startingfrom :: integer(),
-  documents :: [bson:document()]
+  documents :: [map()]
 }).

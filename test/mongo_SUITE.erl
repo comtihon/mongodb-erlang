@@ -279,7 +279,7 @@ update(Config) ->
 
 %% @private
 find(Connection, Collection, Selector) ->
-  find(Connection, Collection, Selector, []).
+  find(Connection, Collection, Selector, #{}).
 
 %% @private
 find(Connection, Collection, Selector, Projector) ->
