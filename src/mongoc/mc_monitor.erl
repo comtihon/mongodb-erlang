@@ -86,8 +86,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({update_type, Type}, State) ->
   {noreply, State#state{type = Type}};
 handle_cast(loop, State) ->
-  loop(State),
-  {noreply, State};
+  {noreply, loop(State)};
 handle_cast({loopn, Pid, TimeOut}, State = #state{timer = PausePid}) ->
   send_stop(PausePid),
   Timer = spawn_link(?MODULE, do_timeout, [Pid, TimeOut]),
@@ -177,6 +176,7 @@ send_stop(PausePid) -> PausePid ! stop.
 %% @private
 form_args(Host, Port, Timeout, WorkerArgs) ->
   case mc_utils:get_value(ssl, WorkerArgs, false) of
-    true -> [{host, Host}, {port, Port}, {timeout, Timeout}, {ssl, true}];
+    true -> [{host, Host}, {port, Port}, {timeout, Timeout}, {ssl, true},
+      {ssl_opts, mc_utils:get_value(ssl_opts, WorkerArgs, [])}];
     false -> [{host, Host}, {port, Port}, {timeout, Timeout}]
   end.

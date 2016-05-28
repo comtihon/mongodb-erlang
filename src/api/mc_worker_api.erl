@@ -36,11 +36,11 @@
 
 
 -type cursorid() :: integer().
--type selector() :: map().
--type projector() :: map().
+-type selector() :: bson:document() | map().
+-type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
--type modifier() :: bson:document().
+-type modifier() :: bson:document() | map().
 -type connection() :: pid().
 -type args() :: [arg()].
 -type arg() :: {database, database()}
@@ -146,14 +146,14 @@ delete_limit(Connection, Coll, Selector, N, WC) ->
     [#{<<"q">> => Selector, <<"limit">> => N}], <<"writeConcern">>, WC}).
 
 %% @doc Return first selected document, if any
--spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector()) -> map().
 find_one(Connection, Coll, Selector) ->
   find_one(Connection, Coll, Selector, #{}).
 
 %% @doc Return first selected document, if any
--spec find_one(pid(), colldb(), selector(), map()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector(), map()) -> map().
 find_one(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
@@ -171,7 +171,7 @@ find(Connection, Coll, Selector) ->
 %%      Empty projection [] means full projection.
 -spec find(pid(), colldb(), selector(), map()) -> cursor().
 find(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
   mc_action_man:read(Connection, #'query'{
@@ -210,7 +210,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), bson:document()) -> {boolean(), map()}. % Action
+-spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()}. % Action
 command(Connection, Command) ->
   Doc = mc_action_man:read_one(Connection, #'query'{
     collection = <<"$cmd">>,
@@ -219,7 +219,7 @@ command(Connection, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @doc Execute MongoDB command in this thread
--spec sync_command(port(), binary(), bson:document(), module()) -> {boolean(), map()}.
+-spec sync_command(port(), binary(), mc_worker_api:selector(), module()) -> {boolean(), map()}.
 sync_command(Socket, Database, Command, SetOpts) ->
   Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
     collection = <<"$cmd">>,

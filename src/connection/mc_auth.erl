@@ -25,8 +25,7 @@ connect_to_database(Conf) ->  %TODO scram server-first auth case
   do_connect(Host, Port, Timeout, SSL, SslOpts).
 
 %% Authorize on database synchronously
--spec auth(port(), binary() | undefined, binary() | undefined, binary(), module()) ->
-  {boolean(), bson:document()}.
+-spec auth(port(), binary() | undefined, binary() | undefined, binary(), module()) -> boolean().
 auth(Socket, Login, Password, Database, NetModule) ->
   Version = get_version(Socket, Database, NetModule),
   do_auth(Version, Socket, Database, Login, Password, NetModule).
@@ -41,16 +40,16 @@ get_version(Socket, Database, SetOpts) ->
   VFloat.
 
 %% @private
--spec do_auth(float(), port(), binary(), binary() | undefined, binary() | undefined, fun()) -> boolean().
+-spec do_auth(float(), port(), binary(), binary() | undefined, binary() | undefined, module()) -> boolean().
 do_auth(_, _, _, Login, Pass, _) when Login == undefined; Pass == undefined -> true; %do nothing
-do_auth(Version, Socket, Database, Login, Password, SetOptsFun) when Version > 2.7 ->  %new authorisation
-  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password, SetOptsFun);
-do_auth(_, Socket, Database, Login, Password, SetOptsFun) ->   %old authorisation
-  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password, SetOptsFun).
+do_auth(Version, Socket, Database, Login, Password, NetModule) when Version > 2.7 ->  %new authorisation
+  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password, NetModule);
+do_auth(_, Socket, Database, Login, Password, NetModule) ->   %old authorisation
+  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password, NetModule).
 
 %% @private
 do_connect(Host, Port, Timeout, true, Opts) ->
-  application:ensure_all_started(ssl),
+  {ok, _} = application:ensure_all_started(ssl),
   ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
 do_connect(Host, Port, Timeout, false, _) ->
   gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).

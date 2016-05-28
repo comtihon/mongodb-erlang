@@ -3,6 +3,6 @@
   {description, "Client interface to MongoDB, also known as the driver. See www.mongodb.org"},
   {vsn, "3.3"},
   {registered, []},
-  {applications, [kernel, stdlib, bson, crypto]},
+  {applications, [kernel, stdlib, bson, crypto, poolboy]},
   {mod, {mongo_app, []}}
 ]}.

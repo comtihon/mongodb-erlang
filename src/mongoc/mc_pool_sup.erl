@@ -58,12 +58,9 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(init(Args :: term()) ->
-  {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-    MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
+  {ok, {supervisor:sup_flags(),
     [ChildSpec :: supervisor:child_spec()]
-  }} |
-  ignore |
-  {error, Reason :: term()}).
+  }} | ignore).
 init([]) ->
   {ok, {{simple_one_for_one, 1000, 3600},
     [{worker_pool, {poolboy, start_link, []}, transient, 5000, worker, [poolboy]}]}}.
