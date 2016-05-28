@@ -46,8 +46,11 @@ encode_name(Name) ->
 
 -spec random_binary(integer()) -> binary().
 random_binary(Length) ->
-  ok = application:ensure_started(crypto),
-  crypto:strong_rand_bytes(Length).
+  random:seed(os:timestamp()),
+  Chrs = ?ALLOWED_CHARS,
+  ChrsSize = size(Chrs),
+  F = fun(_, R) -> [element(random:uniform(ChrsSize), Chrs) | R] end,
+  list_to_binary(lists:foldl(F, "", lists:seq(1, Length))).
 
 value_to_binary(Value) when is_integer(Value) ->
   bson:utf8(integer_to_list(Value));
