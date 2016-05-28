@@ -59,7 +59,7 @@ start_link() ->
 	ignore |
 	{error, Reason :: term()}).
 init([]) ->
-	RestartStrategy = {simple_one_for_one, 10, 60},
+	RestartStrategy = {simple_one_for_one, 1000, 3600},
 	Worker = {mc_cursor, {mc_cursor, start_link, []},
 		temporary, 2000, worker, [mc_cursor]},
 	{ok, {RestartStrategy, [Worker]}}.

@@ -65,7 +65,7 @@ start_link() ->
   ignore |
   {error, Reason :: term()}).
 init([]) ->
-  {ok, {{simple_one_for_one, 10, 10},
+  {ok, {{simple_one_for_one, 1000, 3600},
     [{worker_pool, {poolboy, start_link, []}, transient, 5000, worker, [poolboy]}]}}.
 
 %%%===================================================================
