@@ -36,7 +36,7 @@ instead of '$set' as it will lead to crash.
 * made mc_cursor return `error` instead `[]` when connection is down.
 * mc_worker's socket is now `{active, true}`, which allows to handle disconnect at a moment
 
-#### 3.3 (tag v0.8.2)
+#### 3.3 (tag v0.8)
 
 * add ssl support
 * add return ok | error for write requests
@@ -45,3 +45,4 @@ instead of '$set' as it will lead to crash.
 * mongo.erl -> mc_worker_api.erl
 * mongo_api.erl with api functions for mongoc
 * changed api for mc_worker_api and mongoc
+* added ability to set overflow workers lifetime in a pool
