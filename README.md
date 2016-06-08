@@ -229,7 +229,9 @@ mongoc topology **Options**
         { register,  Name },    % Name should be used for mongoc topology process to be registered with
 
         { pool_size, 5 }, % pool size on start
-        { max_overflow, 10 },	%max pool size
+        { max_overflow, 10 },	% number of overflow workers be created, when all workers from pool are busy
+        { overflow_ttl, 1000 }, % number of milliseconds for overflow workers to stay in pool before terminating
+        { overflow_check_period, 1000 }, % overflow_ttl check period for workers (in milliseconds)
 
         { localThresholdMS, 1000 }, % secondaries only which RTTs fit in window from lower RTT to lower RTT + localThresholdMS could be selected for handling user's requests
 
