@@ -124,7 +124,7 @@ process_read_request(Request, From, State =
   #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule}) ->
   {UpdReq, Selector} = get_query_selector(Request, CS),
   {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
-  case bson:lookup(<<"writeConcern">>, Selector) of
+  case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
       {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = []}, State};
     _ ->  %ordinary request with response
@@ -139,6 +139,12 @@ get_query_selector(Query = #query{selector = Selector, sok_overriden = true}, CS
 get_query_selector(Query = #query{selector = Selector, sok_overriden = false}, _) ->
   {Query, Selector};
 get_query_selector(GetMore, _) -> {GetMore, {}}.
+
+%% @private
+get_write_concern(#{<<"writeConcern">>, N}) -> N;
+get_write_concern(Selector) when is_tuple(Selector)->
+  bson:lookup(<<"writeConcern">>, Selector);
+get_write_concern(_) -> undefined.
 
 %% @private
 %% Parses proplist to record
