@@ -141,7 +141,7 @@ get_query_selector(Query = #query{selector = Selector, sok_overriden = false}, _
 get_query_selector(GetMore, _) -> {GetMore, {}}.
 
 %% @private
-get_write_concern(#{<<"writeConcern">>, N}) -> N;
+get_write_concern(#{<<"writeConcern">> := N}) -> N;
 get_write_concern(Selector) when is_tuple(Selector)->
   bson:lookup(<<"writeConcern">>, Selector);
 get_write_concern(_) -> undefined.
