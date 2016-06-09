@@ -126,7 +126,7 @@ process_read_request(Request, From, State =
   {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
   case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
-      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = []}, State};
+      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, State};
     _ ->  %ordinary request with response
       RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
       URStorage = dict:store(Id, RespFun, RequestStorage),
@@ -142,7 +142,7 @@ get_query_selector(GetMore, _) -> {GetMore, {}}.
 
 %% @private
 get_write_concern(#{<<"writeConcern">> := N}) -> N;
-get_write_concern(Selector) when is_tuple(Selector)->
+get_write_concern(Selector) when is_tuple(Selector) ->
   bson:lookup(<<"writeConcern">>, Selector);
 get_write_concern(_) -> undefined.
 
