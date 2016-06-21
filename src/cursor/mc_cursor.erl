@@ -83,11 +83,11 @@ take(Cursor, Limit, Timeout) ->
 cursor_default_timeout() ->
   application:get_env(mongodb, cursor_timeout, infinity).
 
--spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer()) -> term().
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer() | infinity) -> term().
 foldl(Fun, Acc, Cursor, Max) ->
   foldl(Fun, Acc, Cursor, Max, cursor_default_timeout()).
 
--spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer(), timeout()) -> term().
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer() | infinity, timeout()) -> term().
 foldl(_Fun, Acc, _Cursor, 0, _Timeout) ->
   Acc;
 foldl(Fun, Acc, Cursor, infinity, Timeout) ->
