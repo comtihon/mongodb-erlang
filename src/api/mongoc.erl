@@ -189,13 +189,8 @@ count(Pool, Coll, Selector, Options, Limit) ->
     {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, undefined),
   trunc(N). % Server returns count as float
 
--spec command(map() | pid(), bson:document(), readprefs(), undefined | colldb()) ->
+-spec command(map() | pid() | atom(), bson:document(), readprefs(), undefined | colldb()) ->
   {boolean(), bson:document()} | {error, reason()}. % Action
-command(Pid, Command, Options, Db) when is_pid(Pid) ->
-  case mc_topology:get_pool(Pid, Options) of
-    {ok, Pool} -> command(Pool, Command, Options, Db);
-    Error -> Error
-  end;
 command(#{pool := C, server_type := ServerType, read_preference := RPrefs}, Command, _, Db) ->
   Q = #'query'{
     collection = {Db, <<"$cmd">>},
@@ -204,7 +199,12 @@ command(#{pool := C, server_type := ServerType, read_preference := RPrefs}, Comm
   poolboy:transaction(C,
     fun(Worker) ->
       exec_command(Worker, mongos_query_transform(ServerType, Q, RPrefs))
-    end).
+    end);
+command(Pid, Command, Options, Db) when is_pid(Pid) orelse is_atom(Pid) ->
+  case mc_topology:get_pool(Pid, Options) of
+    {ok, Pool} -> command(Pool, Command, Options, Db);
+    Error -> Error
+  end.
 
 %%%===================================================================
 %%% Internal functions
