@@ -114,14 +114,15 @@ start_link(Args) ->
 
 %% @hidden
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
-  {ok, #state{
+  proc_lib:init_ack(self()),
+  gen_server:enter_loop(?MODULE, [], #state{
     connection = Connection,
     collection = Collection,
     cursor = Cursor,
     batchsize = BatchSize,
     batch = Batch,
     monitor = erlang:monitor(process, Owner)
-  }}.
+  }).
 
 %% @hidden
 handle_call({next, Timeout}, _From, State) ->
