@@ -61,28 +61,8 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
     #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>),
       documents = [Index]}),
   {reply, ok, State};
-handle_call(Request, From, State =
-  #state{socket = Socket, conn_state = ConnState = #conn_state{}, request_storage = ReqStor, net_module = NetModule})
-  when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests
-  case ConnState#conn_state.write_mode of
-    unsafe ->   %unsafe (just write)
-      {ok, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
-      {reply, ok, State};
-    SafeMode -> %safe (write and check)
-      Params = case SafeMode of safe -> {}; {safe, Param} -> Param end,
-      ConfirmWrite =
-        #'query'
-        { % check-write read request
-          batchsize = -1,
-          collection = mc_worker_logic:update_dbcoll(mc_worker_logic:collection(Request), <<"$cmd">>),
-          selector = bson:append({<<"getlasterror">>, 1}, Params)
-        },
-      {ok, Id} = mc_worker_logic:make_request(
-        Socket, NetModule, ConnState#conn_state.database, [Request, ConfirmWrite]), % ordinary write request
-      RespFun = mc_worker_logic:get_resp_fun(Request, From),
-      UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
-      {noreply, State#state{request_storage = UReqStor}}
-  end;
+handle_call(Request, From, State) when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests (deprecated)
+  process_write_request(Request, From, State);
 handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Request, getmore) -> % read requests
   process_read_request(Request, From, State);
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
@@ -132,6 +112,28 @@ process_read_request(Request, From, State =
       URStorage = dict:store(Id, RespFun, RequestStorage),
       {noreply, State#state{request_storage = URStorage}}
   end.
+
+%% @deprecated
+%% @private
+process_write_request(Request, _,
+    State = #state{socket = Socket, conn_state = #conn_state{write_mode = unsafe, database = Db}, net_module = NetModule}) ->
+  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Db, Request),
+  {reply, ok, State};
+process_write_request(Request, From,
+    State = #state{socket = Socket, conn_state = #conn_state{write_mode = Safe, database = Db}, request_storage = ReqStor, net_module = NetModule}) ->
+  Params = case Safe of safe -> {}; {safe, Param} -> Param end,
+  ConfirmWrite =
+    #'query'
+    { % check-write read request
+      batchsize = -1,
+      collection = mc_worker_logic:update_dbcoll(mc_worker_logic:collection(Request), <<"$cmd">>),
+      selector = bson:append({<<"getlasterror">>, 1}, Params)
+    },
+  {ok, Id} = mc_worker_logic:make_request(
+    Socket, NetModule, Db, [Request, ConfirmWrite]), % ordinary write request
+  RespFun = mc_worker_logic:get_resp_fun(Request, From),
+  UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
+  {noreply, State#state{request_storage = UReqStor}}.
 
 %% @private
 get_query_selector(Query = #query{selector = Selector, sok_overriden = true}, CS) ->
