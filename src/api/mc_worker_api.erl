@@ -159,7 +159,7 @@ find_one(Connection, Coll, Selector, Args) ->
   ReadPref = maps:get(readopts, Args, <<"primary">>),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
-    selector = #{<<"$query">> => Selector, <<"$readPreference">> => ReadPref},
+    selector = mongoc:append_read_preference(Selector, ReadPref),
     projector = Projector,
     skip = Skip,
     batchsize = BatchSize
@@ -180,7 +180,7 @@ find(Connection, Coll, Selector, Args) ->
   ReadPref = maps:get(readopts, Args, <<"primary">>),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
-    selector = #{<<"$query">> => Selector, <<"$readPreference">> => ReadPref},
+    selector = mongoc:append_read_preference(Selector, ReadPref),
     projector = Projector,
     skip = Skip,
     batchsize = BatchSize
@@ -196,10 +196,10 @@ count(Connection, Coll, Selector) ->
 -spec count(pid(), collection(), selector(), map()) -> integer().
 count(Connection, Coll, Selector, Args = #{limit := Limit}) when Limit > 0 ->
   ReadPref = maps:get(readopts, Args, <<"primary">>),
-  do_count(Connection, {<<"count">>, Coll, <<"query">>, #{<<"$query">> => Selector, <<"$readPreference">> => ReadPref}, <<"limit">>, Limit});
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref), <<"limit">>, Limit});
 count(Connection, Coll, Selector, Args) ->
   ReadPref = maps:get(readopts, Args, <<"primary">>),
-  do_count(Connection, {<<"count">>, Coll, <<"query">>, #{<<"$query">> => Selector, <<"$readPreference">> => ReadPref}}).
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref)}).
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:

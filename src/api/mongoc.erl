@@ -23,7 +23,7 @@
   transaction/2,
   transaction/3,
   transaction/4,
-  status/1]).
+  status/1, append_read_preference/2]).
 
 -define(TRANSACTION_TIMEOUT, 5000).
 
@@ -260,7 +260,6 @@ mongos_query_transform(_, Q, #{mode := primary}) ->
 mongos_query_transform(_, Q, _) ->
   Q#'query'{slaveok = true, sok_overriden = true}.
 
-%% @private
 append_read_preference(Selector = #{<<"$query">> := _}, RP) ->
   Selector#{<<"$readPreference">> => RP};
 append_read_preference(Selector, RP) ->
