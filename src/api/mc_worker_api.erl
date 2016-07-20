@@ -155,11 +155,14 @@ find_one(Connection, Coll, Selector) ->
 find_one(Connection, Coll, Selector, Args) ->
   Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
+  BatchSize = maps:get(batchsize, Args, 0),
+  ReadPref = maps:get(readopts, Args, <<"primary">>),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
-    selector = Selector,
+    selector = Selector#{<<"$readPreference">> => ReadPref},
     projector = Projector,
-    skip = Skip
+    skip = Skip,
+    batchsize = BatchSize
   }).
 
 %% @doc Return selected documents.
@@ -174,9 +177,10 @@ find(Connection, Coll, Selector, Args) ->
   Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
+  ReadPref = maps:get(readopts, Args, <<"primary">>),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
-    selector = Selector,
+    selector = Selector#{<<"$readPreference">> => ReadPref},
     projector = Projector,
     skip = Skip,
     batchsize = BatchSize
