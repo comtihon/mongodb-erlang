@@ -41,8 +41,7 @@
 
 -spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->
-  {ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
-  Pid.
+  proc_lib:start(?MODULE, init, [[self(), Connection, Collection, Cursor, BatchSize, Batch]]).
 
 -spec next(pid()) -> error | {bson:document()}.
 next(Cursor) ->
@@ -115,14 +114,16 @@ start_link(Args) ->
 
 %% @hidden
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
-  {ok, #state{
+  Monitor = erlang:monitor(process, Owner),
+  proc_lib:init_ack(self()),
+  gen_server:enter_loop(?MODULE, [], #state{
     connection = Connection,
     collection = Collection,
     cursor = Cursor,
     batchsize = BatchSize,
     batch = Batch,
-    monitor = erlang:monitor(process, Owner)
-  }}.
+    monitor = Monitor
+  }).
 
 %% @hidden
 handle_call({next, Timeout}, _From, State) ->
