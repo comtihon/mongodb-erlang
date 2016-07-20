@@ -41,8 +41,7 @@
 
 -spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->
-  {ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
-  Pid.
+  proc_lib:start(?MODULE, init, [[self(), Connection, Collection, Cursor, BatchSize, Batch]]).
 
 -spec next(pid()) -> error | {bson:document()}.
 next(Cursor) ->
