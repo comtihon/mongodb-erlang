@@ -14,9 +14,10 @@
 
 -record(state, {
   socket :: gen_tcp:socket() | ssl:sslsocket(),
-  request_storage = dict:new() :: dict:dict(),
+  request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
   conn_state,
+  next_req_fun :: fun(),
   net_module :: ssl | get_tcp
 }).
 
@@ -44,8 +45,9 @@ init(Options) ->
   NetModule = get_set_opts_module(Options),
   Login = mc_utils:get_value(login, Options),
   Password = mc_utils:get_value(password, Options),
+  NextReqFun = mc_utils:get_value(next_req_fun, fun() -> ok end),
   mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
-  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule}).
+  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule, next_req_fun = NextReqFun}).
 
 handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
@@ -63,7 +65,7 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
   {reply, ok, State};
 handle_call(Request, From, State) when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests (deprecated)
   process_write_request(Request, From, State);
-handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Request, getmore) -> % read requests
+handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Request, getmore) -> % read requests (and all through command)
   process_read_request(Request, From, State);
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
   when is_record(Request, killcursor) ->
@@ -101,15 +103,16 @@ code_change(_Old, State, _Extra) ->
 
 %% @private
 process_read_request(Request, From, State =
-  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule}) ->
+  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule, next_req_fun = Next}) ->
   {UpdReq, Selector} = get_query_selector(Request, CS),
   {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
   case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
       {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, State};
     _ ->  %ordinary request with response
+      Next(),
       RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
-      URStorage = dict:store(Id, RespFun, RequestStorage),
+      URStorage = RequestStorage#{Id => RespFun},
       {noreply, State#state{request_storage = URStorage}}
   end.
 
@@ -132,7 +135,7 @@ process_write_request(Request, From,
   {ok, Id} = mc_worker_logic:make_request(
     Socket, NetModule, Db, [Request, ConfirmWrite]), % ordinary write request
   RespFun = mc_worker_logic:get_resp_fun(Request, From),
-  UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
+  UReqStor = ReqStor#{Id => RespFun},  % save function, which will be called on response
   {noreply, State#state{request_storage = UReqStor}}.
 
 %% @private

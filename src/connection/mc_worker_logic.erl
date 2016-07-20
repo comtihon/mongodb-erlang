@@ -35,16 +35,18 @@ get_resp_fun(Read, From) when is_record(Read, query); is_record(Read, getmore) -
 get_resp_fun(Write, From) when is_record(Write, insert); is_record(Write, update); is_record(Write, delete) ->
   process_write_response(From).
 
--spec process_responses(Responses :: list(), RequestStorage :: dict:dict()) -> UpdStorage :: dict:dict().
+-spec process_responses(Responses :: list(), RequestStorage :: map()) -> UpdStorage :: map().
 process_responses(Responses, RequestStorage) ->
   lists:foldl(
     fun({Id, Response}, UReqStor) ->
-      case dict:find(Id, UReqStor) of
+      case maps:find(Id, UReqStor) of
         error -> % TODO: close any cursor that might be linked to this request ?
           UReqStor;
         {ok, Fun} ->
-          UpdReqStor = dict:erase(Id, UReqStor),
-          catch Fun(Response), % call on-response function
+          UpdReqStor = maps:remove(Id, UReqStor),
+          try Fun(Response) % call on-response function
+          catch _:_ -> ok
+          end,
           UpdReqStor
       end
     end, RequestStorage, Responses).
@@ -53,7 +55,7 @@ gen_index_name(KeyOrder) ->
   bson:doc_foldl(
     fun(Label, Order, Acc) ->
       <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
-      $_, (mc_utils:value_to_binary(Order))/binary>>
+        $_, (mc_utils:value_to_binary(Order))/binary>>
     end, <<"i">>, KeyOrder).
 
 make_request(Socket, NetModule, Database, Request) ->
