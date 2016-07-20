@@ -114,6 +114,7 @@ start_link(Args) ->
 
 %% @hidden
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
+  Monitor = erlang:monitor(process, Owner),
   proc_lib:init_ack(self()),
   gen_server:enter_loop(?MODULE, [], #state{
     connection = Connection,
@@ -121,7 +122,7 @@ init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
     cursor = Cursor,
     batchsize = BatchSize,
     batch = Batch,
-    monitor = erlang:monitor(process, Owner)
+    monitor = Monitor
   }).
 
 %% @hidden
