@@ -36,7 +36,7 @@
 
 
 -type cursorid() :: integer().
--type selector() :: bson:document() | map().
+-type selector() :: map().
 -type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
@@ -187,21 +187,19 @@ find(Connection, Coll, Selector, Args) ->
   }).
 
 %% @doc Count selected documents
--spec count(pid(), colldb(), selector()) -> integer().
+-spec count(pid(), collection(), selector()) -> integer().
 count(Connection, Coll, Selector) ->
-  count(Connection, Coll, Selector, 0).
+  count(Connection, Coll, Selector, #{}).
 
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(pid(), colldb(), selector(), integer()) -> integer().
-count(Connection, Coll, Selector, Limit) when not is_binary(Coll) ->
-  count(Connection, mc_utils:value_to_binary(Coll), Selector, Limit);
-count(Connection, Coll, Selector, Limit) when Limit =< 0 ->
-  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector}),
-  trunc(N);
-count(Connection, Coll, Selector, Limit) ->
-  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit}),
-  trunc(N). % Server returns count as float
+-spec count(pid(), collection(), selector(), map()) -> integer().
+count(Connection, Coll, Selector, Args = #{limit := Limit}) when Limit > 0 ->
+  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector#{<<"$readPreference">> => ReadPref}, <<"limit">>, Limit});
+count(Connection, Coll, Selector, Args) ->
+  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector#{<<"$readPreference">> => ReadPref}}).
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
@@ -256,6 +254,11 @@ prepare(Docs, AssignFun) ->
     List -> List
   end.
 
+
+%% @private
+do_count(Connection, Query) ->
+  {true, #{<<"n">> := N}} = command(Connection, Query),
+  trunc(N). % Server returns count as float
 
 %% @private
 %% Convert maps or proplists to bson
