@@ -24,7 +24,8 @@
   encode_name/1,
   random_binary/1,
   hmac/2,
-  is_proplist/1]).
+  is_proplist/1,
+  to_binary/1]).
 
 get_value(Key, List) -> get_value(Key, List, undefined).
 
@@ -46,10 +47,10 @@ encode_name(Name) ->
 
 -spec random_binary(integer()) -> binary().
 random_binary(Length) ->
-  random:seed(os:timestamp()),
+  rand:seed(os:timestamp()),
   Chrs = ?ALLOWED_CHARS,
   ChrsSize = size(Chrs),
-  F = fun(_, R) -> [element(random:uniform(ChrsSize), Chrs) | R] end,
+  F = fun(_, R) -> [element(rand:uniform(ChrsSize), Chrs) | R] end,
   list_to_binary(lists:foldl(F, "", lists:seq(1, Length))).
 
 value_to_binary(Value) when is_integer(Value) ->
@@ -74,6 +75,10 @@ pw_key(Nonce, Username, Password) ->
 
 pw_hash(Username, Password) ->
   bson:utf8(binary_to_hexstr(crypto:hash(md5, [Username, <<":mongo:">>, Password]))).
+
+-spec to_binary(string() | binary()) -> binary().
+to_binary(Str) when is_list(Str) ->  list_to_binary(Str);
+to_binary(Str) when is_binary(Str) ->  Str.
 
 
 %% @private

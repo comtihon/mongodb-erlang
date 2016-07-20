@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, get_pool/2, update_ismaster/2, update_unknown/1]).
+-export([start/4, get_pool/1, get_pool/2, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -46,9 +46,6 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-start_link(Topology, HostPort, Topts, Wopts) ->
-  gen_server:start_link(?MODULE, [Topology, HostPort, Topts, Wopts], []).
 
 start(Topology, HostPort, Topts, Wopts) ->
   gen_server:start(?MODULE, [Topology, HostPort, Topts, Wopts], []).
