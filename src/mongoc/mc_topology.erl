@@ -111,11 +111,10 @@ get_pool(RPMode, RPTags, State) ->
       {error, timeout}
   end.
 
-get_pool(From, #topology_state{self = Topology, get_pool_timeout = TM} = State, RPMode, Tags) ->
+get_pool(From, State = #topology_state{self = Topology}, RPMode, Tags) ->
   case mc_selecting_logics:select_server(Topology, RPMode, Tags) of
     #mc_server{pid = Pid, type = Type} ->
-      Pool = mc_server:get_pool(Pid, TM),
-      From ! {self(), Pool, Type};
+      From ! {self(), Pid, Type};
     undefined ->
       timer:sleep(100),
       get_pool(From, State, RPMode, Tags)
@@ -192,7 +191,7 @@ handle_server_to_unknown(Server, #topology_state{servers = Tab} = State) ->
     type = unknown
   },
   ets:insert(Tab, ToUpdate),
-  mc_server:update_unknown(ToUpdate#mc_server.pid),
+  mc_seed_logics:update_unknown(ToUpdate#mc_server.pid),
   mc_topology_logics:update_topology_state(ToUpdate, State).
 
 %% @private

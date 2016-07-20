@@ -100,7 +100,7 @@ update_topology_state(
 update_topology_state(#mc_server{type = rsPrimary, pid = Pid, host = Host, setName = SSetName},
     State = #topology_state{setName = CSetName, servers = Tab}) when SSetName =/= CSetName ->
   ets:insert(Tab, #mc_server{pid = Pid, host = Host, type = deleted}),
-  exit(Pid, kill),
+  poolboy:stop(Pid),
   State#topology_state{type = checkIfHasPrimary(Tab)};
 update_topology_state(_, State) ->
   State.
@@ -118,7 +118,7 @@ init_seeds([Addr | Seeds], Tab, Topts, Wopts) ->
 
 %% @private
 start_seed([], Host, Tab, Topts, Wopts) ->
-  {ok, Pid} = mc_server:start(self(), Host, Topts, Wopts),
+  {ok, Pid} = mc_seed_logics:init_pool(Host, Topts, Wopts),
   MRef = erlang:monitor(process, Pid),
   ets:insert(Tab, #mc_server{pid = Pid, mref = MRef, host = Host});
 start_seed(_, _, _, _, _) ->
@@ -149,13 +149,12 @@ checkIfHasPrimary_Res(_) ->
 %% @private
 stop_servers_not_in_list(HostsList, Tab) ->
   ets:foldl(
-    fun(E, Acc) ->
-      case lists:member(E#mc_server.host, HostsList) of
+    fun(E = #mc_server{pid = Pid, host = Host}, Acc) ->
+      case lists:member(Host, HostsList) of
         false ->
           ets:insert(Tab, E#mc_server{type = deleted}),
-          unlink(E#mc_server.pid),
-          exit(E#mc_server.pid, kill),
-          [E#mc_server.host | Acc];
+          poolboy:stop(Pid),
+          [Host | Acc];
         true -> Acc
       end
     end, [], Tab).

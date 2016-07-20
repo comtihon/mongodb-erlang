@@ -13,7 +13,6 @@
 -include("mongoc.hrl").
 
 %% API
--export([start/4, get_pool/1, get_pool/2, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -69,10 +68,7 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
     topology_mref = MRef,
     host = Host,
     port = Port,
-    rs = ReplicaSet,
     pool_conf = PoolConf,
-    connect_to = ConnectTimeoutMS,
-    socket_to = SocketTimeoutMS,
     topology_opts = TopologyOptions,
     worker_opts = Wopts
   }}.
@@ -89,19 +85,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% External functions
 %%%===================================================================
-
-get_pool(Pid) ->
-  get_pool(Pid, 5000).
-
--spec get_pool(pid(), integer() | infinity) -> pid().
-get_pool(Pid, Timeout) ->
-  gen_server:call(Pid, get_pool, Timeout).
-
-update_ismaster(Pid, {Type, IsMaster}) ->
-  gen_server:cast(Pid, {update_ismaster, Type, IsMaster}).
-
-update_unknown(Pid) ->
-  gen_server:cast(Pid, {update_unknown}).
 
 %%%===================================================================
 %%% Handlers
@@ -163,25 +146,3 @@ handle_info(_Info, State) ->
 %% @private
 init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts = Topts, worker_opts = Wopts}) ->
   mc_monitor:start_link(Topology, self(), {Host, Port}, Topts, Wopts).
-
-%% @private
-init_pool(#state{host = Host, port = Port, pool_conf = Conf, worker_opts = Wopts}) ->
-  WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  {ok, Child} = mc_pool_sup:start_pool(Conf, WO),
-  link(Child),
-  Child.
-
-%% @private
-parse_seed(Addr) when is_binary(Addr) ->
-  parse_seed(binary_to_list(Addr));
-parse_seed(Addr) when is_list(Addr) ->
-  [Host, Port] = string:tokens(Addr, ":"),
-  {Host, list_to_integer(Port)}.
-
-%% @private
-form_pool_conf(TopologyOptions) ->
-  Size = mc_utils:get_value(pool_size, TopologyOptions, 10),
-  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
-  OverflowTtl = mc_utils:get_value(overflow_ttl, TopologyOptions, 0),
-  OverflowCheckPeriod = mc_utils:get_value(overflow_check_period, TopologyOptions),
-  [{size, Size}, {max_overflow, Overflow}, {overflow_ttl, OverflowTtl}, {overflow_check_period, OverflowCheckPeriod}].

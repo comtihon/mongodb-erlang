@@ -73,17 +73,17 @@ pick_random(List, N) -> lists:nth(rand:uniform(N), List).
 %% @private
 is_candidate(_, _, #mc_server{type = Type}, _) when Type =/= rsPrimary, Type =/= rsSecondary, Type =/= mongos, Type =/= standalone ->
   false;
-is_candidate(_, _, #mc_server{type = standalone} = Server, _) ->
+is_candidate(_, _, Server = #mc_server{type = standalone}, _) ->
   Server;
-is_candidate(primary, _, #mc_server{type = rsPrimary} = Server, _) ->
+is_candidate(primary, _, Server = #mc_server{type = rsPrimary}, _) ->
   Server;
-is_candidate(primary, _, #mc_server{type = mongos, rtt = RTT} = Server, MaxRTT) when RTT =< MaxRTT ->
+is_candidate(primary, _, Server = #mc_server{type = mongos, rtt = RTT}, MaxRTT) when RTT =< MaxRTT ->
   Server;
 is_candidate(primary, _, #mc_server{type = _}, _) ->
   false;
-is_candidate(secondary, Tags, #mc_server{type = rsSecondary, tags = STags, rtt = RTT} = Server, MaxRTT) when RTT =< MaxRTT ->
+is_candidate(secondary, Tags, Server = #mc_server{type = rsSecondary, tags = STags, rtt = RTT}, MaxRTT) when RTT =< MaxRTT ->
   check_tags(Server, Tags, STags);
-is_candidate(secondary, _, #mc_server{type = mongos, rtt = RTT} = Server, MaxRTT) when RTT =< MaxRTT ->
+is_candidate(secondary, _, Server = #mc_server{type = mongos, rtt = RTT}, MaxRTT) when RTT =< MaxRTT ->
   Server;
 is_candidate(_, _, _, _) ->
   false.
