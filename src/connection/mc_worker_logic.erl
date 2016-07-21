@@ -57,6 +57,7 @@ gen_index_name(KeyOrder) ->
     end, <<"i">>, KeyOrder).
 
 make_request(Socket, NetModule, Database, Request) ->
+  io:format("request ~p~n", [Request]),
   {Packet, Id} = encode_requests(Database, Request),
   {NetModule:send(Socket, Packet), Id}.
 
