@@ -156,7 +156,7 @@ find_one(Connection, Coll, Selector, Args) ->
   Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
-  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
     selector = mongoc:append_read_preference(Selector, ReadPref),
@@ -177,13 +177,15 @@ find(Connection, Coll, Selector, Args) ->
   Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
-  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
     selector = mongoc:append_read_preference(Selector, ReadPref),
     projector = Projector,
     skip = Skip,
-    batchsize = BatchSize
+    batchsize = BatchSize,
+    slaveok = true,
+    sok_overriden = true
   }).
 
 %% @doc Count selected documents
@@ -195,10 +197,10 @@ count(Connection, Coll, Selector) ->
 %%     Ie. stops counting when max is reached to save processing time.
 -spec count(pid(), collection(), selector(), map()) -> integer().
 count(Connection, Coll, Selector, Args = #{limit := Limit}) when Limit > 0 ->
-  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref), <<"limit">>, Limit});
 count(Connection, Coll, Selector, Args) ->
-  ReadPref = maps:get(readopts, Args, <<"primary">>),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref)}).
 
 %% @doc Create index on collection according to given spec.
