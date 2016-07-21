@@ -198,10 +198,10 @@ count(Connection, Coll, Selector) ->
 -spec count(pid(), collection(), selector(), map()) -> integer().
 count(Connection, Coll, Selector, Args = #{limit := Limit}) when Limit > 0 ->
   ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
-  do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref), <<"limit">>, Limit});
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit, <<"$readPreference">>, ReadPref});
 count(Connection, Coll, Selector, Args) ->
   ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
-  do_count(Connection, {<<"count">>, Coll, <<"query">>, mongoc:append_read_preference(Selector, ReadPref)}).
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"$readPreference">>, ReadPref}).
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
