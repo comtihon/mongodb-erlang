@@ -50,7 +50,8 @@ use `mc_worker_api:connect/1`.
     | {r_mode, read_mode()}
     | {host, list()}
     | {port, integer()}
-    | {register, atom() | fun()}.
+    | {register, atom() | fun()}
+    | {next_req_fun, fun()}.
 To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` instead and pass all args to it.
 
 `safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are write-modes. Safe mode makes a *getLastError* request
@@ -68,6 +69,13 @@ stale data from a slave/secondary (fresh data from a master is fine too).
 If you set `{register, Name}` option - mc_worker process will be registered on this Name, or you can pass function 
 `fun(pid())`, which it runs with self pid.    
 If you set `{login, Login}` and `{password, Password}` options - mc_worker will try to authenticate to the database.  
+
+`next_req_fun` is a function caller every time, when worker sends request to database. It can be use to optimise pool 
+usage. When you use poolboy transaction (or mongoc transaction, which use poolboy transaction) - `mc_worker` sends request
+to database and do nothing, waiting for reply. You can use `{next_req_fun, fun() -> poolboy:checkin(?DBPOOL, self()) end}`
+to make workers return to pool as soon as they finish request. When responce from database comes back - it will be saved in
+mc_worker msgbox. Msgbox will be processed just before the next call to mc_worker.  
+__Notice__, that poolboy's pool should be created with `{strategy, fifo}` to make uniform usage of pool workers.
 
 ### Writing
 After you connected to your database - you can carry out write operations, such as `insert`, `update` and `delete`:
