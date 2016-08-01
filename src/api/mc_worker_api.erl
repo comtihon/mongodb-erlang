@@ -250,6 +250,16 @@ prepare(Doc, AssignFun) when is_map(Doc), map_size(Doc) == 1 ->
         List -> List
       end
   end;
+prepare(Doc, AssignFun) when is_map(Doc) ->
+  Keys = maps:keys(Doc),
+  case [K || <<"$", _/binary>> = K <- Keys] of
+    Keys -> Doc; % multiple commands
+    _ ->  % document
+      case prepare_doc(Doc, AssignFun) of
+        Res when is_tuple(Res) -> [Res];
+        List -> List
+      end
+  end;
 prepare(Docs, AssignFun) ->
   case prepare_doc(Docs, AssignFun) of
     Res when not is_list(Res) -> [Res];
