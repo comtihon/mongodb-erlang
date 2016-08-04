@@ -17,8 +17,9 @@
   request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
   conn_state,
+  hibernate_timer :: timer:tref() | undefined,
   next_req_fun :: fun(),
-  net_module :: ssl | get_tcp
+  net_module :: ssl | gen_tcp
 }).
 
 -spec start_link(proplists:proplist()) -> {ok, pid()}.
@@ -56,12 +57,12 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
   Key = maps:get(<<"key">>, IndexSpec),
   Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
   Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-  {ok, _} = mc_worker_logic:make_request(
-    Socket,
-    NetModule,
-    ConnState#conn_state.database,
-    #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>),
-      documents = [Index]}),
+  {ok, _} =
+    mc_worker_logic:make_request(
+      Socket,
+      NetModule,
+      ConnState#conn_state.database,
+      #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>), documents = [Index]}),
   {reply, ok, State};
 handle_call(Request, From, State) when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests (deprecated)
   process_write_request(Request, From, State);
@@ -69,7 +70,7 @@ handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Re
   process_read_request(Request, From, State);
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
   when is_record(Request, killcursor) ->
-  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
+  {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
   {reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
   {stop, normal, ok, State}.
@@ -90,12 +91,17 @@ handle_info({Net, _Socket, Data}, State = #state{request_storage = RequestStorag
   {noreply, State#state{buffer = Pending, request_storage = UReqStor}};
 handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_closed ->
   {stop, tcp_closed, State};
+handle_info(hibernate, State) ->
+  {noreply, State#state{hibernate_timer = undefined}, hibernate};
 handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_errror; NetR =:= ssl_error ->
   {stop, Reason, State}.
 
 %% @hidden
 terminate(_, State = #state{net_module = NetModule}) ->
-    catch NetModule:close(State#state.socket).
+  try NetModule:close(State#state.socket)
+  catch
+    _:_ -> ok
+  end.
 
 %% @hidden
 code_change(_Old, State, _Extra) ->
@@ -105,24 +111,26 @@ code_change(_Old, State, _Extra) ->
 process_read_request(Request, From, State =
   #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule, next_req_fun = Next}) ->
   {UpdReq, Selector} = get_query_selector(Request, CS),
-  {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
+  {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
+  UState = need_hibernate(PacketSize, State),
   case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
       Next(),
-      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, State};
+      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, UState};
     _ ->  %ordinary request with response
       Next(),
       RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
       URStorage = RequestStorage#{Id => RespFun},
-      {noreply, State#state{request_storage = URStorage}}
+      {noreply, UState#state{request_storage = URStorage}}
   end.
 
 %% @deprecated
 %% @private
 process_write_request(Request, _,
     State = #state{socket = Socket, conn_state = #conn_state{write_mode = unsafe, database = Db}, net_module = NetModule}) ->
-  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Db, Request),
-  {reply, ok, State};
+  {ok, PacketSize, _} = mc_worker_logic:make_request(Socket, NetModule, Db, Request),
+  UState = need_hibernate(PacketSize, State),
+  {reply, ok, UState};
 process_write_request(Request, From,
     State = #state{socket = Socket, conn_state = #conn_state{write_mode = Safe, database = Db}, request_storage = ReqStor, net_module = NetModule}) ->
   Params = case Safe of safe -> {}; {safe, Param} -> Param end,
@@ -133,11 +141,19 @@ process_write_request(Request, From,
       collection = mc_worker_logic:update_dbcoll(mc_worker_logic:collection(Request), <<"$cmd">>),
       selector = bson:append({<<"getlasterror">>, 1}, Params)
     },
-  {ok, Id} = mc_worker_logic:make_request(
+  {ok, PacketSize, Id} = mc_worker_logic:make_request(
     Socket, NetModule, Db, [Request, ConfirmWrite]), % ordinary write request
   RespFun = mc_worker_logic:get_resp_fun(Request, From),
   UReqStor = ReqStor#{Id => RespFun},  % save function, which will be called on response
-  {noreply, State#state{request_storage = UReqStor}}.
+  UState = need_hibernate(PacketSize, State#state{request_storage = UReqStor}),
+  {noreply, UState}.
+
+%% @private
+need_hibernate(Pack, State) when Pack < 64 -> State;  %no need in hibernate
+need_hibernate(_, State = #state{hibernate_timer = undefined}) ->
+  TRef = erlang:send_after(1000, self(), hibernate),
+  State#state{hibernate_timer = TRef};
+need_hibernate(_, State) -> State.  %timer already started
 
 %% @private
 get_query_selector(Query = #query{selector = Selector, sok_overriden = true}, CS) ->

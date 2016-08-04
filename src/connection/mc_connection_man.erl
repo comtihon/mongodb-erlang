@@ -27,7 +27,7 @@ request_worker(Connection, Request) ->  %request to worker
 request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
   ok = set_opts(Socket, NetModule, false),
-  {ok, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
+  {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
   {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
   ok = set_opts(Socket, NetModule, true),
   {Responses, _} = mc_worker_logic:decode_responses(Packet),
