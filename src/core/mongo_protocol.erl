@@ -21,6 +21,7 @@
 -type requestid() :: integer().
 -type message() :: notice() | request().
 
+-export_type([message/0]).
 
 % RequestId expected to be in scope at call site
 -define(put_header(Opcode), ?put_int32(_RequestId), ?put_int32(0), ?put_int32(Opcode)).
