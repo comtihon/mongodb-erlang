@@ -88,7 +88,8 @@ handle_info({Net, _Socket, Data}, State = #state{request_storage = RequestStorag
   Buffer = <<(State#state.buffer)/binary, Data/binary>>,
   {Responses, Pending} = mc_worker_logic:decode_responses(Buffer),
   UReqStor = mc_worker_logic:process_responses(Responses, RequestStorage),
-  {noreply, State#state{buffer = Pending, request_storage = UReqStor}};
+  UState = need_hibernate(Buffer, State),
+  {noreply, UState#state{buffer = Pending, request_storage = UReqStor}};
 handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_closed ->
   {stop, tcp_closed, State};
 handle_info(hibernate, State) ->
