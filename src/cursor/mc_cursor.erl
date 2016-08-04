@@ -33,7 +33,7 @@
   cursor :: integer(),
   batchsize :: integer(),
   batch :: [bson:document()],
-  monitor :: reference
+  monitor :: reference()
 }).
 
 
@@ -41,14 +41,13 @@
 
 -spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
 create(Connection, Collection, Cursor, BatchSize, Batch) ->
-  {ok, Pid} = mc_cursor_sup:start_cursor([self(), Connection, Collection, Cursor, BatchSize, Batch]),
-  Pid.
+  proc_lib:start(?MODULE, init, [[self(), Connection, Collection, Cursor, BatchSize, Batch]]).
 
 -spec next(pid()) -> error | {bson:document()}.
 next(Cursor) ->
   next(Cursor, cursor_default_timeout()).
 
--spec next(pid(), timeout()) -> error | {bson:document()}.
+-spec next(pid(), timeout()) -> error | {} | {bson:document()}.
 next(Cursor, Timeout) ->
   try gen_server:call(Cursor, {next, Timeout}, Timeout) of
     Result -> Result
@@ -83,17 +82,18 @@ take(Cursor, Limit, Timeout) ->
 cursor_default_timeout() ->
   application:get_env(mongodb, cursor_timeout, infinity).
 
--spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer()) -> term().
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer() | infinity) -> term().
 foldl(Fun, Acc, Cursor, Max) ->
   foldl(Fun, Acc, Cursor, Max, cursor_default_timeout()).
 
--spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer(), timeout()) -> term().
+-spec foldl(fun((bson:document(), term()) -> term()), term(), pid(), non_neg_integer() | infinity, timeout()) -> term().
 foldl(_Fun, Acc, _Cursor, 0, _Timeout) ->
   Acc;
 foldl(Fun, Acc, Cursor, infinity, Timeout) ->
   lists:foldl(Fun, Acc, rest(Cursor, Timeout));
 foldl(Fun, Acc, Cursor, Max, Timeout) ->
   case next(Cursor, Timeout) of
+	error -> Acc;
     {} -> Acc;
     {Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1, Timeout)
   end.
@@ -114,14 +114,16 @@ start_link(Args) ->
 
 %% @hidden
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
-  {ok, #state{
+  Monitor = erlang:monitor(process, Owner),
+  proc_lib:init_ack(self()),
+  gen_server:enter_loop(?MODULE, [], #state{
     connection = Connection,
     collection = Collection,
     cursor = Cursor,
     batchsize = BatchSize,
     batch = Batch,
-    monitor = erlang:monitor(process, Owner)
-  }}.
+    monitor = Monitor
+  }).
 
 %% @hidden
 handle_call({next, Timeout}, _From, State) ->

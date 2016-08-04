@@ -13,7 +13,7 @@
 -include("mongoc.hrl").
 
 %% API
--export([start_link/4, start/4, get_pool/1, update_ismaster/2, update_unknown/1]).
+-export([start/4, get_pool/1, get_pool/2, update_ismaster/2, update_unknown/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -31,8 +31,7 @@
   rs = undefined,
   type = undefined,
   me,
-  size :: integer(),
-  max_overflow :: integer(),
+  pool_conf :: proplists:proplist(),
   connect_to,
   socket_to,
   topology,
@@ -48,9 +47,6 @@
 %%% API
 %%%===================================================================
 
-start_link(Topology, HostPort, Topts, Wopts) ->
-  gen_server:start_link(?MODULE, [Topology, HostPort, Topts, Wopts], []).
-
 start(Topology, HostPort, Topts, Wopts) ->
   gen_server:start(?MODULE, [Topology, HostPort, Topts, Wopts], []).
 
@@ -62,8 +58,7 @@ start(Topology, HostPort, Topts, Wopts) ->
 init([Topology, Addr, TopologyOptions, Wopts]) ->
   process_flag(trap_exit, true),
   {Host, Port} = parse_seed(Addr),
-  PoolSize = mc_utils:get_value(pool_size, TopologyOptions, 10),
-  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
+  PoolConf = form_pool_conf(TopologyOptions),
   ConnectTimeoutMS = mc_utils:get_value(connectTimeoutMS, TopologyOptions, 20000),
   SocketTimeoutMS = mc_utils:get_value(socketTimeoutMS, TopologyOptions, 100),
   ReplicaSet = mc_utils:get_value(rs, TopologyOptions, undefined),
@@ -75,8 +70,7 @@ init([Topology, Addr, TopologyOptions, Wopts]) ->
     host = Host,
     port = Port,
     rs = ReplicaSet,
-    size = PoolSize,
-    max_overflow = Overflow,
+    pool_conf = PoolConf,
     connect_to = ConnectTimeoutMS,
     socket_to = SocketTimeoutMS,
     topology_opts = TopologyOptions,
@@ -97,7 +91,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 get_pool(Pid) ->
-  gen_server:call(Pid, get_pool).
+  get_pool(Pid, 5000).
+
+-spec get_pool(pid(), integer() | infinity) -> pid().
+get_pool(Pid, Timeout) ->
+  gen_server:call(Pid, get_pool, Timeout).
 
 update_ismaster(Pid, {Type, IsMaster}) ->
   gen_server:cast(Pid, {update_ismaster, Type, IsMaster}).
@@ -167,9 +165,9 @@ init_monitor(#state{topology = Topology, host = Host, port = Port, topology_opts
   mc_monitor:start_link(Topology, self(), {Host, Port}, Topts, Wopts).
 
 %% @private
-init_pool(#state{host = Host, port = Port, size = Size, max_overflow = Overflow, worker_opts = Wopts}) ->
+init_pool(#state{host = Host, port = Port, pool_conf = Conf, worker_opts = Wopts}) ->
   WO = lists:append([{host, Host}, {port, Port}], Wopts),
-  {ok, Child} = mc_pool_sup:start_pool([{size, Size}, {max_overflow, Overflow}], WO),
+  {ok, Child} = mc_pool_sup:start_pool(Conf, WO),
   link(Child),
   Child.
 
@@ -179,3 +177,11 @@ parse_seed(Addr) when is_binary(Addr) ->
 parse_seed(Addr) when is_list(Addr) ->
   [Host, Port] = string:tokens(Addr, ":"),
   {Host, list_to_integer(Port)}.
+
+%% @private
+form_pool_conf(TopologyOptions) ->
+  Size = mc_utils:get_value(pool_size, TopologyOptions, 10),
+  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
+  OverflowTtl = mc_utils:get_value(overflow_ttl, TopologyOptions, 0),
+  OverflowCheckPeriod = mc_utils:get_value(overflow_check_period, TopologyOptions),
+  [{size, Size}, {max_overflow, Overflow}, {overflow_ttl, OverflowTtl}, {overflow_check_period, OverflowCheckPeriod}].

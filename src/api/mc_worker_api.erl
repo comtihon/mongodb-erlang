@@ -37,10 +37,10 @@
 
 -type cursorid() :: integer().
 -type selector() :: map().
--type projector() :: map().
+-type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
--type modifier() :: bson:document().
+-type modifier() :: bson:document() | map().
 -type connection() :: pid().
 -type args() :: [arg()].
 -type arg() :: {database, database()}
@@ -146,20 +146,23 @@ delete_limit(Connection, Coll, Selector, N, WC) ->
     [#{<<"q">> => Selector, <<"limit">> => N}], <<"writeConcern">>, WC}).
 
 %% @doc Return first selected document, if any
--spec find_one(pid(), colldb(), selector()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector()) -> map().
 find_one(Connection, Coll, Selector) ->
   find_one(Connection, Coll, Selector, #{}).
 
 %% @doc Return first selected document, if any
--spec find_one(pid(), colldb(), selector(), map()) -> {} | {bson:document()}.
+-spec find_one(pid(), colldb(), selector(), map()) -> map().
 find_one(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
+  BatchSize = maps:get(batchsize, Args, 0),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   mc_action_man:read_one(Connection, #'query'{
     collection = Coll,
-    selector = Selector,
+    selector = mongoc:append_read_preference(Selector, ReadPref),
     projector = Projector,
-    skip = Skip
+    skip = Skip,
+    batchsize = BatchSize
   }).
 
 %% @doc Return selected documents.
@@ -171,33 +174,34 @@ find(Connection, Coll, Selector) ->
 %%      Empty projection [] means full projection.
 -spec find(pid(), colldb(), selector(), map()) -> cursor().
 find(Connection, Coll, Selector, Args) ->
-  Projector = maps:get(projector, Args, []),
+  Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
   BatchSize = maps:get(batchsize, Args, 0),
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
   mc_action_man:read(Connection, #'query'{
     collection = Coll,
-    selector = Selector,
+    selector = mongoc:append_read_preference(Selector, ReadPref),
     projector = Projector,
     skip = Skip,
-    batchsize = BatchSize
+    batchsize = BatchSize,
+    slaveok = true,
+    sok_overriden = true
   }).
 
 %% @doc Count selected documents
--spec count(pid(), colldb(), selector()) -> integer().
+-spec count(pid(), collection(), selector()) -> integer().
 count(Connection, Coll, Selector) ->
-  count(Connection, Coll, Selector, 0).
+  count(Connection, Coll, Selector, #{}).
 
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(pid(), colldb(), selector(), integer()) -> integer().
-count(Connection, Coll, Selector, Limit) when not is_binary(Coll) ->
-  count(Connection, mc_utils:value_to_binary(Coll), Selector, Limit);
-count(Connection, Coll, Selector, Limit) when Limit =< 0 ->
-  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector}),
-  trunc(N);
-count(Connection, Coll, Selector, Limit) ->
-  {true, #{<<"n">> := N}} = command(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit}),
-  trunc(N). % Server returns count as float
+-spec count(pid(), collection(), selector(), map()) -> integer().
+count(Connection, Coll, Selector, Args = #{limit := Limit}) when Limit > 0 ->
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"limit">>, Limit, <<"$readPreference">>, ReadPref});
+count(Connection, Coll, Selector, Args) ->
+  ReadPref = maps:get(readopts, Args, #{<<"mode">> => <<"primary">>}),
+  do_count(Connection, {<<"count">>, Coll, <<"query">>, Selector, <<"$readPreference">>, ReadPref}).
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
@@ -210,7 +214,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), bson:document()) -> {boolean(), map()}. % Action
+-spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()}. % Action
 command(Connection, Command) ->
   Doc = mc_action_man:read_one(Connection, #'query'{
     collection = <<"$cmd">>,
@@ -219,7 +223,7 @@ command(Connection, Command) ->
   mc_connection_man:process_reply(Doc, Command).
 
 %% @doc Execute MongoDB command in this thread
--spec sync_command(port(), binary(), bson:document(), module()) -> {boolean(), map()}.
+-spec sync_command(port(), binary(), mc_worker_api:selector(), module()) -> {boolean(), map()}.
 sync_command(Socket, Database, Command, SetOpts) ->
   Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
     collection = <<"$cmd">>,
@@ -246,12 +250,27 @@ prepare(Doc, AssignFun) when is_map(Doc), map_size(Doc) == 1 ->
         List -> List
       end
   end;
+prepare(Doc, AssignFun) when is_map(Doc) ->
+  Keys = maps:keys(Doc),
+  case [K || <<"$", _/binary>> = K <- Keys] of
+    Keys -> Doc; % multiple commands
+    _ ->  % document
+      case prepare_doc(Doc, AssignFun) of
+        Res when is_tuple(Res) -> [Res];
+        List -> List
+      end
+  end;
 prepare(Docs, AssignFun) ->
   case prepare_doc(Docs, AssignFun) of
     Res when not is_list(Res) -> [Res];
     List -> List
   end.
 
+
+%% @private
+do_count(Connection, Query) ->
+  {true, #{<<"n">> := N}} = command(Connection, Query),
+  trunc(N). % Server returns count as float
 
 %% @private
 %% Convert maps or proplists to bson

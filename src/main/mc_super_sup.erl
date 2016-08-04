@@ -16,5 +16,4 @@ start_link() ->
 %% @hidden
 init(app) ->
 	MongoIdServer = ?CHILD(mongo_id_server, worker),
-	MongoCursorSup = ?CHILD(mc_cursor_sup, supervisor),
-	{ok, {{one_for_one, 5, 10}, [MongoIdServer, MongoCursorSup]}}.
+	{ok, {{one_for_one, 1000, 3600}, [MongoIdServer]}}.

@@ -279,11 +279,11 @@ update(Config) ->
 
 %% @private
 find(Connection, Collection, Selector) ->
-  find(Connection, Collection, Selector, []).
+  find(Connection, Collection, Selector, #{}).
 
 %% @private
 find(Connection, Collection, Selector, Projector) ->
-  Cursor = mc_worker_api:find(Connection, Collection, Selector, [{projector, Projector}]),
+  Cursor = mc_worker_api:find(Connection, Collection, Selector, #{projector => Projector}),
   Result = mc_cursor:rest(Cursor),
   mc_cursor:close(Cursor),
   Result.
