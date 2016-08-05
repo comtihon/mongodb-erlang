@@ -57,7 +57,7 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
   Key = maps:get(<<"key">>, IndexSpec),
   Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
   Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
-  {ok, _} =
+  {ok, _, _} =
     mc_worker_logic:make_request(
       Socket,
       NetModule,
