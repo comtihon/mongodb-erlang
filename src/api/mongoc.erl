@@ -171,7 +171,7 @@ find(#{pool := Pool, server_type := ServerType, read_preference := RPrefs},
 
 %% @doc Count selected documents up to given max number; 0 means no max.
 %%     Ie. stops counting when max is reached to save processing time.
--spec count(map(), colldb(), mc_worker_api:selector(), readprefs(), integer()) -> integer().
+-spec count(map() | pid(), colldb(), mc_worker_api:selector(), readprefs(), integer()) -> integer().
 count(Pool, {Db, Coll}, Selector, Options, Limit) when Limit =< 0 ->
   {true, #{<<"n">> := N}} = command(Pool,
     {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector}, Options, Db),
@@ -189,19 +189,22 @@ count(Pool, Coll, Selector, Options, Limit) ->
     {<<"count">>, mc_utils:value_to_binary(Coll), <<"query">>, Selector, <<"limit">>, Limit}, Options, undefined),
   trunc(N). % Server returns count as float
 
--spec command(map(), bson:document(), readprefs(), undefined | colldb()) ->
+-spec command(map() | pid() | atom(), bson:document(), readprefs(), undefined | colldb()) ->
   {boolean(), bson:document()} | {error, reason()}. % Action
-command(Pid, Command, Options, Db) when is_pid(Pid) ->
-  case mc_topology:get_pool(Pid, Options) of
-    {ok, Pool} -> command(Pool, Command, Options, Db);
-    Error -> Error
-  end;
-command(#{pool := Pool, server_type := ServerType, read_preference := RPrefs}, Command, _, Db) ->
+command(#{pool := C, server_type := ServerType, read_preference := RPrefs}, Command, _, Db) ->
   Q = #'query'{
     collection = {Db, <<"$cmd">>},
     selector = Command
   },
-  exec_command(Pool, mongos_query_transform(ServerType, Q, RPrefs)).
+  poolboy:transaction(C,
+    fun(Worker) ->
+      exec_command(Worker, mongos_query_transform(ServerType, Q, RPrefs))
+    end);
+command(Pid, Command, Options, Db) when is_pid(Pid) orelse is_atom(Pid) ->
+  case mc_topology:get_pool(Pid, Options) of
+    {ok, Pool} -> command(Pool, Command, Options, Db);
+    Error -> Error
+  end.
 
 %%%===================================================================
 %%% Internal functions

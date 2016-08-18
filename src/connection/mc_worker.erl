@@ -83,30 +83,14 @@ handle_call(Request, From, State =
       UReqStor = dict:store(Id, RespFun, ReqStor),  % save function, which will be called on response
       {noreply, State#state{request_storage = UReqStor}}
   end;
-handle_call(Request, From, State =
-  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule}) % read requests
-  when is_record(Request, 'query'); is_record(Request, getmore) ->
-  UpdReq = case is_record(Request, 'query') of
-             true ->
-               case Request#'query'.sok_overriden of
-                 true ->
-                   Request;
-                 false ->
-                   Request#'query'{slaveok = CS#conn_state.read_mode =:= slave_ok}
-               end;
-             false -> Request
-           end,
-  {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
-  RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
-  URStorage = dict:store(Id, RespFun, RequestStorage),
-  {noreply, State#state{request_storage = URStorage}};
+handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Request, getmore) -> % read requests
+  process_read_request(Request, From, State);
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
   when is_record(Request, killcursor) ->
   {ok, _} = mc_worker_logic:make_request(Socket, NetModule, ConnState#conn_state.database, Request),
   {reply, ok, State};
 handle_call({stop, _}, _From, State) -> % stop request
   {stop, normal, ok, State}.
-
 
 %% @hidden
 handle_cast(halt, State) ->
@@ -115,7 +99,6 @@ handle_cast(hibernate, State) ->
   {noreply, State, hibernate};
 handle_cast(_, State) ->
   {noreply, State}.
-
 
 %% @hidden
 handle_info({Net, _Socket, Data}, State = #state{request_storage = RequestStorage}) when Net =:= tcp; Net =:= ssl ->
@@ -128,7 +111,6 @@ handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_close
 handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_errror; NetR =:= ssl_error ->
   {stop, Reason, State}.
 
-
 %% @hidden
 terminate(_, State = #state{net_module = NetModule}) ->
     catch NetModule:close(State#state.socket).
@@ -136,6 +118,33 @@ terminate(_, State = #state{net_module = NetModule}) ->
 %% @hidden
 code_change(_Old, State, _Extra) ->
   {ok, State}.
+
+%% @private
+process_read_request(Request, From, State =
+  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule}) ->
+  {UpdReq, Selector} = get_query_selector(Request, CS),
+  {ok, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
+  case get_write_concern(Selector) of
+    {<<"w">>, 0} -> %no concern request
+      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, State};
+    _ ->  %ordinary request with response
+      RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
+      URStorage = dict:store(Id, RespFun, RequestStorage),
+      {noreply, State#state{request_storage = URStorage}}
+  end.
+
+%% @private
+get_query_selector(Query = #query{selector = Selector, sok_overriden = true}, CS) ->
+  {Query#'query'{slaveok = CS#conn_state.read_mode =:= slave_ok}, Selector};
+get_query_selector(Query = #query{selector = Selector, sok_overriden = false}, _) ->
+  {Query, Selector};
+get_query_selector(GetMore, _) -> {GetMore, {}}.
+
+%% @private
+get_write_concern(#{<<"writeConcern">> := N}) -> N;
+get_write_concern(Selector) when is_tuple(Selector) ->
+  bson:lookup(<<"writeConcern">>, Selector);
+get_write_concern(_) -> undefined.
 
 %% @private
 %% Parses proplist to record
