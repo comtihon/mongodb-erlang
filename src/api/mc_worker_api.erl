@@ -30,6 +30,7 @@
 ]).
 -export([
   command/2,
+  command/3,
   sync_command/4,
   ensure_index/3,
   prepare/2]).
@@ -221,6 +222,17 @@ command(Connection, Command) ->
     selector = Command
   }),
   mc_connection_man:process_reply(Doc, Command).
+
+command(Connection, Command, _IsSlaveOk = true) ->
+  Doc = mc_action_man:read_one(Connection, #'query'{
+    collection = <<"$cmd">>,
+    selector = Command,
+    slaveok = true,
+    sok_overriden = true
+  }),
+  mc_connection_man:process_reply(Doc, Command);
+command(Connection, Command, _IsSlaveOk = false) ->
+  command(Connection, Command).
 
 %% @doc Execute MongoDB command in this thread
 -spec sync_command(port(), binary(), mc_worker_api:selector(), module()) -> {boolean(), map()}.
