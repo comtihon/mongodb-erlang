@@ -22,7 +22,7 @@ connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
 -spec insert(atom() | pid(), binary(), list() | map() | bson:document()) ->
   {{boolean(), map()}, list()}.
 insert(Topology, Collection, Document) ->
-  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:insert(Worker, Collection, Document) end, [{rp_mode, primary}]).
+  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:insert(Worker, Collection, Document) end, #{rp_mode => primary}).
 
 -spec update(atom() | pid(), binary(), mc_worker_api:selector(), map(), map()) ->
   {boolean(), map()}.
@@ -37,7 +37,7 @@ update(Topology, Collection, Selector, Doc, Opts) ->
 -spec delete(atom() | pid(), binary(), mc_worker_api:selector()) ->
   {boolean(), map()}.
 delete(Topology, Collection, Selector) ->
-  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:delete(Worker, Collection, Selector) end, [{rp_mode, primary}]).
+  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:delete(Worker, Collection, Selector) end, #{rp_mode => primary}).
 
 -spec find(atom() | pid(), binary(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
   mc_worker_api:cursor().
@@ -53,7 +53,7 @@ find_one(Topology, Collection, Selector, Projector, _) ->
 
 -spec count(atom() | pid(), binary(), mc_worker_api:selector(), map() | list()) -> integer().
 count(Topology, Collection, Selector, Limit) ->
-  mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, [], Limit) end, [{rp_mode, primary}]).
+  mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, [], Limit) end, #{rp_mode => primary}).
 
 %% @doc Creates index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
@@ -65,4 +65,4 @@ ensure_index(Topology, Coll, IndexSpec) ->
   mongoc:transaction(Topology,
     fun(C) ->
       mc_connection_man:request_worker(C, #ensure_index{collection = Coll, index_spec = IndexSpec})
-    end, [{rp_mode, primary}]).
+    end, #{rp_mode => primary}).

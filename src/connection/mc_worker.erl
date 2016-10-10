@@ -50,7 +50,7 @@ init(Options) ->
   mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
   gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule, next_req_fun = NextReqFun}).
 
-handle_call(NewState = #conn_state{}, _, State = #state{conn_state = OldState}) ->  % update state, return old
+handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state)->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
     State = #state{conn_state = ConnState, socket = Socket, net_module = NetModule}) -> % ensure index request with insert request

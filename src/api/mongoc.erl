@@ -71,42 +71,22 @@ connect(Seeds, Options, WorkerOptions) ->
 disconnect(Topology) ->
   mc_topology:disconnect(Topology).
 
-%% @doc Get worker from pool and run transaction with it. Suitable for all write transactions
--spec transaction(pid() | atom(), fun()) -> any().
-transaction(Topology, Transaction) ->
-  transaction(Topology, Transaction, ?TRANSACTION_TIMEOUT).
-
--spec transaction(pid() | atom(), fun(), integer() | infinity | proplists:proplist()) -> any().
-transaction(Topology, Transaction, Timeout) when is_integer(Timeout); Timeout =:= infinity ->
-  case mc_topology:get_pool(Topology, [{rp_mode, primary}]) of
-    {ok, #{pool := C}} ->
-      try poolboy:transaction(C, Transaction, Timeout)
-      catch
-        error:not_master ->
-          mc_topology:update_topology(Topology),
-          {error, not_master};
-        error:{bad_query, {not_master, _}} ->
-          mc_topology:update_topology(Topology),
-          {error, not_master};
-        _:R ->
-          mc_topology:update_topology(Topology),
-          {error, R}
-      end;
-    Error ->
-      Error
-  end;
-transaction(Topology, Transaction, Options) ->
-  transaction(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
-
 -spec status(pid() | atom()) -> {atom(), integer(), integer(), integer()}.
 status(Topology) ->
   Res = mc_topology:get_pool(Topology, []),
   {ok, #{pool := Pid}} = Res,
   poolboy:status(Pid).
 
+-spec transaction(pid() | atom(), fun()) -> any().
+transaction(Topology, Transaction) ->
+  transaction(Topology, Transaction, #{}, ?TRANSACTION_TIMEOUT).
+
+-spec transaction(pid() | atom(), fun(), map()) -> any().
+transaction(Topology, Transaction, Options) ->
+  transaction(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
 
 %% @doc Get worker from pool and run transaction with it. Suitable for command transactions
--spec transaction(pid() | atom(), fun(), proplists:proplist(), integer() | infinity) -> any().
+-spec transaction(pid() | atom(), fun(), map(), integer() | infinity) -> any().
 transaction(Topology, Transaction, Options, Timeout) ->
   case mc_topology:get_pool(Topology, Options) of
     {ok, Pool = #{pool := C}} ->
@@ -117,7 +97,10 @@ transaction(Topology, Transaction, Options, Timeout) ->
           {error, not_master};
         error:{bad_query, {not_master, _}} ->
           mc_topology:update_topology(Topology),
-          {error, not_master}
+          {error, not_master};
+        _:R ->
+          mc_topology:update_topology(Topology),
+          {error, R}
       end;
     Error ->
       Error

@@ -1,4 +1,4 @@
--module(mongo_SUITE).
+-module(mc_worker_api_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -34,15 +34,10 @@ all() ->
   ].
 
 init_per_suite(Config) ->
-  application:start(bson),
-  application:start(crypto),
-  application:start(mongodb),
+  application:ensure_all_started(mongodb),
   [{database, test} | Config].
 
 end_per_suite(_Config) ->
-  application:stop(mongodb),
-  application:stop(crypto),
-  application:stop(bson),
   ok.
 
 init_per_testcase(Case, Config) ->
