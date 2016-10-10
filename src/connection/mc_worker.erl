@@ -39,16 +39,20 @@ disconnect(Worker) ->
   gen_server:cast(Worker, halt).
 
 init(Options) ->
-  proc_lib:init_ack({ok, self()}),
-  {ok, Socket} = mc_auth:connect_to_database(Options),
-  ConnState = form_state(Options),
-  try_register(Options),
-  NetModule = get_set_opts_module(Options),
-  Login = mc_utils:get_value(login, Options),
-  Password = mc_utils:get_value(password, Options),
-  NextReqFun = mc_utils:get_value(next_req_fun, Options, fun() -> ok end),
-  mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
-  gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule, next_req_fun = NextReqFun}).
+  case mc_auth:connect_to_database(Options) of
+    {ok, Socket}->
+      proc_lib:init_ack({ok, self()}),
+      ConnState = form_state(Options),
+      try_register(Options),
+      NetModule = get_set_opts_module(Options),
+      Login = mc_utils:get_value(login, Options),
+      Password = mc_utils:get_value(password, Options),
+      NextReqFun = mc_utils:get_value(next_req_fun, Options, fun() -> ok end),
+      mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
+      gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule, next_req_fun = NextReqFun});
+    Error->
+      proc_lib:init_ack(Error)
+  end.
 
 handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state)->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
