@@ -6,7 +6,6 @@ otp_release:
   - 18.1
   - 18.0
 script: "rm -rf .git && make tests"
-sudo: false
 services:
   - mongodb
 addons:
@@ -15,3 +14,5 @@ before_install:
   - echo "deb http://repo.mongodb.org/apt/ubuntu precise/mongodb-org/3.3 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.4.list
   - sudo apt-get update -q
   - sudo apt-get install -y mongodb-org
+  - sleep 15
+  - mongo
