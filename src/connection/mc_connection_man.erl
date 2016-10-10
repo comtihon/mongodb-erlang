@@ -12,7 +12,7 @@
 -include("mongo_protocol.hrl").
 
 -define(NOT_MASTER_ERROR, 13435).
--define(UNAUTHORIZED_ERROR, 10057).
+-define(UNAUTHORIZED_ERROR(C), C =:= 10057; C =:= 16550).
 
 %% API
 -export([reply/1, request_worker/2, process_reply/2, request_raw/4]).
@@ -22,8 +22,8 @@ request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) -> 
-	ok | {non_neg_integer(), [map()]}.
+-spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) ->
+  ok | {non_neg_integer(), [map()]}.
 request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
   ok = set_opts(Socket, NetModule, false),
@@ -54,7 +54,7 @@ process_reply(Doc, Command) -> %unknown result
 -spec process_error(atom() | integer(), term()) -> no_return().
 process_error(?NOT_MASTER_ERROR, _) ->
   erlang:error(not_master);
-process_error(?UNAUTHORIZED_ERROR, _) ->
+process_error(Code, _) when ?UNAUTHORIZED_ERROR(Code) ->
   erlang:error(unauthorized);
 process_error(_, Doc) ->
   erlang:error({bad_query, Doc}).
