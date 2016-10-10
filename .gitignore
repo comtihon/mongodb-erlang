@@ -1,4 +1,5 @@
 .*
+!.travis.yml
 ebin/
 deps/
 logs/
