@@ -25,7 +25,8 @@
   random_binary/1,
   hmac/2,
   is_proplist/1,
-  to_binary/1]).
+  to_binary/1,
+  bson_to_map/1]).
 
 get_value(Key, List) -> get_value(Key, List, undefined).
 
@@ -80,6 +81,11 @@ pw_hash(Username, Password) ->
 to_binary(Str) when is_list(Str) ->  list_to_binary(Str);
 to_binary(Str) when is_binary(Str) ->  Str.
 
+
+-spec bson_to_map(bson:document()) -> map().
+bson_to_map(Doc)->
+  Fun1= fun(K,V,Acc)-> maps:put(K,V,Acc) end,
+  bson:doc_foldl(Fun1,maps:new(),Doc).
 
 %% @private
 binary_to_hexstr(Bin) ->
