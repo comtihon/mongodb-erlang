@@ -37,7 +37,7 @@
 
 
 -type cursorid() :: integer().
--type selector() :: map().
+-type selector() :: bson:document() | map().
 -type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor
