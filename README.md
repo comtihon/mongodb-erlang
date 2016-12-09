@@ -261,7 +261,7 @@ mongoc topology **Options**
 
 mongoc **WorkerOptions** (as described in mongo Connecting chapter)
 
-    -type arg() :: {database, database()}     % default database and it is also the initial db for auth purposes, later you can give other db name in requests
+    -type arg() :: {database, database()}
     | {login, binary()}
     | {password, binary()}
     | {w_mode, write_mode()}.
