@@ -8,7 +8,7 @@ application named [*bson*](https://github.com/comtihon/bson-erlang), which defin
 representation. You need both of these. Below we describe the mongodb application; you should also see the bson application
 to understand the document type.
 
-![Build Status](https://travis-ci.org/comtihon/mongodb-erlang.svg?branch=master)
+[![Build Status](https://travis-ci.org/comtihon/mongodb-erlang.svg?branch=master)](https://travis-ci.org/comtihon/mongodb-erlang)
 
 ### Installing
 Download and compile the application
