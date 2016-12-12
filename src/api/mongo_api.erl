@@ -63,6 +63,6 @@ count(Topology, Collection, Selector, Limit) ->
 %%      dropDups :: boolean()
 ensure_index(Topology, Coll, IndexSpec) ->
   mongoc:transaction(Topology,
-    fun(C) ->
-      mc_connection_man:request_worker(C, #ensure_index{collection = Coll, index_spec = IndexSpec})
+    fun(#{pool := Worker}) ->
+      mc_connection_man:request_worker(Worker, #ensure_index{collection = Coll, index_spec = IndexSpec})
     end, #{rp_mode => primary}).
