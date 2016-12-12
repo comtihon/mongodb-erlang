@@ -6,22 +6,7 @@
 -include("mongo_protocol.hrl").
 
 
--export([
-  all/0,
-  init_per_suite/1,
-  end_per_suite/1,
-  init_per_testcase/2,
-  end_per_testcase/2
-]).
-
--export([
-  insert_and_find/1,
-  insert_and_delete/1,
-  search_and_query/1,
-  update/1,
-  sort_and_limit/1,
-  insert_map/1
-]).
+-compile(export_all).
 
 all() ->
   [
@@ -35,14 +20,14 @@ all() ->
 
 init_per_suite(Config) ->
   application:ensure_all_started(mongodb),
-  [{database, test} | Config].
+  [{database, <<"test">>} | Config].
 
 end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
   {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {w_mode, safe}]),
-  [{connection, Connection}, {collection, collection(Case)} | Config].
+  [{connection, Connection}, {collection, mc_test_utils:collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),
@@ -282,17 +267,6 @@ find(Connection, Collection, Selector, Projector) ->
   Result = mc_cursor:rest(Cursor),
   mc_cursor:close(Cursor),
   Result.
-
-%% @private
-collection(Case) ->
-  Now = now_to_seconds(os:timestamp()),
-  <<(atom_to_binary(?MODULE, utf8))/binary, $-,
-  (atom_to_binary(Case, utf8))/binary, $-,
-  (list_to_binary(integer_to_list(Now)))/binary>>.
-
-%% @private
-now_to_seconds({Mega, Sec, _}) ->
-  (Mega * 1000000) + Sec.
 
 %% @private
 match_bson(Tuple1, Tuple2) when length(Tuple1) /= length(Tuple2) -> false;

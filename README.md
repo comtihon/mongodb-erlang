@@ -228,7 +228,7 @@ To connect to a sharded cluster of mongos:
 
 And if you want your MongoDB deployment metadata to be auto revered use unknow id in Seed tuple:   
 
-    { unknown,  "hostname1:port1", "hostname2:port2"] }
+    { unknown,  ["hostname1:port1", "hostname2:port2"] }
 
 Type in `mongo_api:connect` is topology type (`unknown` | `sharded`). 
 
