@@ -116,6 +116,7 @@ start_link(Args) ->
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
   Monitor = erlang:monitor(process, Owner),
   proc_lib:init_ack(self()),
+  ct:pal("bs ~p, b ~p", [BatchSize, Batch]),
   gen_server:enter_loop(?MODULE, [], #state{
     connection = Connection,
     collection = Collection,

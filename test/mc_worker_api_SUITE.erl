@@ -14,8 +14,9 @@ all() ->
     insert_and_delete,
     search_and_query,
     update,
-    sort_and_limit,
-    insert_map
+    aggregate_sort_and_limit,
+    insert_map,
+    find_sort_skip_limit_test
   ].
 
 init_per_suite(Config) ->
@@ -117,7 +118,7 @@ search_and_query(Config) ->
   true = match_bson({<<"name">>, <<"Mets">>, <<"league">>, <<"National">>}, MetsProjectedBSON),
   Config.
 
-sort_and_limit(Config) ->
+aggregate_sort_and_limit(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
@@ -154,6 +155,45 @@ sort_and_limit(Config) ->
   [
     #{<<"key">> := <<"test">>, <<"value">>:= <<"one">>, <<"tag">> := 1}
   ] = Res1,
+  Config.
+
+find_sort_skip_limit_test(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  %insert test data
+  mc_worker_api:insert(Connection, Collection, [
+    #{<<"key">> => <<"test1">>, <<"value">> => <<"val1">>, <<"tag">> => 1},
+    #{<<"key">> => <<"test2">>, <<"value">> => <<"val2">>, <<"tag">> => 2},
+    #{<<"key">> => <<"test3">>, <<"value">> => <<"val3">>, <<"tag">> => 3},
+    #{<<"key">> => <<"test4">>, <<"value">> => <<"val4">>, <<"tag">> => 4},
+    #{<<"key">> => <<"test5">>, <<"value">> => <<"val5">>, <<"tag">> => 5},
+    #{<<"key">> => <<"test6">>, <<"value">> => <<"val6">>, <<"tag">> => 6},
+    #{<<"key">> => <<"test7">>, <<"value">> => <<"val7">>, <<"tag">> => 7},
+    #{<<"key">> => <<"test8">>, <<"value">> => <<"val8">>, <<"tag">> => 8},
+    #{<<"key">> => <<"test9">>, <<"value">> => <<"val9">>, <<"tag">> => 9},
+    #{<<"key">> => <<"testA">>, <<"value">> => <<"valA">>, <<"tag">> => 10},
+    #{<<"key">> => <<"testB">>, <<"value">> => <<"valB">>, <<"tag">> => 11},
+    #{<<"key">> => <<"testC">>, <<"value">> => <<"valC">>, <<"tag">> => 12},
+    #{<<"key">> => <<"testD">>, <<"value">> => <<"valD">>, <<"tag">> => 13},
+    #{<<"key">> => <<"testE">>, <<"value">> => <<"valE">>, <<"tag">> => 14},
+    #{<<"key">> => <<"testF">>, <<"value">> => <<"valF">>, <<"tag">> => 15},
+    #{<<"key">> => <<"testG">>, <<"value">> => <<"valG">>, <<"tag">> => 16}
+  ]),
+
+  Selector = #{<<"$query">> => {}, <<"$orderby">> => #{<<"tag">> => -1}},
+  Args = #{batchsize => 5, skip => 10},
+  C = mc_worker_api:find(Connection, Collection, Selector, Args),
+
+  [
+    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 5},
+    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 4},
+    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 3},
+    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 2},
+    #{<<"key">> := <<"test1">>, <<"value">> := <<"val1">>, <<"tag">> := 1}
+  ] = mc_cursor:rest(C),
+  mc_cursor:close(C),
+
   Config.
 
 update(Config) ->
