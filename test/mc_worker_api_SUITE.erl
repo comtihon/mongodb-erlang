@@ -186,12 +186,12 @@ find_sort_skip_limit_test(Config) ->
   C = mc_worker_api:find(Connection, Collection, Selector, Args),
 
   [
-    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 5},
-    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 4},
-    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 3},
-    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 2},
-    #{<<"key">> := <<"test1">>, <<"value">> := <<"val1">>, <<"tag">> := 1}
-  ] = mc_cursor:rest(C),
+    #{<<"key">> := <<"test6">>, <<"value">> := <<"val6">>, <<"tag">> := 6},
+    #{<<"key">> := <<"test5">>, <<"value">> := <<"val5">>, <<"tag">> := 5},
+    #{<<"key">> := <<"test4">>, <<"value">> := <<"val4">>, <<"tag">> := 4},
+    #{<<"key">> := <<"test3">>, <<"value">> := <<"val3">>, <<"tag">> := 3},
+    #{<<"key">> := <<"test2">>, <<"value">> := <<"val2">>, <<"tag">> := 2}
+  ] = mc_cursor:next_batch(C),
   mc_cursor:close(C),
 
   Config.
