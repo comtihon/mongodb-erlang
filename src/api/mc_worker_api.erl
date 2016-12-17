@@ -89,12 +89,8 @@ disconnect(Connection) ->
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), collection(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
-insert(Connection, Coll, Doc) when is_tuple(Doc); is_map(Doc) ->
-  {Res, [UDoc | _]} = insert(Connection, Coll, [Doc]),
-  {Res, UDoc};
 insert(Connection, Coll, Docs) ->
-  Converted = prepare(Docs, fun assign_id/1),
-  {command(Connection, {<<"insert">>, Coll, <<"documents">>, Converted}), Converted}.
+  insert(Connection, Coll, Docs, {<<"w">>, 1}).
 
 -spec insert(pid(), collection(), list() | map() | bson:document(), bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc, WC) when is_tuple(Doc); is_map(Doc) ->
@@ -217,6 +213,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()}. % Action
 command(Connection, Command) ->
+  ct:pal("cmd ~p", [Command]),
   Doc = mc_action_man:read_one(Connection, #'query'{
     collection = <<"$cmd">>,
     selector = Command

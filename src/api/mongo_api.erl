@@ -13,16 +13,28 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([insert/3, find/5, update/5, delete/3, count/4, find_one/5, connect/4, ensure_index/3]).
+-export([
+  connect/4,
+  insert/3,
+  find/5,
+  update/5,
+  delete/3,
+  count/4,
+  find_one/5,
+  ensure_index/3]).
 
 -spec connect(atom(), list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
-connect(Type, Hosts, TopologyOptions,  WorkerOptions) ->
+connect(Type, Hosts, TopologyOptions, WorkerOptions) ->
   mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
 
 -spec insert(atom() | pid(), binary(), list() | map() | bson:document()) ->
   {{boolean(), map()}, list()}.
 insert(Topology, Collection, Document) ->
-  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:insert(Worker, Collection, Document) end, #{rp_mode => primary}).
+  mongoc:transaction(Topology,
+    fun(#{pool := Worker}) ->
+      mc_worker_api:insert(Worker, Collection, Document)
+    end,
+    #{rp_mode => primary}).
 
 -spec update(atom() | pid(), binary(), mc_worker_api:selector(), map(), map()) ->
   {boolean(), map()}.
@@ -37,7 +49,11 @@ update(Topology, Collection, Selector, Doc, Opts) ->
 -spec delete(atom() | pid(), binary(), mc_worker_api:selector()) ->
   {boolean(), map()}.
 delete(Topology, Collection, Selector) ->
-  mongoc:transaction(Topology, fun(#{pool := Worker}) -> mc_worker_api:delete(Worker, Collection, Selector) end, #{rp_mode => primary}).
+  mongoc:transaction(Topology,
+    fun(#{pool := Worker}) ->
+      mc_worker_api:delete(Worker, Collection, Selector)
+    end,
+    #{rp_mode => primary}).
 
 -spec find(atom() | pid(), binary(), mc_worker_api:selector(), mc_worker_api:projector(), integer() | infinity) ->
   mc_worker_api:cursor().
@@ -51,9 +67,13 @@ find_one(Topology, Collection, Selector, Projector, _) ->
   mongoc:transaction_query(Topology,
     fun(Conf) -> mongoc:find_one(Conf, Collection, Selector, Projector, 0) end, []).
 
--spec count(atom() | pid(), binary(), mc_worker_api:selector(), map() | list()) -> integer().
+-spec count(atom() | pid(), binary(), mc_worker_api:selector(), integer()) -> integer().
 count(Topology, Collection, Selector, Limit) ->
-  mongoc:transaction(Topology, fun(Conf) -> mongoc:count(Conf, Collection, Selector, [], Limit) end, #{rp_mode => primary}).
+  mongoc:transaction_query(Topology,
+    fun(#{pool := Worker}) ->
+      mc_worker_api:count(Worker, Collection, Selector, #{limit => Limit})
+    end,
+    #{rp_mode => primary}).
 
 %% @doc Creates index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
