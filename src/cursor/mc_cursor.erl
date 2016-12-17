@@ -11,6 +11,7 @@
   take/2, take/3,
   foldl/4, foldl/5,
   map/3,
+  next_batch/1, next_batch/2,
   close/1
 ]).
 
@@ -49,8 +50,18 @@ next(Cursor) ->
 
 -spec next(pid(), timeout()) -> error | {} | {bson:document()}.
 next(Cursor, Timeout) ->
-  try gen_server:call(Cursor, {next, Timeout}, Timeout) of
-    Result -> Result
+  try gen_server:call(Cursor, {next, Timeout}, Timeout)
+  catch
+    exit:{noproc, _} -> error
+  end.
+
+-spec next_batch(pid()) -> error | {bson:document()}.
+next_batch(Cursor) ->
+  next_batch(Cursor, cursor_default_timeout()).
+
+-spec next_batch(pid(), timeout()) -> error | {} | {bson:document()}.
+next_batch(Cursor, Timeout) ->
+  try gen_server:call(Cursor, {next_batch, Timeout}, Timeout)
   catch
     exit:{noproc, _} -> error
   end.
@@ -61,8 +72,7 @@ rest(Cursor) ->
 
 -spec rest(pid(), timeout()) -> [bson:document()] | error.
 rest(Cursor, Timeout) ->
-  try gen_server:call(Cursor, {rest, infinity, Timeout}, Timeout) of
-    Result -> Result
+  try gen_server:call(Cursor, {rest, infinity, Timeout}, Timeout)
   catch
     exit:{noproc, _} -> error
   end.
@@ -73,8 +83,7 @@ take(Cursor, Limit) ->
 
 -spec take(pid(), non_neg_integer(), timeout()) -> [bson:document()] | error.
 take(Cursor, Limit, Timeout) ->
-  try gen_server:call(Cursor, {rest, Limit, Timeout}, Timeout) of
-    Result -> Result
+  try gen_server:call(Cursor, {rest, Limit, Timeout}, Timeout)
   catch
     exit:{noproc, _} -> error
   end.
@@ -93,7 +102,7 @@ foldl(Fun, Acc, Cursor, infinity, Timeout) ->
   lists:foldl(Fun, Acc, rest(Cursor, Timeout));
 foldl(Fun, Acc, Cursor, Max, Timeout) ->
   case next(Cursor, Timeout) of
-	error -> Acc;
+    error -> Acc;
     {} -> Acc;
     {Doc} -> foldl(Fun, Fun(Doc, Acc), Cursor, Max - 1, Timeout)
   end.
@@ -102,7 +111,7 @@ foldl(Fun, Acc, Cursor, Max, Timeout) ->
 map(Fun, Cursor, Max) ->
   lists:reverse(foldl(fun(Doc, Acc) ->
     [Fun(Doc) | Acc]
-  end, [], Cursor, Max)).
+                      end, [], Cursor, Max)).
 
 -spec close(pid()) -> ok.
 close(Cursor) ->
@@ -134,6 +143,13 @@ handle_call({next, Timeout}, _From, State) ->
       {reply, Reply, UpdatedState}
   end;
 handle_call({rest, Limit, Timeout}, _From, State) ->
+  case rest_i(State, Limit, Timeout) of
+    {Reply, #state{cursor = 0} = UpdatedState} ->
+      {stop, normal, Reply, UpdatedState};
+    {Reply, UpdatedState} ->
+      {reply, Reply, UpdatedState}
+  end;
+handle_call({next_batch, Timeout}, _From, State = #state{batchsize = Limit}) ->
   case rest_i(State, Limit, Timeout) of
     {Reply, #state{cursor = 0} = UpdatedState} ->
       {stop, normal, Reply, UpdatedState};

@@ -35,7 +35,7 @@ process_responses(Responses, RequestStorage) ->
   lists:foldl(
     fun({Id, Response}, UReqStor) ->
       case maps:find(Id, UReqStor) of
-        error -> % TODO: close any cursor that might be linked to this request ?
+        error ->
           UReqStor;
         {ok, Fun} ->
           UpdReqStor = maps:remove(Id, UReqStor),
