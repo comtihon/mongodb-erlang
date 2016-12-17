@@ -1,5 +1,8 @@
 % Wire protocol message types (records)
 
+-ifndef(MONGO_PROTOCOL).
+-define(MONGO_PROTOCOL, true).
+
 -define(GS2_HEADER, <<"n,,">>).
 
 -type colldb() :: collection() | {database(), collection()}.
@@ -71,3 +74,4 @@
   startingfrom :: integer(),
   documents :: [map()]
 }).
+-endif.

@@ -15,13 +15,17 @@
 -export([read/2, read_one/2, read_one_sync/4]).
 
 read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}) ->
-  {Cursor, Batch} = mc_connection_man:request_worker(Connection, Request),
-  mc_cursor:create(Connection, Collection, Cursor, BatchSize, Batch).
+  case mc_connection_man:request_worker(Connection, Request) of
+    {_, []} ->
+      [];
+    {Cursor, Batch} ->
+      mc_cursor:create(Connection, Collection, Cursor, BatchSize, Batch)
+  end.
 
 read_one(Connection, Request) ->
   {0, Docs} = mc_connection_man:request_worker(Connection, Request#'query'{batchsize = -1}),
   case Docs of
-    [] -> #{};
+    [] -> undefined;
     [Doc | _] -> Doc
   end.
 
