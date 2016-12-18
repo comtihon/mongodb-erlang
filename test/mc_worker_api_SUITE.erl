@@ -170,7 +170,7 @@ aggregate_sort_and_limit(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mc_worker_api:insert(Connection, Collection, [
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection, [
     #{<<"key">> => <<"test">>, <<"value">> => <<"two">>, <<"tag">> => 2},
     #{<<"key">> => <<"test">>, <<"value">> => <<"one">>, <<"tag">> => 1},
     #{<<"key">> => <<"test">>, <<"value">> => <<"four">>, <<"tag">> => 4},
@@ -209,7 +209,7 @@ find_sort_skip_limit_test(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mc_worker_api:insert(Connection, Collection, [
+  {{true, #{<<"n">> := 16}}, _} = mc_worker_api:insert(Connection, Collection, [
     #{<<"key">> => <<"test1">>, <<"value">> => <<"val1">>, <<"tag">> => 1},
     #{<<"key">> => <<"test2">>, <<"value">> => <<"val2">>, <<"tag">> => 2},
     #{<<"key">> => <<"test3">>, <<"value">> => <<"val3">>, <<"tag">> => 3},
@@ -230,7 +230,7 @@ find_sort_skip_limit_test(Config) ->
 
   Selector = #{<<"$query">> => {}, <<"$orderby">> => #{<<"tag">> => -1}},
   Args = #{batchsize => 5, skip => 10},
-  C = mc_worker_api:find(Connection, Collection, Selector, Args),
+  {ok, C} = mc_worker_api:find(Connection, Collection, Selector, Args),
 
   [
     #{<<"key">> := <<"test6">>, <<"value">> := <<"val6">>, <<"tag">> := 6},
@@ -248,7 +248,7 @@ update(Config) ->
   Collection = ?config(collection, Config),
 
   %insert test data
-  mc_worker_api:insert(Connection, Collection,
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection,
     #{<<"_id">> => 100,
       <<"sku">> => <<"abc123">>,
       <<"quantity">> => 250,

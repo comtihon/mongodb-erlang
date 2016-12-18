@@ -133,6 +133,8 @@ append_read_preference(Selector = #{<<"$query">> := _}, RP) ->
   Selector#{<<"$readPreference">> => RP};
 append_read_preference(Selector, RP) when is_tuple(Selector) andalso element(1, Selector) =:= <<"count">> ->
   bson:append(Selector, {<<"$readPreference">>, RP});
+append_read_preference(Selector, RP) when is_tuple(Selector) andalso element(1, Selector) =:= <<"$query">> ->
+  bson:append(Selector, {<<"$readPreference">>, RP});
 append_read_preference(Selector, RP) ->
   #{<<"$query">> => Selector, <<"$readPreference">> => RP}.
 
