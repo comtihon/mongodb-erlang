@@ -5,7 +5,6 @@
 -include("mongo_protocol.hrl").
 
 -export([
-  create/5,
   next/1, next/2,
   rest/1, rest/2,
   take/2, take/3,
@@ -16,7 +15,7 @@
 ]).
 
 -export([
-  start_link/1
+  start_link/5
 ]).
 
 -export([
@@ -37,12 +36,6 @@
   monitor :: reference()
 }).
 
-
-
-
--spec create(mc_worker:connection(), colldb(), integer(), integer(), [bson:document()]) -> pid().
-create(Connection, Collection, Cursor, BatchSize, Batch) ->
-  proc_lib:start(?MODULE, init, [[self(), Connection, Collection, Cursor, BatchSize, Batch]]).
 
 -spec next(pid()) -> error | {bson:document()}.
 next(Cursor) ->
@@ -117,8 +110,8 @@ map(Fun, Cursor, Max) ->
 close(Cursor) ->
   gen_server:cast(Cursor, halt).
 
-start_link(Args) ->
-  gen_server:start_link(?MODULE, Args, []).
+start_link(Connection, Collection, Cursor, BatchSize, Batch) ->
+  gen_server:start_link(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch], []).
 
 
 %% @hidden

@@ -11,6 +11,10 @@
 
 -include("mongo_protocol.hrl").
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 -define(RANDOM_LENGTH, 24).
 -define(AUTH_CMD(Login, Nonce, Password),
   {
@@ -21,8 +25,17 @@
   }).
 
 %% API
--export([mongodb_cr_auth/5, scram_sha_1_auth/5, compose_first_message/2, compose_second_message/5]).
+-export([auth/6]).
 
+%% Authorize on database synchronously
+-spec auth(float(), port(), database(), binary() | undefined, binary() | undefined, module()) -> boolean().
+auth(Version, Socket, Database, Login, Password, NetModule) when Version > 2.7 ->  %new authorisation
+  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password, NetModule);
+auth(_, Socket, Database, Login, Password, NetModule) ->   %old authorisation
+  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password, NetModule).
+
+
+%% @private
 -spec mongodb_cr_auth(port(), binary(), binary(), binary(), module()) -> boolean().
 mongodb_cr_auth(Socket, Database, Login, Password, SetOpts) ->
   {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"getnonce">>, 1}, SetOpts),
@@ -32,6 +45,7 @@ mongodb_cr_auth(Socket, Database, Login, Password, SetOpts) ->
     {false, Reason} -> erlang:error(Reason)
   end.
 
+%% @private
 -spec scram_sha_1_auth(port(), binary(), binary(), binary(), module()) -> boolean().
 scram_sha_1_auth(Socket, Database, Login, Password, SetOpts) ->
   try
@@ -40,7 +54,6 @@ scram_sha_1_auth(Socket, Database, Login, Password, SetOpts) ->
     _:_ ->
       erlang:error(<<"Can't pass authentification">>)
   end.
-
 
 %% @private
 scram_first_step(Socket, Database, Login, Password, SetOpts) ->
@@ -76,14 +89,13 @@ scram_forth_step(false, ConversationId, Socket, Database, SetOpts) ->
     ConversationId, <<"payload">>, <<>>}, SetOpts),
   true = maps:get(<<"done">>, Res, false).
 
-
-%% Export for test purposes
+%% @private
 compose_first_message(Login, RandomBString) ->
   UserName = <<<<"n=">>/binary, (mc_utils:encode_name(Login))/binary>>,
   Nonce = <<<<"r=">>/binary, RandomBString/binary>>,
   <<UserName/binary, <<",">>/binary, Nonce/binary>>.
 
-%% Export for test purposes
+%% @private
 compose_second_message(Payload, Login, Password, RandomBString, FirstMessage) ->
   ParamList = parse_server_responce(Payload),
   R = mc_utils:get_value(<<"r">>, ParamList),

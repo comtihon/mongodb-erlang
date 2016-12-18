@@ -9,30 +9,52 @@
 -module(mc_connection_man).
 -author("tihon").
 
+-include("mongo_types.hrl").
 -include("mongo_protocol.hrl").
 
 -define(NOT_MASTER_ERROR, 13435).
 -define(UNAUTHORIZED_ERROR(C), C =:= 10057; C =:= 16550).
 
 %% API
--export([reply/1, request_worker/2, process_reply/2, request_raw/4]).
+-export([request_worker/2, process_reply/2]).
+-export([read/2, read_one/2, read_one_sync/4]).
 
 -spec request_worker(pid(), mongo_protocol:message()) -> ok | {non_neg_integer(), [map()]}.
 request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
--spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) ->
-  ok | {non_neg_integer(), [map()]}.
-request_raw(Socket, Database, Request, NetModule) ->
-  Timeout = mc_utils:get_timeout(),
-  ok = set_opts(Socket, NetModule, false),
-  {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
-  Responses = recv(Socket, Timeout, NetModule),
-  ok = set_opts(Socket, NetModule, true),
-  {_, Reply} = hd(Responses),
-  reply(Reply).
+process_reply(Doc = #{<<"ok">> := N}, _) when is_number(N) ->   %command succeed | failed
+  {N == 1, maps:remove(<<"ok">>, Doc)};
+process_reply(Doc, Command) -> %unknown result
+  erlang:error({bad_command, Doc}, [Command]).
 
+-spec read(pid() | atom(), query()) -> [] | pid().
+read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}) ->
+  case mc_connection_man:request_worker(Connection, Request) of
+    {_, []} ->
+      [];
+    {Cursor, Batch} ->
+      mc_cursor:start_link(Connection, Collection, Cursor, BatchSize, Batch)
+  end.
+
+-spec read_one(pid() | atom(), query()) -> undefined | map().
+read_one(Connection, Request) ->
+  {0, Docs} = mc_connection_man:request_worker(Connection, Request#'query'{batchsize = -1}),
+  case Docs of
+    [] -> undefined;
+    [Doc | _] -> Doc
+  end.
+
+read_one_sync(Socket, Database, Request, SetOpts) ->
+  {0, Docs} = mc_connection_man:request_raw(Socket, Database, Request#'query'{batchsize = -1}, SetOpts),
+  case Docs of
+    [] -> #{};
+    [Doc | _] -> Doc
+  end.
+
+
+%% @private
 reply(ok) -> ok;
 reply(#reply{cursornotfound = false, queryerror = false} = Reply) ->
   {Reply#reply.cursorid, Reply#reply.documents};
@@ -44,11 +66,6 @@ reply(#reply{cursornotfound = true, queryerror = false} = Reply) ->
 reply({error, Error}) ->
   process_error(error, Error).
 
-process_reply(Doc = #{<<"ok">> := N}, _) when is_number(N) ->   %command succeed | failed
-  {N == 1, maps:remove(<<"ok">>, Doc)};
-process_reply(Doc, Command) -> %unknown result
-  erlang:error({bad_command, Doc}, [Command]).
-
 %% @private
 -spec process_error(atom() | integer(), term()) -> no_return().
 process_error(?NOT_MASTER_ERROR, _) ->
@@ -57,6 +74,18 @@ process_error(Code, _) when ?UNAUTHORIZED_ERROR(Code) ->
   erlang:error(unauthorized);
 process_error(_, Doc) ->
   erlang:error({bad_query, Doc}).
+
+%% @private
+-spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) ->
+  ok | {non_neg_integer(), [map()]}.
+request_raw(Socket, Database, Request, NetModule) ->
+  Timeout = mc_utils:get_timeout(),
+  ok = set_opts(Socket, NetModule, false),
+  {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
+  Responses = recv(Socket, Timeout, NetModule),
+  ok = set_opts(Socket, NetModule, true),
+  {_, Reply} = hd(Responses),
+  reply(Reply).
 
 %% @private
 set_opts(Socket, ssl, Value) ->
