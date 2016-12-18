@@ -23,27 +23,26 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  [{collection, mc_test_utils:collection(Case)} | Config].
+  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"],
+    [{pool_size, 1}, {max_overflow, 0}], [{database, ?config(database, Config)}]),
+  [{connection, Pid}, {collection, mc_test_utils:collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
-  {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {w_mode, safe}]),
+  Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
-  mc_worker_api:delete(Connection, Collection, {}),
-  mc_worker_api:disconnect(Connection).
+  mongo_api:delete(Connection, Collection, #{}),
+  mongo_api:disconnect(Connection).
 
 %% Tests
 ensure_index_test(Config) ->
+  Pid = ?config(connection, Config),
   Collection = ?config(collection, Config),
-
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"], [], [{database, <<"test">>}]),
-
   ok = mongo_api:ensure_index(Pid, Collection, #{<<"key">> => {<<"cid">>, 1, <<"ts">>, 1}}),
-  mongo_api:disconnect(Pid),
   Config.
 
 count_test(Config) ->
   Collection = ?config(collection, Config),
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"], [], [{database, <<"test">>}]),
+  Pid = ?config(connection, Config),
   {{true, #{<<"n">> := 4}}, _} = mongo_api:insert(Pid, Collection, [
     #{<<"name">> => <<"Yankees">>,
       <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>},
@@ -60,12 +59,11 @@ count_test(Config) ->
   ]),
   N = mongo_api:count(Pid, Collection, #{}, 17),
   ?assertEqual(4, N),
-  mongo_api:disconnect(Pid),
   Config.
 
 find_one_test(Config) ->
   Collection = ?config(collection, Config),
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"], [], [{database, <<"test">>}]),
+  Pid = ?config(connection, Config),
   undefined = mongo_api:find_one(Pid, Collection, #{}, #{<<"name">> => true}),
   {{true, #{<<"n">> := 4}}, _} = mongo_api:insert(Pid, Collection, [
     #{<<"name">> => <<"Yankees">>,
@@ -83,12 +81,11 @@ find_one_test(Config) ->
   ]),
   #{<<"name">> := <<"Yankees">>} = mongo_api:find_one(Pid, Collection, #{}, #{<<"name">> => true}),
   undefined = mongo_api:find_one(Pid, Collection, #{<<"name">> => <<"Batman">>}, #{<<"name">> => true}),
-  mongo_api:disconnect(Pid),
   Config.
 
 find_test(Config) ->
   Collection = ?config(collection, Config),
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"], [], [{database, <<"test">>}]),
+  Pid = ?config(connection, Config),
   [] = mongo_api:find(Pid, Collection, #{}, #{<<"name">> => true}),
   {{true, #{<<"n">> := 4}}, _} = mongo_api:insert(Pid, Collection, [
     #{<<"name">> => <<"Yankees">>,
@@ -111,12 +108,11 @@ find_test(Config) ->
     #{<<"name">> := <<"Yankees">>},
     #{<<"name">> := <<"Mets">>}
   ] = mc_cursor:rest(Cursor),
-  mongo_api:disconnect(Pid),
   Config.
 
 upsert_and_update_test(Config) ->
   Collection = ?config(collection, Config),
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"], [], [{database, <<"test">>}]),
+  Pid = ?config(connection, Config),
   {true, #{<<"n">> := 1}} = mongo_api:update(Pid, Collection, #{},
     #{<<"_id">> => 100,
       <<"sku">> => <<"abc123">>,
@@ -157,5 +153,4 @@ upsert_and_update_test(Config) ->
     <<"details">> := #{<<"model">> := "14Q3", <<"make">> := "xyz"},
     <<"tags">> := ["coats", "outerwear", "clothing"],
     <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]}] = mc_cursor:rest(Cursor1),
-  mongo_api:disconnect(Pid),
   Config.

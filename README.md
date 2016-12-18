@@ -30,7 +30,9 @@ Start all applications, needed by mongodb
 
 	> application:ensure_all_started (mongodb).
 
-__Important__: mongoc API was changed in `3.0.0`.
+__Important__: 
+`mongoc` API was changed in `3.0.0`.  
+`mc_cursor` API was changed in `3.0.0.`  
 
 This driver has two api modules - `mc_worker_api` and `mongo_api`. 
 `mc_worker_api` works directly with one connection, while all `mongo_api`
@@ -111,11 +113,19 @@ such as `insert`, `update` and `delete`:
 
     > Collection = <<"test">>.
     > mc_worker_api:insert(Connection, Collection, [
-          {<<"name">>, <<"Yankees">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"American">>},
-          {<<"name">>, <<"Mets">>, <<"home">>, {<<"city">>, <<"New York">>, <<"state">>, <<"NY">>}, <<"league">>, <<"National">>},
-          {<<"name">>, <<"Phillies">>, <<"home">>, {<<"city">>, <<"Philadelphia">>, <<"state">>, <<"PA">>}, <<"league">>, <<"National">>},
-          {<<"name">>, <<"Red Sox">>, <<"home">>, {<<"city">>, <<"Boston">>, <<"state">>, <<"MA">>}, <<"league">>, <<"American">>}
-        ]),
+                                                       #{<<"name">> => <<"Yankees">>,
+                                                         <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>},
+                                                         <<"league">> => <<"American">>},
+                                                       #{<<"name">> => <<"Mets">>,
+                                                         <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>},
+                                                         <<"league">> => <<"National">>},
+                                                       #{<<"name">> => <<"Phillies">>,
+                                                         <<"home">> => #{<<"city">> => <<"Philadelphia">>, <<"state">> => <<"PA">>},
+                                                         <<"league">> => <<"National">>},
+                                                       #{<<"name">> => <<"Red Sox">>,
+                                                         <<"home">>=> #{<<"city">> => <<"Boston">>, <<"state">> => <<"MA">>},
+                                                         <<"league">> => <<"American">>}
+                                                     ]),
 An insert example (from `mongo_SUITE` test module). `Connection` is your 
 Connection, got `from mc_worker_api:connect`, `Collection`
 is your collection name, `Doc` is something, you want to save.
@@ -137,24 +147,24 @@ You can also use maps instead bson documents:
 ### Reading
 To call read operations use `find`, `find_one`:
 
-    > Cursor = mc_worker_api:find(Connection, Collection, Selector)
+    > {ok, Cursor} = mc_worker_api:find(Connection, Collection, Selector)
 All params similar to `delete`.
 The difference between `find` and `find_one` is in return. Find_one just 
 returns your result, while find returns you a
 `Cursor` - special process' pid. You can query data through the process 
 with the help of `mc_cursor' module.
 
-    > Result = mc_cursor:rest(Cursor),
+    > Result = mc_cursor:next(Cursor),
     > mc_cursor:close(Cursor),
-__Important!__ Do not forget to close cursors after using them!
+__Important!__ Do not forget to close cursors after using them! 
+`mc_cursor:rest` closes the cursor automatically.
 
-### Advance reading
 To search for params - specify `Selector`:
 
-    mc_worker_api:find_one(Connection, Collection, {<<"key">>, <<"123">>}).
+    mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>}).
 will return one document from collection Collection with key == <<"123">>.
 
-    mc_worker_api:find_one(Connection, Collection, {<<"key">>, <<"123">>, <<"value">>, <<"built_in">>}).
+    mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>, <<"value">> => <<"built_in">>}).
 will return one document from collection Collection with key == <<"123">> 
 `and` value == <<"built_in">>.
 Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
@@ -162,51 +172,49 @@ Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
 
 For filtering result - use `Projector`:
 
-    mc_worker_api:find_one(Connection, Collection, {}, [{projector, {<<"value">>, true}]).
+    mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"value">> => true}).
 will return one document from collection Collection with fetching `only` 
 _id and value.
 
-    mc_worker_api:find_one(Connection, Collection, {}, [{projector, {<<"key">>, false, <<"value">>, false}}]).
+    mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"key">> => false, <<"value">> => false}}).
 will return your data without key and value params. If there is no other 
 data - only _id will be returned.
-__Important!__ For empty projector use `[]` instead `{}`. For empty 
-selector use `{}`.
 
 ### Updating
 To add or update field in document - use `mc_worker_api:update` function
  with `$set` param.
 This updates selected fields:
 
-    Command = {<<"$set">>, {
-        <<"quantity">>, 500,
-        <<"details">>, {<<"model">>, "14Q3", <<"make">>, "xyz"},
-        <<"tags">>, ["coats", "outerwear", "clothing"]
+    Command = #{<<"$set">> => #{
+        <<"quantity">> => 500,
+        <<"details">> => #{<<"model">> => "14Q3", <<"make">> => "xyz"},
+        <<"tags">> => ["coats", "outerwear", "clothing"]
     }},
-    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
 This will add new field `expired`, if there is no such field, and set it 
 to true.
 
-    Command = {<<"$set">>, {<<"expired">>, true}},
-    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    Command = #{<<"$set">> => #{<<"expired">> => true}},
+    mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
 This will update fields in nested documents.
 
-    Command = {<<"$set">>, {<<"details.make">>, "zzz"}},
-    mc_worker_api:update(Connection, Collection, {<<"_id">>, 100}, Command),
+    Command = #{<<"$set">> => #{<<"details.make">> => "zzz"}},
+    mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
 This will update elements in array.
 
-    Command = {<<"$set">>, {
-        <<"tags.1">>, "rain gear",
-        <<"ratings.0.rating">>, 2
+    Command = #{<<"$set">> => #{
+        <<"tags.1">> => "rain gear",
+        <<"ratings.0.rating">> => 2
       }},
-    mc_worker_api:update(Connection, Collection, {'_id', 100}, Command),
+    mc_worker_api:update(Connection, Collection, #{'_id' => 100}, Command),
 For result of executing this functions - see mongo_SUITE update test.
 
 ### Creating indexes
 To create indexes - use `mc_worker_api:ensure_index/3` command:
 
-    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}}).  %simple
-    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>}).  %advanced
-    mc_worker_api:ensure_index(Connection, Collection, {<<"key">>, {<<"index">>, 1}, <<"name">>, <<"MyI">>, <<"unique">>, true, <<"dropDups">>, true}).  %full
+    mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}}).  %simple
+    mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>}).  %advanced
+    mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>, <<"unique">> => true, <<"dropDups">> => true}).  %full
 
 ensure_index takes `mc_worker`' pid or atom name as first parameter, 
 collection, where to create index, as second
