@@ -38,6 +38,7 @@ ensure_index_test(Config) ->
   Pid = ?config(connection, Config),
   Collection = ?config(collection, Config),
   ok = mongo_api:ensure_index(Pid, Collection, #{<<"key">> => {<<"cid">>, 1, <<"ts">>, 1}}),
+  ok = mongo_api:ensure_index(Pid, Collection, {<<"key">>, {<<"z_first">>, 1, <<"a_last">>, 1}}),
   Config.
 
 count_test(Config) ->

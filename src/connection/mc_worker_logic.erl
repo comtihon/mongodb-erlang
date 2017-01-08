@@ -12,8 +12,8 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([encode_request/2, decode_responses/1, process_responses/2, connect_to_database/1]).
--export([gen_index_name/1, make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1, get_version/3]).
+-export([encode_request/2, decode_responses/1, process_responses/2, connect_to_database/1, get_version/3]).
+-export([make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1, ensure_index/3]).
 
 %% Make connection to database and return socket
 -spec connect_to_database(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
@@ -63,13 +63,6 @@ process_responses(Responses, RequestStorage) ->
       end
     end, RequestStorage, Responses).
 
-gen_index_name(KeyOrder) ->
-  bson:doc_foldl(
-    fun(Label, Order, Acc) ->
-      <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
-        $_, (mc_utils:value_to_binary(Order))/binary>>
-    end, <<"i">>, KeyOrder).
-
 -spec make_request(pid(), atom(), mc_worker_api:database(), mongo_protocol:message()) ->
   {ok | {error, any()}, integer(), pos_integer()}.
 make_request(Socket, NetModule, Database, Request) ->
@@ -84,6 +77,27 @@ collection(#'insert'{collection = Coll}) -> Coll;
 collection(#'update'{collection = Coll}) -> Coll;
 collection(#'delete'{collection = Coll}) -> Coll.
 
+ensure_index(IndexSpec = #{<<"key">> := Key}, Database, Collection) ->
+  do_ensure_index(IndexSpec, Database, Collection, Key);
+ensure_index(IndexSpec, Database, Collection) when is_tuple(IndexSpec) ->
+  Key = bson:lookup(<<"key">>, IndexSpec),
+  do_ensure_index(IndexSpec, Database, Collection, Key).
+
+
+%% @private
+do_ensure_index(IndexSpec, Database, Collection, Key) ->
+  Defaults = {<<"name">>, gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
+  bson:update(<<"ns">>,
+    mongo_protocol:dbcoll(Database, Collection),
+    bson:merge(IndexSpec, Defaults)).
+
+%% @private
+gen_index_name(KeyOrder) ->
+  bson:doc_foldl(
+    fun(Label, Order, Acc) ->
+      <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
+        $_, (mc_utils:value_to_binary(Order))/binary>>
+    end, <<"i">>, KeyOrder).
 
 %% @private
 decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->

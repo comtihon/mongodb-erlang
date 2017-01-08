@@ -19,7 +19,7 @@
   socket :: gen_tcp:socket() | ssl:sslsocket(),
   request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
-  conn_state,
+  conn_state :: conn_state(),
   hibernate_timer :: timer:tref() | undefined,
   next_req_fun :: fun(),
   net_module :: ssl | gen_tcp
@@ -64,12 +64,8 @@ init(Options) ->
 handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
 handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State) -> % ensure index request with insert request
-  Key = maps:get(<<"key">>, IndexSpec),
   #state{conn_state = ConnState, socket = Socket, net_module = NetModule} = State,
-  Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
-  Index = bson:update(<<"ns">>,
-    mongo_protocol:dbcoll(ConnState#conn_state.database, Coll),
-    bson:merge(IndexSpec, Defaults)),
+  Index = mc_worker_logic:ensure_index(IndexSpec, ConnState#conn_state.database, Coll),
   {ok, _, _} =
     mc_worker_logic:make_request(
       Socket,

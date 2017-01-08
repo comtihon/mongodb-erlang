@@ -179,10 +179,7 @@ count(Connection, Query) ->
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
-%%      key      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
-%%      name     :: bson:utf8()
-%%      unique   :: boolean()
-%%      dropDups :: boolean()
+%%      IndexSpec      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
 -spec ensure_index(pid(), colldb(), bson:document()) -> ok | {error, any()}.
 ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
@@ -220,7 +217,7 @@ sync_command(Socket, Database, Command, SetOpts) ->
   mc_connection_man:process_reply(Doc, Command).
 
 -spec prepare(tuple() | list() | map(), fun()) -> list().
-prepare(Docs, AssignFun) when is_tuple(Docs) ->
+prepare(Docs, AssignFun) when is_tuple(Docs) -> %bson
   case element(1, Docs) of
     <<"$", _/binary>> -> Docs;  %command
     _ ->  %document
@@ -248,7 +245,7 @@ prepare(Doc, AssignFun) when is_map(Doc) ->
         List -> List
       end
   end;
-prepare(Docs, AssignFun) ->
+prepare(Docs, AssignFun) when is_list(Docs) ->
   case prepare_doc(Docs, AssignFun) of
     Res when not is_list(Res) -> [Res];
     List -> List

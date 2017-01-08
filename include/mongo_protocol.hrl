@@ -61,6 +61,7 @@
   read_mode = master :: mc_worker_api:read_mode(),
   database :: mc_worker_api:database()
 }).
+-type conn_state() :: #conn_state{}.
 
 -record(killcursor, {
   cursorids :: [mc_worker_api:cursorid()]

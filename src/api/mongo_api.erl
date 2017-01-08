@@ -97,9 +97,6 @@ count(Topology, Collection, Selector, Limit) ->
 %% @doc Creates index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
 %%      key      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
-%%      name     :: bson:utf8()
-%%      unique   :: boolean()
-%%      dropDups :: boolean()
 -spec ensure_index(pid() | atom(), collection(), bson:document()) -> ok | {error, any()}.
 ensure_index(Topology, Coll, IndexSpec) ->
   mongoc:transaction(Topology,

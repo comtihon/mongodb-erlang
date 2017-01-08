@@ -82,7 +82,7 @@ request_raw(Socket, Database, Request, NetModule) ->
   Timeout = mc_utils:get_timeout(),
   ok = set_opts(Socket, NetModule, false),
   {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
-  Responses = recv(Socket, Timeout, NetModule),
+  Responses = recv_all(Socket, Timeout, NetModule),
   ok = set_opts(Socket, NetModule, true),
   {_, Reply} = hd(Responses),
   reply(Reply).
@@ -94,11 +94,11 @@ set_opts(Socket, gen_tcp, Value) ->
   inet:setopts(Socket, [{active, Value}]).
 
 %% @private
-recv(Socket, Timeout, NetModule) ->
-  recv(Socket, Timeout, NetModule, <<>>).
-recv(Socket, Timeout, NetModule, Rest) ->
+recv_all(Socket, Timeout, NetModule) ->
+  recv_all(Socket, Timeout, NetModule, <<>>).
+recv_all(Socket, Timeout, NetModule, Rest) ->
   {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
   case mc_worker_logic:decode_responses(<<Rest/binary, Packet/binary>>) of
-    {[], Unfinished} -> recv(Socket, Timeout, NetModule, Unfinished);
+    {[], Unfinished} -> recv_all(Socket, Timeout, NetModule, Unfinished);
     {Responses, _} -> Responses
   end.
