@@ -14,7 +14,7 @@
 -include("mongo_protocol.hrl").
 
 -type cursorid() :: integer().
--type selector() :: map().
+-type selector() :: map() | bson:document().
 -type projector() :: bson:document() | map().
 -type skip() :: integer().
 -type batchsize() :: integer(). % 0 = default batch size. negative closes cursor

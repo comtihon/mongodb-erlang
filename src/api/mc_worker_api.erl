@@ -123,7 +123,7 @@ find_one(Connection, Coll, Selector, Args) ->
 
 -spec find_one(pid() | atom(), query()) -> map() | undefined.
 find_one(Connection, Query) when is_record(Query, query) ->
-  mc_action_man:read_one(Connection, Query).
+  mc_connection_man:read_one(Connection, Query).
 
 %% @doc Return selected documents.
 -spec find(pid(), colldb(), selector()) -> {ok, cursor()} | [].
@@ -151,7 +151,7 @@ find(Connection, Coll, Selector, Args) ->
 
 -spec find(pid() | atom(), query()) -> {ok, cursor()} | [].
 find(Connection, Query) when is_record(Query, query) ->
-  case mc_action_man:read(Connection, Query) of
+  case mc_connection_man:read(Connection, Query) of
     [] -> [];
     Cursor when is_pid(Cursor) ->
       {ok, Cursor}
@@ -179,10 +179,7 @@ count(Connection, Query) ->
 
 %% @doc Create index on collection according to given spec.
 %%      The key specification is a bson documents with the following fields:
-%%      key      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
-%%      name     :: bson:utf8()
-%%      unique   :: boolean()
-%%      dropDups :: boolean()
+%%      IndexSpec      :: bson document, for e.g. {field, 1, other, -1, location, 2d}, <strong>required</strong>
 -spec ensure_index(pid(), colldb(), bson:document()) -> ok | {error, any()}.
 ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
@@ -190,7 +187,7 @@ ensure_index(Connection, Coll, IndexSpec) ->
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()}. % Action
 command(Connection, Query) when is_record(Query, query) ->
-  Doc = mc_action_man:read_one(Connection, Query),
+  Doc = mc_connection_man:read_one(Connection, Query),
   mc_connection_man:process_reply(Doc, Query);
 command(Connection, Command) ->
   command(Connection,
@@ -213,14 +210,14 @@ command(Connection, Command, _IsSlaveOk = false) ->
 %% @doc Execute MongoDB command in this thread
 -spec sync_command(port(), binary(), mc_worker_api:selector(), module()) -> {boolean(), map()}.
 sync_command(Socket, Database, Command, SetOpts) ->
-  Doc = mc_action_man:read_one_sync(Socket, Database, #'query'{
+  Doc = mc_connection_man:read_one_sync(Socket, Database, #'query'{
     collection = <<"$cmd">>,
     selector = Command
   }, SetOpts),
   mc_connection_man:process_reply(Doc, Command).
 
 -spec prepare(tuple() | list() | map(), fun()) -> list().
-prepare(Docs, AssignFun) when is_tuple(Docs) ->
+prepare(Docs, AssignFun) when is_tuple(Docs) -> %bson
   case element(1, Docs) of
     <<"$", _/binary>> -> Docs;  %command
     _ ->  %document
@@ -248,7 +245,7 @@ prepare(Doc, AssignFun) when is_map(Doc) ->
         List -> List
       end
   end;
-prepare(Docs, AssignFun) ->
+prepare(Docs, AssignFun) when is_list(Docs) ->
   case prepare_doc(Docs, AssignFun) of
     Res when not is_list(Res) -> [Res];
     List -> List

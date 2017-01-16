@@ -3,6 +3,9 @@
 
 -include("mongo_protocol.hrl").
 
+-define(WRITE(Req), is_record(Req, insert); is_record(Req, update); is_record(Req, delete)).
+-define(READ(Req), is_record(Request, 'query'); is_record(Request, getmore)).
+
 -export([start_link/1, disconnect/1, hibernate/1]).
 -export([
   init/1,
@@ -16,7 +19,7 @@
   socket :: gen_tcp:socket() | ssl:sslsocket(),
   request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
-  conn_state,
+  conn_state :: conn_state(),
   hibernate_timer :: timer:tref() | undefined,
   next_req_fun :: fun(),
   net_module :: ssl | gen_tcp
@@ -39,8 +42,8 @@ disconnect(Worker) ->
   gen_server:cast(Worker, halt).
 
 init(Options) ->
-  case mc_auth:connect_to_database(Options) of
-    {ok, Socket}->
+  case mc_worker_logic:connect_to_database(Options) of
+    {ok, Socket} ->
       proc_lib:init_ack({ok, self()}),
       ConnState = form_state(Options),
       try_register(Options),
@@ -48,19 +51,21 @@ init(Options) ->
       Login = mc_utils:get_value(login, Options),
       Password = mc_utils:get_value(password, Options),
       NextReqFun = mc_utils:get_value(next_req_fun, Options, fun() -> ok end),
-      mc_auth:auth(Socket, Login, Password, ConnState#conn_state.database, NetModule),
-      gen_server:enter_loop(?MODULE, [], #state{socket = Socket, conn_state = ConnState, net_module = NetModule, next_req_fun = NextReqFun});
-    Error->
+      auth_if_credentials(Socket, ConnState, NetModule, Login, Password),
+      gen_server:enter_loop(?MODULE, [],
+        #state{socket = Socket,
+          conn_state = ConnState,
+          net_module = NetModule,
+          next_req_fun = NextReqFun});
+    Error ->
       proc_lib:init_ack(Error)
   end.
 
-handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state)->  % update state, return old
+handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
-handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
-    State = #state{conn_state = ConnState, socket = Socket, net_module = NetModule}) -> % ensure index request with insert request
-  Key = maps:get(<<"key">>, IndexSpec),
-  Defaults = {<<"name">>, mc_worker_logic:gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
-  Index = bson:update(<<"ns">>, mongo_protocol:dbcoll(ConnState#conn_state.database, Coll), bson:merge(IndexSpec, Defaults)),
+handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State) -> % ensure index request with insert request
+  #state{conn_state = ConnState, socket = Socket, net_module = NetModule} = State,
+  Index = mc_worker_logic:ensure_index(IndexSpec, ConnState#conn_state.database, Coll),
   {ok, _, _} =
     mc_worker_logic:make_request(
       Socket,
@@ -68,9 +73,9 @@ handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _,
       ConnState#conn_state.database,
       #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>), documents = [Index]}),
   {reply, ok, State};
-handle_call(Request, From, State) when is_record(Request, insert); is_record(Request, update); is_record(Request, delete) ->  % write requests (deprecated)
+handle_call(Request, From, State) when ?WRITE(Request) ->  % write requests (deprecated)
   process_write_request(Request, From, State);
-handle_call(Request, From, State) when is_record(Request, 'query'); is_record(Request, getmore) -> % read requests (and all through command)
+handle_call(Request, From, State) when ?READ(Request) -> % read requests (and all through command)
   process_read_request(Request, From, State);
 handle_call(Request, _, State = #state{socket = Socket, conn_state = ConnState, net_module = NetModule})
   when is_record(Request, killcursor) ->
@@ -113,15 +118,23 @@ code_change(_Old, State, _Extra) ->
   {ok, State}.
 
 %% @private
-process_read_request(Request, From, State =
-  #state{socket = Socket, request_storage = RequestStorage, conn_state = CS, net_module = NetModule, next_req_fun = Next}) ->
+process_read_request(Request, From, State) ->
+  #state{socket = Socket,
+    request_storage = RequestStorage,
+    conn_state = CS,
+    net_module = NetModule,
+    next_req_fun = Next} = State,
   {UpdReq, Selector} = get_query_selector(Request, CS),
   {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
   UState = need_hibernate(PacketSize, State),
   case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
       Next(),
-      {reply, #reply{cursornotfound = false, queryerror = false, cursorid = 0, documents = [#{<<"ok">> => 1}]}, UState};
+      {reply, #reply{
+        cursornotfound = false,
+        queryerror = false,
+        cursorid = 0,
+        documents = [#{<<"ok">> => 1}]}, UState};
     _ ->  %ordinary request with response
       Next(),
       RespFun = mc_worker_logic:get_resp_fun(UpdReq, From),  % save function, which will be called on response
@@ -131,13 +144,13 @@ process_read_request(Request, From, State =
 
 %% @deprecated
 %% @private
-process_write_request(Request, _,
-    State = #state{socket = Socket, conn_state = #conn_state{write_mode = unsafe, database = Db}, net_module = NetModule}) ->
+process_write_request(Request, _, State = #state{conn_state = #conn_state{write_mode = unsafe, database = Db}}) ->
+  #state{socket = Socket, net_module = NetModule} = State,
   {ok, PacketSize, _} = mc_worker_logic:make_request(Socket, NetModule, Db, Request),
   UState = need_hibernate(PacketSize, State),
   {reply, ok, UState};
-process_write_request(Request, From,
-    State = #state{socket = Socket, conn_state = #conn_state{write_mode = Safe, database = Db}, request_storage = ReqStor, net_module = NetModule}) ->
+process_write_request(Request, From, State = #state{conn_state = #conn_state{write_mode = Safe, database = Db}}) ->
+  #state{socket = Socket, net_module = NetModule, request_storage = ReqStor} = State,
   Params = case Safe of safe -> {}; {safe, Param} -> Param end,
   ConfirmWrite =
     #'query'
@@ -196,3 +209,11 @@ get_set_opts_module(Options) ->
     true -> ssl;
     false -> gen_tcp
   end.
+
+%% @private
+auth_if_credentials(_, _, _, Login, Password) when Login =:= undefined; Password =:= undefined ->
+  ok;
+auth_if_credentials(Socket, ConnState, NetModule, Login, Password) ->
+  Version = mc_worker_logic:get_version(Socket, ConnState#conn_state.database, NetModule),
+  mc_auth_logic:auth(Version, Socket, ConnState#conn_state.database, Login, Password, NetModule),
+  ok.

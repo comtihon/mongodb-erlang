@@ -12,8 +12,25 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([encode_request/2, decode_responses/1, process_responses/2]).
--export([gen_index_name/1, make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1]).
+-export([encode_request/2, decode_responses/1, process_responses/2, connect_to_database/1, get_version/3]).
+-export([make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1, ensure_index/3]).
+
+%% Make connection to database and return socket
+-spec connect_to_database(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
+connect_to_database(Conf) ->
+  Timeout = mc_utils:get_value(timeout, Conf, infinity),
+  Host = mc_utils:get_value(host, Conf, "127.0.0.1"),
+  Port = mc_utils:get_value(port, Conf, 27017),
+  SSL = mc_utils:get_value(ssl, Conf, false),
+  SslOpts = mc_utils:get_value(ssl_opts, Conf, []),
+  do_connect(Host, Port, Timeout, SSL, SslOpts).
+
+%% Get server version. This is need to choose default authentication method.
+-spec get_version(port(), binary(), module()) -> float().
+get_version(Socket, Database, SetOpts) ->
+  {true, #{<<"version">> := Version}} = mc_worker_api:sync_command(Socket, Database, {<<"buildinfo">>, 1}, SetOpts),
+  {VFloat, _} = string:to_float(binary_to_list(Version)),
+  VFloat.
 
 -spec encode_request(mc_worker_api:database(), mongo_protocol:message()) -> {binary(), pos_integer()}.
 encode_request(Database, Request) ->
@@ -46,13 +63,6 @@ process_responses(Responses, RequestStorage) ->
       end
     end, RequestStorage, Responses).
 
-gen_index_name(KeyOrder) ->
-  bson:doc_foldl(
-    fun(Label, Order, Acc) ->
-      <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
-        $_, (mc_utils:value_to_binary(Order))/binary>>
-    end, <<"i">>, KeyOrder).
-
 -spec make_request(pid(), atom(), mc_worker_api:database(), mongo_protocol:message()) ->
   {ok | {error, any()}, integer(), pos_integer()}.
 make_request(Socket, NetModule, Database, Request) ->
@@ -67,6 +77,27 @@ collection(#'insert'{collection = Coll}) -> Coll;
 collection(#'update'{collection = Coll}) -> Coll;
 collection(#'delete'{collection = Coll}) -> Coll.
 
+ensure_index(IndexSpec = #{<<"key">> := Key}, Database, Collection) ->
+  do_ensure_index(IndexSpec, Database, Collection, Key);
+ensure_index(IndexSpec, Database, Collection) when is_tuple(IndexSpec) ->
+  Key = bson:lookup(<<"key">>, IndexSpec),
+  do_ensure_index(IndexSpec, Database, Collection, Key).
+
+
+%% @private
+do_ensure_index(IndexSpec, Database, Collection, Key) ->
+  Defaults = {<<"name">>, gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
+  bson:update(<<"ns">>,
+    mongo_protocol:dbcoll(Database, Collection),
+    bson:merge(IndexSpec, Defaults)).
+
+%% @private
+gen_index_name(KeyOrder) ->
+  bson:doc_foldl(
+    fun(Label, Order, Acc) ->
+      <<Acc/binary, $_, (mc_utils:value_to_binary(Label))/binary,
+        $_, (mc_utils:value_to_binary(Order))/binary>>
+    end, <<"i">>, KeyOrder).
 
 %% @private
 decode_responses(<<Length:32/signed-little, Data/binary>>, Acc) when byte_size(Data) >= (Length - 4) ->
@@ -91,3 +122,10 @@ process_write_response(From) ->
         end
     end
   end.
+
+%% @private
+do_connect(Host, Port, Timeout, true, Opts) ->
+  {ok, _} = application:ensure_all_started(ssl),
+  ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
+do_connect(Host, Port, Timeout, false, _) ->
+  gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).

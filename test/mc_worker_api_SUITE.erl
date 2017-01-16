@@ -16,7 +16,8 @@ all() ->
     update,
     aggregate_sort_and_limit,
     insert_map,
-    find_sort_skip_limit_test
+    find_sort_skip_limit_test,
+    find_one_test
   ].
 
 init_per_suite(Config) ->
@@ -33,7 +34,7 @@ init_per_testcase(Case, Config) ->
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
-  mc_worker_api:delete(Connection, Collection, {}).
+  {true, _} = mc_worker_api:delete(Connection, Collection, #{}).
 
 %% Tests
 insert_and_find(Config) ->
@@ -83,6 +84,30 @@ insert_and_find(Config) ->
   #{<<"name">> := <<"Red Sox">>,
     <<"home">> := #{<<"city">> := <<"Boston">>, <<"state">> := <<"MA">>},
     <<"league">> := <<"American">>} = BostonTeam,
+  Config.
+
+find_one_test(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  {{true, #{<<"n">> := 4}}, _} = mc_worker_api:insert(Connection, Collection, [
+    #{<<"name">> => <<"Yankees">>,
+      <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>},
+      <<"league">> => <<"American">>},
+    #{<<"name">> => <<"Mets">>,
+      <<"home">> => #{<<"city">> => <<"New York">>, <<"state">> => <<"NY">>},
+      <<"league">> => <<"National">>},
+    #{<<"name">> => <<"Phillies">>,
+      <<"home">> => #{<<"city">> => <<"Philadelphia">>, <<"state">> => <<"PA">>},
+      <<"league">> => <<"National">>},
+    #{<<"name">> => <<"Red Sox">>,
+      <<"home">>=> #{<<"city">> => <<"Boston">>, <<"state">> => <<"MA">>},
+      <<"league">> => <<"American">>}
+  ]),
+
+  #{<<"name">> := <<"Yankees">>,
+    <<"home">> := #{<<"city">> := <<"New York">>, <<"state">> := <<"NY">>},
+    <<"league">> := <<"American">>} = mc_worker_api:find_one(Connection, Collection, #{}),
   Config.
 
 insert_and_delete(Config) ->
