@@ -31,7 +31,7 @@
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
   ok = application:ensure_started(poolboy),
-  {ok, _} = mc_pool_sup:start_link(),
+  {ok, _} = mc_pool_sup:ensure_started(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
 -spec disconnect(pid()) -> ok.
