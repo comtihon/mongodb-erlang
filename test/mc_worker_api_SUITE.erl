@@ -34,7 +34,7 @@ init_per_testcase(Case, Config) ->
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
-  mc_worker_api:delete(Connection, Collection, {}).
+  {true, _} = mc_worker_api:delete(Connection, Collection, #{}).
 
 %% Tests
 insert_and_find(Config) ->

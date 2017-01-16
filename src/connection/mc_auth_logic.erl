@@ -30,9 +30,9 @@
 %% Authorize on database synchronously
 -spec auth(float(), port(), database(), binary() | undefined, binary() | undefined, module()) -> boolean().
 auth(Version, Socket, Database, Login, Password, NetModule) when Version > 2.7 ->  %new authorisation
-  mc_auth_logic:scram_sha_1_auth(Socket, Database, Login, Password, NetModule);
+  scram_sha_1_auth(Socket, Database, Login, Password, NetModule);
 auth(_, Socket, Database, Login, Password, NetModule) ->   %old authorisation
-  mc_auth_logic:mongodb_cr_auth(Socket, Database, Login, Password, NetModule).
+  mongodb_cr_auth(Socket, Database, Login, Password, NetModule).
 
 
 %% @private
