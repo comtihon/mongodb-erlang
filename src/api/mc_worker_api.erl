@@ -247,6 +247,7 @@ prepare(Doc, AssignFun) when is_map(Doc) ->
   end;
 prepare(Docs, AssignFun) when is_list(Docs) ->
   case prepare_doc(Docs, AssignFun) of
+    Map when is_map(Map) -> Map;
     Res when not is_list(Res) -> [Res];
     List -> List
   end.
