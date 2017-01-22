@@ -1,5 +1,8 @@
 % Wire protocol message types (records)
 
+-ifndef(MONGO_PROTOCOL).
+-define(MONGO_PROTOCOL, true).
+
 -define(GS2_HEADER, <<"n,,">>).
 
 -type colldb() :: collection() | {database(), collection()}.
@@ -58,6 +61,7 @@
   read_mode = master :: mc_worker_api:read_mode(),
   database :: mc_worker_api:database()
 }).
+-type conn_state() :: #conn_state{}.
 
 -record(killcursor, {
   cursorids :: [mc_worker_api:cursorid()]
@@ -71,3 +75,4 @@
   startingfrom :: integer(),
   documents :: [map()]
 }).
+-endif.

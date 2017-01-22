@@ -33,6 +33,8 @@ auth_test() ->
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList),
   ?assertEqual(base64:encode(Signature), ServerSignature).
 
+
+%% @private
 parse_server_responce(Responce) ->
   ParamList = binary:split(Responce, <<",">>, [global]),
   lists:map(

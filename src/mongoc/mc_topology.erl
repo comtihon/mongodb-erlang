@@ -87,12 +87,15 @@ get_state_part(Topology) ->
   gen_server:call(Topology, get_state_part).
 
 get_pool(Topology) ->
-  get_pool(Topology, []).
+  get_pool(Topology, #{}).
 
+-spec get_pool(pid() | atom(), map() | list()) -> {ok, map()} | {error, any()}.
+get_pool(Topology, Options) when is_list(Options) ->
+  get_pool(Topology, maps:from_list(Options));
 get_pool(Topology, Options) ->
   State = mc_topology:get_state(Topology),
-  RPMode = mc_utils:get_value(rp_mode, Options, State#topology_state.rp_mode),
-  RPTags = mc_utils:get_value(rp_tags, Options, State#topology_state.rp_tags),
+  RPMode = maps:get(rp_mode, Options, State#topology_state.rp_mode),
+  RPTags = maps:get(rp_tags, Options, State#topology_state.rp_tags),
   get_pool(RPMode, RPTags, State).
 
 get_pool(RPMode, RPTags, State) ->
