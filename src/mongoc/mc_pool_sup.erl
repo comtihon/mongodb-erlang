@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_pool/2, stop_pool/1, ensure_started/0]).
+-export([start_link/0, start_pool/3, stop_pool/1, ensure_started/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -23,9 +23,12 @@
 %%%===================================================================
 %%% API functions
 %%%===================================================================
-start_pool(SizeArgs, WorkerArgs) ->
-  PoolArgs = [{worker_module, mc_worker}] ++ SizeArgs,
-  supervisor:start_child(?MODULE, [PoolArgs, WorkerArgs]).
+-spec start_pool(tuple(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
+start_pool({Host, Port}, TopologyOptions, WorkerOpts) ->
+  PoolConf = form_pool_conf(TopologyOptions),
+  WO = lists:append([{host, Host}, {port, Port}], WorkerOpts),
+  PoolArgs = [{worker_module, mc_worker}] ++ PoolConf,
+  supervisor:start_child(?MODULE, [PoolArgs, WO]).
 
 stop_pool(Pid) when is_pid(Pid) ->
   poolboy:stop(Pid);
@@ -55,20 +58,6 @@ start_link() ->
 %%% Supervisor callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a supervisor is started using supervisor:start_link/[2,3],
-%% this function is called by the new process to find out about
-%% restart strategy, maximum restart frequency and child
-%% specifications.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-  {ok, {supervisor:sup_flags(),
-    [ChildSpec :: supervisor:child_spec()]
-  }} | ignore).
 init([]) ->
   {ok, {{simple_one_for_one, 1000, 3600},
     [{worker_pool, {poolboy, start_link, []}, transient, 5000, worker, [poolboy]}]}}.
@@ -76,3 +65,11 @@ init([]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+form_pool_conf(TopologyOptions) ->
+  Size = mc_utils:get_value(pool_size, TopologyOptions, 10),
+  Overflow = mc_utils:get_value(max_overflow, TopologyOptions, 10),
+  OverflowTtl = mc_utils:get_value(overflow_ttl, TopologyOptions, 0),
+  OverflowCheckPeriod = mc_utils:get_value(overflow_check_period, TopologyOptions),
+  [{size, Size}, {max_overflow, Overflow}, {overflow_ttl, OverflowTtl}, {overflow_check_period, OverflowCheckPeriod}].

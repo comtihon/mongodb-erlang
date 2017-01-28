@@ -10,7 +10,6 @@
 -module(mongo_api).
 -author("tihon").
 
--include("mongoc.hrl").
 -include("mongo_protocol.hrl").
 
 %% API

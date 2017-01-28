@@ -7,8 +7,9 @@
 -module(mongoc).
 -author("alttagil@gmail.com").
 
--include("mongoc.hrl").
 -include("mongo_protocol.hrl").
+
+-define(TRANSACTION_TIMEOUT, 5000).
 
 -export([
   connect/3,

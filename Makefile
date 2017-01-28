@@ -33,7 +33,8 @@ tests: clean app eunit ct
 eunit:
 	@$(REBAR) eunit skip_deps=true
 
-ct: app
+ct: appTEST_DEPS = meck gun
+       dep_meck = git https://github.com/eproxus/meck.git master
 	@$(REBAR) ct skip_deps=true
 
 # Dialyzer.

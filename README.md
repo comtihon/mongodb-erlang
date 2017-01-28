@@ -327,8 +327,3 @@ mongoc **WorkerOptions** (as described in mongo Connecting chapter)
     | {login, binary()}
     | {password, binary()}
     | {w_mode, write_mode()}.
-
-
-### More Documentation
-
-[API Docs](http://api.mongodb.org/erlang/mongodb/) - Documentation generated from source code comments
