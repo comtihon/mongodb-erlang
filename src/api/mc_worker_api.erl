@@ -297,9 +297,9 @@ prepare(Docs, AssignFun) when is_tuple(Docs) ->
         List -> List
       end
   end;
-prepare(Doc, AssignFun) when is_map(Doc), map_size(Doc) == 1 ->
+prepare(Doc, AssignFun) when is_map(Doc) ->
   case maps:keys(Doc) of
-    [<<"$", _/binary>>] -> Doc; %command
+    [<<"$", _/binary>> | _] -> Doc; %command
     _ ->  %document
       case prepare_doc(Doc, AssignFun) of
         Res when is_tuple(Res) -> [Res];
