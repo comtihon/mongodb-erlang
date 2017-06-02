@@ -48,11 +48,11 @@ disconnect(Connection) ->
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
--spec insert(pid(), collection(), list() | map() | bson:document()) -> {{boolean(), map()}, list()}.
+-spec insert(pid(), collection(), list() | map() | bson:document()) -> {{boolean(), map()}, [map()] | map()}.
 insert(Connection, Coll, Docs) ->
   insert(Connection, Coll, Docs, {<<"w">>, 1}).
 
--spec insert(pid(), collection(), list() | map() | bson:document(), bson:document()) -> {{boolean(), map()}, list()}.
+-spec insert(pid(), collection(), list() | map() | bson:document(), bson:document()) -> {{boolean(), map()}, [map()] | map()}.
 insert(Connection, Coll, Doc, WC) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc], WC),
   {Res, UDoc};
