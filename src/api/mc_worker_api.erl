@@ -126,13 +126,13 @@ find_one(Connection, Query) when is_record(Query, query) ->
   mc_connection_man:read_one(Connection, Query).
 
 %% @doc Return selected documents.
--spec find(pid(), colldb(), selector()) -> {ok, cursor()} | [].
+-spec find(pid(), colldb(), selector()) -> {ok, cursor()} | eof.
 find(Connection, Coll, Selector) ->
   find(Connection, Coll, Selector, #{}).
 
 %% @doc Return projection of selected documents.
 %%      Empty projection [] means full projection.
--spec find(pid(), colldb(), selector(), map()) -> {ok, cursor()} | [].
+-spec find(pid(), colldb(), selector(), map()) -> {ok, cursor()} | eof.
 find(Connection, Coll, Selector, Args) ->
   Projector = maps:get(projector, Args, #{}),
   Skip = maps:get(skip, Args, 0),
@@ -149,10 +149,10 @@ find(Connection, Coll, Selector, Args) ->
       sok_overriden = true
     }).
 
--spec find(pid() | atom(), query()) -> {ok, cursor()} | [].
+-spec find(pid() | atom(), query()) -> {ok, cursor()} | eof.
 find(Connection, Query) when is_record(Query, query) ->
   case mc_connection_man:read(Connection, Query) of
-    [] -> [];
+    eof -> eof;
     Cursor when is_pid(Cursor) ->
       {ok, Cursor}
   end.
