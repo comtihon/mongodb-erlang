@@ -63,7 +63,7 @@ find(Topology, Collection, Selector, Projector) ->
   find(Topology, Collection, Selector, Projector, 0, 0).
 
 -spec find(atom() | pid(), collection(), selector(), projector(), integer(), integer()) ->
-  {ok, cursor()} | eof.
+  {ok, cursor()} | [].
 find(Topology, Collection, Selector, Projector, Skip, Batchsize) ->
   mongoc:transaction_query(Topology,
     fun(Conf = #{pool := Worker}) ->
