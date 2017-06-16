@@ -19,7 +19,7 @@
 -export([request_worker/2, process_reply/2]).
 -export([read/2, read_one/2, read_one_sync/4]).
 
--spec read(pid() | atom(), query()) -> [] | pid().
+-spec read(pid() | atom(), query()) -> [] | {ok, pid()}.
 read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}) ->
   case request_worker(Connection, Request) of
     {_, []} ->
