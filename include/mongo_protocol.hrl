@@ -70,9 +70,9 @@
 -record(reply, {
   cursornotfound :: boolean(),
   queryerror :: boolean(),
-  awaitcapable :: boolean(),
+  awaitcapable = false :: boolean(),
   cursorid :: mc_worker_api:cursorid(),
-  startingfrom :: integer(),
+  startingfrom = 0 :: integer(),
   documents :: [map()]
 }).
 -endif.

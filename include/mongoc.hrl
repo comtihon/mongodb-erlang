@@ -39,7 +39,7 @@
   setVersion = undefined,
   rp_mode = primary,
   rp_tags = [],
-  servers = [] :: list(),
+  servers = undefined :: ets:tid() | atom(),
   serverSelectionTimeoutMS = 30000,
   localThresholdMS = 200,
   worker_opts = [],

@@ -20,7 +20,7 @@
   request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
   conn_state :: conn_state(),
-  hibernate_timer :: timer:tref() | undefined,
+  hibernate_timer :: reference() | undefined,
   next_req_fun :: fun(),
   net_module :: ssl | gen_tcp
 }).

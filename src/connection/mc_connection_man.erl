@@ -41,11 +41,13 @@ request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
   reply(gen_server:call(Connection, Request, Timeout)).
 
+-spec process_reply(map(), mc_worker_api:selector()) -> {boolean(), map()}.
 process_reply(Doc = #{<<"ok">> := N}, _) when is_number(N) ->   %command succeed | failed
   {N == 1, maps:remove(<<"ok">>, Doc)};
 process_reply(Doc, Command) -> %unknown result
   erlang:error({bad_command, Doc}, [Command]).
 
+-spec read_one_sync(port(), mc_worker_api:database(), mongo_protocol:message(), module()) -> map().
 read_one_sync(Socket, Database, Request, SetOpts) ->
   {0, Docs} = request_raw(Socket, Database, Request#'query'{batchsize = -1}, SetOpts),
   case Docs of
