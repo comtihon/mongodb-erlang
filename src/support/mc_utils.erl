@@ -43,7 +43,6 @@ encode_name(Name) ->
 
 -spec random_nonce(integer()) -> binary().
 random_nonce(TextLength) ->
-	ok = application:ensure_started(crypto),
 	ByteLength = trunc(TextLength / 4 * 3),
 	RandBytes = crypto:strong_rand_bytes(ByteLength),
 	base64:encode(RandBytes).	

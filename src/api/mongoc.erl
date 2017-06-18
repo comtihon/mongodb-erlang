@@ -30,7 +30,6 @@
 -spec connect(seed(), connectoptions(), workeroptions()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 connect(Seeds, Options, WorkerOptions) ->
-  ok = application:ensure_started(poolboy),
   ok = mc_pool_sup:ensure_started(),
   mc_topology:start_link(Seeds, Options, WorkerOptions).
 
