@@ -32,7 +32,13 @@ get_version(Socket, Database, SetOpts) ->
   {VFloat, _} = string:to_float(binary_to_list(Version)),
   VFloat.
 
--spec encode_request(mc_worker_api:database(), mongo_protocol:message()) -> {binary(), pos_integer()}.
+-spec encode_request(mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) -> {iodata(), pos_integer()}.
+encode_request(Database, Request) when is_list(Request) ->
+  lists:foldl(fun(Message, {Bin, _}) ->
+    {NewBin, NewId} = encode_request(Database, Message),
+    {Bin ++ [NewBin], NewId}
+  end, {[], 0}, Request);
+  
 encode_request(Database, Request) ->
   RequestId = mongo_id_server:request_id(),
   Payload = mongo_protocol:put_message(Database, Request, RequestId),
@@ -63,11 +69,11 @@ process_responses(Responses, RequestStorage) ->
       end
     end, RequestStorage, Responses).
 
--spec make_request(pid(), atom(), mc_worker_api:database(), mongo_protocol:message()) ->
+-spec make_request(gen_tcp:socket() | ssl:sslsocket(), atom(), mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) ->
   {ok | {error, any()}, integer(), pos_integer()}.
 make_request(Socket, NetModule, Database, Request) ->
   {Packet, Id} = encode_request(Database, Request),
-  {NetModule:send(Socket, Packet), byte_size(Packet), Id}.
+  {NetModule:send(Socket, Packet), iolist_size(Packet), Id}.
 
 update_dbcoll({Db, _}, Coll) -> {Db, Coll};
 update_dbcoll(_, Coll) -> Coll.

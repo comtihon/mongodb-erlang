@@ -74,9 +74,11 @@ transaction(Topology, Transaction, Options, Timeout) ->
   end.
 
 %% @doc Get worker from pool and run transaction with additioanl query options on it. Suitable for read transactions
+-spec transaction_query(pid() | atom(), fun()) -> any().
 transaction_query(Topology, Transaction) ->
-  transaction_query(Topology, Transaction, []).
+  transaction_query(Topology, Transaction, #{}).
 
+-spec transaction_query(pid() | atom(), fun(), map()) -> any().
 transaction_query(Topology, Transaction, Options) ->
   transaction_query(Topology, Transaction, Options, ?TRANSACTION_TIMEOUT).
 
@@ -128,7 +130,7 @@ count_query(#{server_type := ServerType, read_preference := RPrefs}, Coll, Selec
   },
   mongos_query_transform(ServerType, Q, RPrefs).
 
--spec append_read_preference(selector(), readpref()) -> selector().
+-spec append_read_preference(selector(), map()) -> selector().
 append_read_preference(Selector = #{<<"$query">> := _}, RP) ->
   Selector#{<<"$readPreference">> => RP};
 append_read_preference(Selector, RP) when is_tuple(Selector) andalso element(1, Selector) =:= <<"count">> ->
