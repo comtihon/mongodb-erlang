@@ -1,0 +1,27 @@
+{
+  "name": "mongodb",
+  "erlang": [
+    "18",
+    "19",
+    "20"
+  ],
+  "app_vsn": "3.0.0",
+  "auto_build_order" : false,
+  "deps": [
+    {
+      "name": "bson",
+      "url": "git://github.com/comtihon/bson-erlang",
+      "tag": "v0.2.2"
+    },
+    {
+      "name": "pbkdf2",
+      "url": "git://github.com/comtihon/erlang-pbkdf2.git",
+      "tag": "2.0.0"
+    },
+    {
+      "name": "poolboy",
+      "url": "git://github.com/comtihon/poolboy.git",
+      "branch": "master"
+    }
+  ]
+}

@@ -2,19 +2,31 @@ PROJECT = mongodb
 
 DIALYZER = dialyzer
 REBAR = $(shell which rebar || echo ./rebar)
+ifeq ($(shell which coon), /usr/bin/coon)
+  BUILD = $(shell echo coon build)
+  DEPS = $(shell echo coon deps)
+  EUNIT = $(shell coon eunit --define TEST)
+  CT = $(shell coon ct --define TEST)
+else
+  BUILD = $(shell echo $(REBAR) compile)
+  DEPS = $(shell echo $(REBAR) get-deps)
+  EUNIT = $(shell echo "$(REBAR) compile && $(REBAR) eunit skip_deps=true")
+  CT = $(shell echo "$(REBAR) compile && $(REBAR) ct skip_deps=true")
+endif
+
 
 all: app
 
 # Application.
 
 deps:
-	@$(REBAR) get-deps
+	@$(DEPS)
 
-app: deps
-	@$(REBAR) compile
+app:
+	@$(BUILD)
 
 clean:
-	@$(REBAR) clean
+	rm -rf ebin
 	rm -f test/*.beam
 	rm -f erl_crash.dump
 
@@ -31,10 +43,10 @@ clean-docs:
 tests: clean app eunit ct
 
 eunit:
-	@$(REBAR) eunit skip_deps=true
+	@$(EUNIT)
 
-ct: app
-	@$(REBAR) ct skip_deps=true
+ct:
+	@$(CT)
 
 # Dialyzer.
 .$(PROJECT).plt: 
