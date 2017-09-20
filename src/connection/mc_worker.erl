@@ -215,8 +215,6 @@ get_set_opts_module(Options) ->
 auth_if_credentials(_, _, _, Login, Password) when Login =:= undefined; Password =:= undefined ->
   ok;
 auth_if_credentials(Socket, ConnState, NetModule, Login, Password) ->
-  % Version = mc_worker_logic:get_version(Socket, ConnState#conn_state.database, NetModule),
-  % mc_auth_logic:auth(Version, Socket, ConnState#conn_state.database, Login, Password, NetModule),
   Version = mc_worker_logic:get_version(Socket, ConnState#conn_state.auth_source, NetModule),
   mc_auth_logic:auth(Version, Socket, ConnState#conn_state.auth_source, Login, Password, NetModule),
   ok.
