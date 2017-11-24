@@ -103,7 +103,7 @@ handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_close
   {stop, tcp_closed, State};
 handle_info(hibernate, State) ->
   {noreply, State#state{hibernate_timer = undefined}, hibernate};
-handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_errror; NetR =:= ssl_error ->
+handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_error; NetR =:= ssl_error ->
   {stop, Reason, State}.
 
 %% @hidden
