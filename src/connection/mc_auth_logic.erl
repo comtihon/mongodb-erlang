@@ -59,26 +59,25 @@ scram_sha_1_auth(Socket, Database, Login, Password, SetOpts) ->
 scram_first_step(Socket, Database, Login, Password, SetOpts) ->
   RandomBString = mc_utils:random_nonce(?RANDOM_LENGTH),
   FirstMessage = compose_first_message(Login, RandomBString),
-  Message = base64:encode(<<?GS2_HEADER/binary, FirstMessage/binary>>),
+  Message = <<?GS2_HEADER/binary, FirstMessage/binary>>,
   {true, Res} = mc_worker_api:sync_command(Socket, Database,
-    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"autoAuthorize">>, 1, <<"payload">>, Message}, SetOpts),
+    {<<"saslStart">>, 1, <<"mechanism">>, <<"SCRAM-SHA-1">>, <<"payload">>, {bin, bin, Message}, <<"autoAuthorize">>, 1}, SetOpts),
   ConversationId = maps:get(<<"conversationId">>, Res, {}),
   Payload = maps:get(<<"payload">>, Res),
   scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage, SetOpts).
 
 %% @private
-scram_second_step(Socket, Database, Login, Password, Payload, ConversationId, RandomBString, FirstMessage, SetOpts) ->
-  Decoded = base64:decode(Payload),
+scram_second_step(Socket, Database, Login, Password, {bin, bin, Decoded} = _Payload, ConversationId, RandomBString, FirstMessage, SetOpts) ->
   {Signature, ClientFinalMessage} = compose_second_message(Decoded, Login, Password, RandomBString, FirstMessage),
   {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>, ConversationId,
-    <<"payload">>, base64:encode(ClientFinalMessage)}, SetOpts),
+    <<"payload">>, {bin, bin, ClientFinalMessage}}, SetOpts),
   scram_third_step(base64:encode(Signature), Res, ConversationId, Socket, Database, SetOpts).
 
 %% @private
 scram_third_step(ServerSignature, Response, ConversationId, Socket, Database, SetOpts) ->
-  Payload = maps:get(<<"payload">>, Response),
+  {bin, bin, Payload} = maps:get(<<"payload">>, Response),
   Done = maps:get(<<"done">>, Response, false),
-  ParamList = parse_server_responce(base64:decode(Payload)),
+  ParamList = parse_server_responce(Payload),
   ServerSignature = mc_utils:get_value(<<"v">>, ParamList),
   scram_forth_step(Done, ConversationId, Socket, Database, SetOpts).
 
@@ -86,7 +85,7 @@ scram_third_step(ServerSignature, Response, ConversationId, Socket, Database, Se
 scram_forth_step(true, _, _, _, _) -> true;
 scram_forth_step(false, ConversationId, Socket, Database, SetOpts) ->
   {true, Res} = mc_worker_api:sync_command(Socket, Database, {<<"saslContinue">>, 1, <<"conversationId">>,
-    ConversationId, <<"payload">>, <<>>}, SetOpts),
+    ConversationId, <<"payload">>, {bin, bin, <<>>}}, SetOpts),
   true = maps:get(<<"done">>, Res, false).
 
 %% @private
