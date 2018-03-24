@@ -205,9 +205,11 @@ aggregate_sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  {true, #{<<"result">> := Res}} = mc_worker_api:command(Connection,
+  Result = mc_worker_api:command(Connection,
     {<<"aggregate">>, Collection, <<"pipeline">>,
       [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}]}),
+  ct:pal("~p", [Result]), % for travis
+  {true, #{<<"result">> := Res}} = Result,
 
   [
     #{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1},
@@ -360,7 +362,7 @@ update_non_command(Config) ->
 
   Update = #{
     <<"quantity">> => 500,
-    <<"details">> => #{<<"model">> => "14Q3"},  %with flatten_map there is no need to specify non-changeble data
+    <<"details">> => #{<<"model">> => "14Q3"},
     <<"tags">> => ["coats", "outerwear", "clothing"]
   },
   {true, #{<<"n">> := 1, <<"nModified">> := 1}} =
