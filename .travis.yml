@@ -10,4 +10,3 @@ script:
 addons:
 before_install:
   - sudo docker-compose up -d
-  - sudo service mongod start

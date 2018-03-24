@@ -205,11 +205,9 @@ aggregate_sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  Result = mc_worker_api:command(Connection,
+  {true, #{<<"result">> := Res}} = mc_worker_api:command(Connection,
     {<<"aggregate">>, Collection, <<"pipeline">>,
       [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}]}),
-  ct:pal("~p", [Result]), % for travis
-  {true, #{<<"result">> := Res}} = Result,
 
   [
     #{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1},
