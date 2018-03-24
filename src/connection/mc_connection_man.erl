@@ -17,15 +17,18 @@
 
 %% API
 -export([request_worker/2, process_reply/2]).
--export([read/2, read_one/2, read_one_sync/4]).
+-export([read/2, read/3, read_one/2, read_one_sync/4]).
 
 -spec read(pid() | atom(), query()) -> [] | {ok, pid()}.
-read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}) ->
+read(Connection, Request) -> read(Connection, Request, undefined).
+
+-spec read(pid() | atom(), query(), undefined | mc_worker_api:batchsize()) -> [] | {ok, pid()}.
+read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}, CmdBatchSize) ->
   case request_worker(Connection, Request) of
     {_, []} ->
       [];
     {Cursor, Batch} ->
-      mc_cursor:start_link(Connection, Collection, Cursor, BatchSize, Batch)
+      mc_cursor:start_link(Connection, Collection, Cursor, select_batchsize(CmdBatchSize, BatchSize), Batch)
   end.
 
 -spec read_one(pid() | atom(), query()) -> undefined | map().
@@ -104,3 +107,7 @@ recv_all(Socket, Timeout, NetModule, Rest) ->
     {[], Unfinished} -> recv_all(Socket, Timeout, NetModule, Unfinished);
     {Responses, _} -> Responses
   end.
+
+%% @private
+select_batchsize(undefined, Batchsize) -> Batchsize;
+select_batchsize(Batchsize, _) -> Batchsize.

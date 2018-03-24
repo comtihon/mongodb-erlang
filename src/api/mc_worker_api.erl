@@ -49,14 +49,14 @@ disconnect(Connection) ->
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
 -spec insert(pid(), collection(), bson:document()) -> {{boolean(), map()}, bson:document()};
-			(pid(), collection(), map()) -> {{boolean(), map()}, map()};
-			(pid(), collection(), list()) -> {{boolean(), map()}, list()}.
+    (pid(), collection(), map()) -> {{boolean(), map()}, map()};
+    (pid(), collection(), list()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Docs) ->
   insert(Connection, Coll, Docs, {<<"w">>, 1}).
 
 -spec insert(pid(), collection(), bson:document(), bson:document()) -> {{boolean(), map()}, bson:document()};
-			(pid(), collection(), map(), bson:document()) -> {{boolean(), map()}, map()};
-			(pid(), collection(), list(), bson:document()) -> {{boolean(), map()}, list()}.
+    (pid(), collection(), map(), bson:document()) -> {{boolean(), map()}, map()};
+    (pid(), collection(), list(), bson:document()) -> {{boolean(), map()}, list()}.
 insert(Connection, Coll, Doc, WC) when is_tuple(Doc); is_map(Doc) ->
   {Res, [UDoc | _]} = insert(Connection, Coll, [Doc], WC),
   {Res, UDoc};
@@ -189,10 +189,19 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()}. % Action
-command(Connection, Query) when is_record(Query, query) ->
-  Doc = mc_connection_man:read_one(Connection, Query),
-  mc_connection_man:process_reply(Doc, Query);
+-spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()} | {ok, cursor()}.
+command(Connection, Query = #query{selector = Cmd}) -> % Action
+  case determine_cursor(Cmd) of
+    false ->
+      Doc = mc_connection_man:read_one(Connection, Query),
+      mc_connection_man:process_reply(Doc, Query);
+    BatchSize ->
+      case mc_connection_man:read(Connection, Query#query{batchsize = -1}, BatchSize) of
+        [] -> [];
+        {ok, Cursor} when is_pid(Cursor) ->
+          {ok, Cursor}
+      end
+  end;
 command(Connection, Command) ->
   command(Connection,
     #'query'{
@@ -278,3 +287,24 @@ assign_id(Doc) ->
     {} -> bson:update(<<"_id">>, mongo_id_server:object_id(), Doc);
     _Value -> Doc
   end.
+
+%% @private
+determine_cursor(#{<<"cursor">> := Cursor}) -> find_batchsize(Cursor);
+determine_cursor(Cmd) when is_tuple(Cmd) ->
+  bson:doc_foldl(
+    fun
+      (<<"cursor">>, Cursor, _) ->
+        find_batchsize(Cursor);
+      (_, _, Acc) ->
+        Acc
+    end, false, Cmd);
+determine_cursor(_) -> false.
+
+%% @private
+find_batchsize(#{<<"batchSize">> := Batchsize}) -> Batchsize;
+find_batchsize(Bson) when is_tuple(Bson) ->
+  case bson:at(<<"batchSize">>, Bson) of
+    null -> 101;
+    V -> V
+  end;
+find_batchsize(_) -> 101.

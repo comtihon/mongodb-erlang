@@ -16,6 +16,7 @@ all() ->
     update,
     update_non_command,
     aggregate_sort_and_limit,
+    aggregate_cursor,
     insert_map,
     find_sort_skip_limit_test,
     find_one_test
@@ -205,29 +206,61 @@ aggregate_sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  {true, #{<<"result">> := Res}} = mc_worker_api:command(Connection,
-    {<<"aggregate">>, Collection, <<"pipeline">>,
-      [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}]}),
+  {ok, Cursor} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>, [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}],
+      <<"cursor">>, {<<"batchSize">>, 10}}),
+  true = is_pid(Cursor),
 
   [
     #{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1},
     #{<<"key">> := <<"test">>, <<"value">> := <<"two">>, <<"tag">> := 2},
     #{<<"key">> := <<"test">>, <<"value">> := <<"three">>, <<"tag">> := 3},
     #{<<"key">> := <<"test">>, <<"value">> := <<"four">>, <<"tag">> := 4}
-  ] = Res,
+  ] = mc_cursor:rest(Cursor),
 
   %test match & sort with limit
-  {true, #{<<"result">> := Res1}} = mc_worker_api:command(Connection,
-    {<<"aggregate">>, Collection, <<"pipeline">>,
+  {ok, Cursor2} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>,
       [
         {<<"$match">>, {<<"key">>, <<"test">>}},
         {<<"$sort">>, {<<"tag">>, 1}},
         {<<"$limit">>, 1}
-      ]}),
+      ],
+      <<"cursor">>, {<<"batchSize">>, 10}}),
 
   [
     #{<<"key">> := <<"test">>, <<"value">>:= <<"one">>, <<"tag">> := 1}
-  ] = Res1,
+  ] = mc_cursor:rest(Cursor2),
+  Config.
+
+
+aggregate_cursor(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  %insert test data
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection, [
+    #{<<"key">> => <<"test">>, <<"value">> => <<"two">>, <<"tag">> => 2},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"one">>, <<"tag">> => 1},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"four">>, <<"tag">> => 4},
+    #{<<"key">> => <<"another">>, <<"value">> => <<"five">>, <<"tag">> => 5},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"three">>, <<"tag">> => 3}
+  ]),
+
+  {ok, Cursor} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>, [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}],
+      <<"cursor">>, {<<"batchSize">>, 100}}),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"two">>, <<"tag">> := 2}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"three">>, <<"tag">> := 3}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"four">>, <<"tag">> := 4}} = mc_cursor:next(Cursor),
   Config.
 
 find_sort_skip_limit_test(Config) ->
