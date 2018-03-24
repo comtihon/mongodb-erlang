@@ -14,6 +14,7 @@ all() ->
     insert_and_delete,
     search_and_query,
     update,
+    update_non_command,
     aggregate_sort_and_limit,
     insert_map,
     find_sort_skip_limit_test,
@@ -272,29 +273,7 @@ update(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
-  %insert test data
-  {{true, _}, _} = mc_worker_api:insert(Connection, Collection,
-    #{<<"_id">> => 100,
-      <<"sku">> => <<"abc123">>,
-      <<"quantity">> => 250,
-      <<"instock">> => true,
-      <<"reorder">> => false,
-      <<"details">> => {<<"model">>, "14Q2", <<"make">>, "xyz"},
-      <<"tags">> => ["apparel", "clothing"],
-      <<"ratings">> => [#{<<"by">> => "ijk", <<"rating">> => 4}]}
-  ),
-
-  %check data inserted
-  {ok, Cursor} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
-  [Res] = mc_cursor:rest(Cursor),
-  #{<<"_id">> := 100,
-    <<"sku">> := <<"abc123">>,
-    <<"quantity">> := 250,
-    <<"instock">> := true,
-    <<"reorder">> := false,
-    <<"details">> := #{<<"model">> := "14Q2", <<"make">> := "xyz"},
-    <<"tags">> := ["apparel", "clothing"],
-    <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
+  ok = populate_and_check(Connection, Collection),
 
   %update existent fields
   Command = #{
@@ -371,3 +350,53 @@ update(Config) ->
     <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 2}],
     <<"expired">> := true} = Res4,
   Config.
+
+%% Run updates without $set
+update_non_command(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  ok = populate_and_check(Connection, Collection),
+
+  Update = #{
+    <<"quantity">> => 500,
+    <<"details">> => #{<<"model">> => "14Q3"},  %with flatten_map there is no need to specify non-changeble data
+    <<"tags">> => ["coats", "outerwear", "clothing"]
+  },
+  {true, #{<<"n">> := 1, <<"nModified">> := 1}} =
+    mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Update),
+
+  %check data updated
+  {ok, Cursor1} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
+  [Res1] = mc_cursor:rest(Cursor1),
+
+  #{<<"_id">> := 100,
+    <<"details">> := #{<<"model">> := "14Q3"}, <<"quantity">> := 500,
+    <<"tags">> := ["coats", "outerwear", "clothing"]} = Res1,
+  ok.
+
+populate_and_check(Connection, Collection) ->
+  %insert test data
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection,
+    #{<<"_id">> => 100,
+      <<"sku">> => <<"abc123">>,
+      <<"quantity">> => 250,
+      <<"instock">> => true,
+      <<"reorder">> => false,
+      <<"details">> => {<<"model">>, "14Q2", <<"make">>, "xyz"},
+      <<"tags">> => ["apparel", "clothing"],
+      <<"ratings">> => [#{<<"by">> => "ijk", <<"rating">> => 4}]}
+  ),
+
+  %check data inserted
+  {ok, Cursor} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
+  [Res] = mc_cursor:rest(Cursor),
+  #{<<"_id">> := 100,
+    <<"sku">> := <<"abc123">>,
+    <<"quantity">> := 250,
+    <<"instock">> := true,
+    <<"reorder">> := false,
+    <<"details">> := #{<<"model">> := "14Q2", <<"make">> := "xyz"},
+    <<"tags">> := ["apparel", "clothing"],
+    <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
+  ok.
