@@ -25,9 +25,11 @@
   ensure_index/3,
   disconnect/1]).
 
--spec connect(atom(), list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
+-spec connect(atom()|{atom(), binary()}, list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
+connect(Type, Hosts, TopologyOptions, WorkerOptions) when is_atom(Type) ->
+  mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions);
 connect(Type, Hosts, TopologyOptions, WorkerOptions) ->
-  mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
+  mongoc:connect(erlang:append_element(Type, Hosts), TopologyOptions, WorkerOptions).
 
 -spec insert(atom() | pid(), collection(), list() | map() | bson:document()) ->
   {{boolean(), map()}, list()}.
