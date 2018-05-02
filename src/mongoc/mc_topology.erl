@@ -256,7 +256,7 @@ drop_server(Topology, Server) ->
   gen_server:cast(Topology, {drop_server, Server}).
 
 %% @private
-parse_seeds({single, Addr}) -> {single, undefined, [Addr]};
+parse_seeds({single, Addr}) -> {single, undefined, Addr};
 parse_seeds({unknown, Seeds}) -> {unknown, undefined, Seeds};
 parse_seeds({sharded, Seeds}) -> {sharded, undefined, Seeds};
 parse_seeds({rs, SetName, Seeds}) -> {replicaSetNoPrimary, SetName, Seeds};
