@@ -95,7 +95,7 @@ update_topology_state(
     State = #topology_state{setName = undefined, topology_opts = Topts, worker_opts = Wopts, servers = Tab}) ->
   HostsList = lists:flatten([Hosts, Arbiters, Passives]),
   init_seeds(HostsList, Tab, Topts, Wopts),
-  stop_servers_not_in_list(HostsList, Tab),
+  %stop_servers_not_in_list(HostsList, Tab),
   State#topology_state{setName = SetName, maxElectionId = ElectionId, type = checkIfHasPrimary(Tab)};
 update_topology_state(#mc_server{type = rsPrimary, pid = Pid, host = Host, setName = SSetName},
     State = #topology_state{setName = CSetName, servers = Tab}) when SSetName =/= CSetName ->
