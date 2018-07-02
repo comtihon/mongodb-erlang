@@ -57,8 +57,8 @@ get_nearest(#mc_server{}, B = #mc_server{}) -> B.
 %% @private
 select_candidate(_, _, []) ->
   undefined;
-select_candidate(primary, _, [Primary]) ->
-  Primary;
+select_candidate(primary, _, PrimaryList) ->
+  hd(PrimaryList);
 select_candidate(primary, sharded, List) ->
   Len = length(List),
   pick_random(List, Len);
