@@ -153,7 +153,7 @@ find(Connection, Coll, Selector, Args) ->
 find(Connection, Query) when is_record(Query, query) ->
   case mc_connection_man:read(Connection, Query) of
     [] -> [];
-    Cursor when is_pid(Cursor) ->
+    {ok, Cursor} when is_pid(Cursor) ->
       {ok, Cursor}
   end.
 

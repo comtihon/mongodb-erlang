@@ -25,7 +25,7 @@ read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSi
     {_, []} ->
       [];
     {Cursor, Batch} ->
-      mc_cursor:start_link(Connection, Collection, Cursor, BatchSize, Batch)
+      mc_cursor:start(Connection, Collection, Cursor, BatchSize, Batch)
   end.
 
 -spec read_one(pid() | atom(), query()) -> undefined | map().

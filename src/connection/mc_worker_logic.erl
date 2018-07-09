@@ -124,8 +124,9 @@ process_write_response(From) ->
   end.
 
 %% @private
-do_connect(Host, Port, Timeout, true, Opts) ->
+do_connect(Host0, Port, Timeout, true, Opts) ->
   {ok, _} = application:ensure_all_started(ssl),
+  {ok, Host} = inet:getaddr(Host0, inet),
   ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
 do_connect(Host, Port, Timeout, false, _) ->
   gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).

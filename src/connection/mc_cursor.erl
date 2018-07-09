@@ -15,7 +15,8 @@
 ]).
 
 -export([
-  start_link/5
+  start_link/5,
+  start/5
 ]).
 
 -export([
@@ -112,20 +113,21 @@ close(Cursor) ->
 
 start_link(Connection, Collection, Cursor, BatchSize, Batch) ->
   gen_server:start_link(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch], []).
+start(Connection, Collection, Cursor, BatchSize, Batch) ->
+    gen_server:start(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch], []).
 
 
 %% @hidden
 init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
-  Monitor = erlang:monitor(process, Owner),
-  proc_lib:init_ack(self()),
-  gen_server:enter_loop(?MODULE, [], #state{
-    connection = Connection,
-    collection = Collection,
-    cursor = Cursor,
-    batchsize = BatchSize,
-    batch = Batch,
-    monitor = Monitor
-  }).
+    Monitor = erlang:monitor(process, Owner),
+    {ok, #state{
+            connection = Connection,
+            collection = Collection,
+            cursor = Cursor,
+            batchsize = BatchSize,
+            batch = Batch,
+            monitor = Monitor
+           }}.
 
 %% @hidden
 handle_call({next, Timeout}, _From, State) ->
