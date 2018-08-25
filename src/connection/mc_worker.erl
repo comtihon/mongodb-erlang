@@ -5,8 +5,9 @@
 
 -define(WRITE(Req), is_record(Req, insert); is_record(Req, update); is_record(Req, delete)).
 -define(READ(Req), is_record(Request, 'query'); is_record(Request, getmore)).
+-define(LOG_DEFAULT_DB, fun() -> error_logger:info_msg("Using default 'test' database"), <<"test">> end).
 
--export([start_link/1, disconnect/1, hibernate/1]).
+-export([start_link/1, database/2, disconnect/1, hibernate/1]).
 -export([
   init/1,
   handle_call/3,
@@ -41,17 +42,18 @@ hibernate(Worker) ->
 disconnect(Worker) ->
   gen_server:cast(Worker, halt).
 
+%% select database
+database(Worker, Database) ->
+  gen_server:cast(Worker, {database, Database}).
+
 init(Options) ->
-  case mc_worker_logic:connect_to_database(Options) of
+  case mc_worker_logic:connect(Options) of
     {ok, Socket} ->
-      proc_lib:init_ack({ok, self()}),
       ConnState = form_state(Options),
       try_register(Options),
       NetModule = get_set_opts_module(Options),
-      Login = mc_utils:get_value(login, Options),
-      Password = mc_utils:get_value(password, Options),
       NextReqFun = mc_utils:get_value(next_req_fun, Options, fun() -> ok end),
-      auth_if_credentials(Socket, ConnState, NetModule, Login, Password),
+      proc_lib:init_ack({ok, self()}),
       gen_server:enter_loop(?MODULE, [],
         #state{socket = Socket,
           conn_state = ConnState,
@@ -87,6 +89,8 @@ handle_call({stop, _}, _From, State) -> % stop request
 %% @hidden
 handle_cast(halt, State) ->
   {stop, normal, State};
+handle_cast({database, Database}, State = #state{conn_state = ConnState}) ->  % select another db
+  {noreply, State#state{conn_state = ConnState#conn_state{database = Database}}};
 handle_cast(hibernate, State) ->
   {noreply, State, hibernate};
 handle_cast(_, State) ->
@@ -124,8 +128,9 @@ process_read_request(Request, From, State) ->
     conn_state = CS,
     net_module = NetModule,
     next_req_fun = Next} = State,
+  Database = get_database(Request, CS),
   {UpdReq, Selector} = get_query_selector(Request, CS),
-  {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, CS#conn_state.database, UpdReq),
+  {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, Database, UpdReq),
   UState = need_hibernate(PacketSize, State),
   case get_write_concern(Selector) of
     {<<"w">>, 0} -> %no concern request
@@ -189,11 +194,10 @@ get_write_concern(_) -> undefined.
 %% @private
 %% Parses proplist to record
 form_state(Options) ->
-    Database = mc_utils:get_value(database, Options, <<"admin">>),
-    AuthSource = mc_utils:get_value(auth_source, Options, <<"admin">>),
+  Database = mc_utils:get_value(database, Options, <<"test">>),
   RMode = mc_utils:get_value(r_mode, Options, master),
   WMode = mc_utils:get_value(w_mode, Options, unsafe),
-  #conn_state{database = Database, auth_source = AuthSource, read_mode = RMode, write_mode = WMode}.
+  #conn_state{database = Database, read_mode = RMode, write_mode = WMode}.
 
 %% @private
 %% Register this process if needed
@@ -212,9 +216,5 @@ get_set_opts_module(Options) ->
   end.
 
 %% @private
-auth_if_credentials(_, _, _, Login, Password) when Login =:= undefined; Password =:= undefined ->
-  ok;
-auth_if_credentials(Socket, ConnState, NetModule, Login, Password) ->
-  Version = mc_worker_logic:get_version(Socket, ConnState#conn_state.auth_source, NetModule),
-  mc_auth_logic:auth(Version, Socket, ConnState#conn_state.auth_source, Login, Password, NetModule),
-  ok.
+get_database(#query{database = undefined}, ConnState) -> ConnState#conn_state.database;
+get_database(Query, _) -> Query#query.database.

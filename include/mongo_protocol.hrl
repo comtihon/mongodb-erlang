@@ -32,6 +32,7 @@
 
 %% read
 -record('query', {
+  database :: database(),  % overrides connection's database
   collection :: colldb(),
   tailablecursor = false :: boolean(),
   slaveok = false :: boolean(),
@@ -59,8 +60,7 @@
 -record(conn_state, {
           write_mode = unsafe :: mc_worker_api:write_mode(),
           read_mode = master :: mc_worker_api:read_mode(),
-          database :: mc_worker_api:database(),
-          auth_source :: mc_worker_api:database()
+          database :: mc_worker_api:database()
 }).
 -type conn_state() :: #conn_state{}.
 

@@ -7,8 +7,11 @@
 -include("mongo_protocol.hrl").
 
 -export([
+  connect/0,
   connect/1,
   disconnect/1,
+  get_version/1,
+  database/2,
   insert/3,
   update/4,
   update/6,
@@ -33,18 +36,43 @@
 -export([
   command/2,
   command/3,
-  sync_command/4,
   ensure_index/3,
   prepare/2]).
 
+%% @doc shortcut for connect/1 with default params.
+connect() ->
+  connect([]).
+
 %% @doc Make one connection to server, return its pid
 -spec connect(args()) -> {ok, pid()}.
-connect(Args) ->
-  mc_worker:start_link(Args).
+connect(Args) ->  % TODO args as map
+  {ok, Connection} = mc_worker:start_link(Args),
+  Login = mc_utils:get_value(login, Args),
+  Password = mc_utils:get_value(password, Args),
+  case (Login /= undefined) and (Password /= undefined) of
+    true ->
+      AuthSource = mc_utils:get_value(auth_source, Args, <<"admin">>),
+      Version = get_version(Connection),
+      mc_auth_logic:auth(Connection, Version, AuthSource, Login, Password);
+    false -> ok
+  end,
+  {ok, Connection}.
 
--spec disconnect(pid()) -> ok.
+  -spec disconnect(pid()) -> ok.
 disconnect(Connection) ->
   mc_worker:disconnect(Connection).
+
+%% @doc Switch database
+-spec database(pid(), database()) -> ok.
+database(Connection, Database) ->
+  mc_worker:database(Connection, Database).
+
+%% Get server version.
+-spec get_version(pid()) -> float().
+get_version(Connection) ->
+  {true, #{<<"version">> := Version}} = command(Connection, {<<"buildinfo">>, 1}),
+  {VFloat, _} = string:to_float(binary_to_list(Version)),
+  VFloat.
 
 %% @doc Insert a document or multiple documents into a collection.
 %%      Returns the document or documents with an auto-generated _id if missing.
@@ -189,45 +217,10 @@ ensure_index(Connection, Coll, IndexSpec) ->
   mc_connection_man:request_worker(Connection, #ensure_index{collection = Coll, index_spec = IndexSpec}).
 
 %% @doc Execute given MongoDB command and return its result.
--spec command(pid(), mc_worker_api:selector()) -> {boolean(), map()} | {ok, cursor()}.
-command(Connection, Query = #query{selector = Cmd}) -> % Action
-  case determine_cursor(Cmd) of
-    false ->
-      Doc = mc_connection_man:read_one(Connection, Query),
-      mc_connection_man:process_reply(Doc, Query);
-    BatchSize ->
-      case mc_connection_man:read(Connection, Query#query{batchsize = -1}, BatchSize) of
-        [] -> [];
-        {ok, Cursor} when is_pid(Cursor) ->
-          {ok, Cursor}
-      end
-  end;
-command(Connection, Command) ->
-  command(Connection,
-    #'query'{
-      collection = <<"$cmd">>,
-      selector = Command
-    }).
+-spec command(pid(), selector()) -> {boolean(), map()} | {ok, cursor()}.
+command(Connection, Command) -> mc_connection_man:command(Connection, Command).
 
-command(Connection, Command, _IsSlaveOk = true) ->
-  command(Connection,
-    #'query'{
-      collection = <<"$cmd">>,
-      selector = Command,
-      slaveok = true,
-      sok_overriden = true
-    });
-command(Connection, Command, _IsSlaveOk = false) ->
-  command(Connection, Command).
-
-%% @doc Execute MongoDB command in this thread
--spec sync_command(port(), binary(), mc_worker_api:selector(), module()) -> {boolean(), map()}.
-sync_command(Socket, Database, Command, SetOpts) ->
-  Doc = mc_connection_man:read_one_sync(Socket, Database, #'query'{
-    collection = <<"$cmd">>,
-    selector = Command
-  }, SetOpts),
-  mc_connection_man:process_reply(Doc, Command).
+command(Connection, Command, IsSlaveOk) -> mc_connection_man:command(Connection, Command, IsSlaveOk).
 
 -spec prepare(tuple() | list() | map(), fun()) -> list().
 prepare(Docs, AssignFun) when is_tuple(Docs) -> %bson
@@ -287,24 +280,3 @@ assign_id(Doc) ->
     {} -> bson:update(<<"_id">>, mongo_id_server:object_id(), Doc);
     _Value -> Doc
   end.
-
-%% @private
-determine_cursor(#{<<"cursor">> := Cursor}) -> find_batchsize(Cursor);
-determine_cursor(Cmd) when is_tuple(Cmd) ->
-  bson:doc_foldl(
-    fun
-      (<<"cursor">>, Cursor, _) ->
-        find_batchsize(Cursor);
-      (_, _, Acc) ->
-        Acc
-    end, false, Cmd);
-determine_cursor(_) -> false.
-
-%% @private
-find_batchsize(#{<<"batchSize">> := Batchsize}) -> Batchsize;
-find_batchsize(Bson) when is_tuple(Bson) ->
-  case bson:at(<<"batchSize">>, Bson) of
-    null -> 101;
-    V -> V
-  end;
-find_batchsize(_) -> 101.
