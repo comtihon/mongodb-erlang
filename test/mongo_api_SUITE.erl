@@ -24,7 +24,7 @@ end_per_suite(_Config) ->
 
 init_per_testcase(Case, Config) ->
   {ok, Pid} = mongo_api:connect(single, ["localhost:27017"],
-    [{pool_size, 1}, {max_overflow, 0}], [{database, ?config(database, Config)}]),
+    [{pool_size, 1}, {max_overflow, 0}], [{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}]),
   [{connection, Pid}, {collection, mc_test_utils:collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->

@@ -30,7 +30,7 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {w_mode, safe}]),
+  {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}, {w_mode, safe}]),
   [{connection, Connection}, {collection, mc_test_utils:collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
