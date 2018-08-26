@@ -69,9 +69,7 @@ use_different_dbs_on_one_connection(Config) ->
 
   % switch database and check it
   ok = mc_worker_api:database(Connection, <<"other_test">>),
-  {ok, NationalTeamsCur2} = mc_worker_api:find(Connection, Collection, #{}, #{projector => #{<<"_id">> => false}}),
-  NationalTeamsFound2 = mc_cursor:rest(NationalTeamsCur2), % no data in another db
-  ?assertEqual([], NationalTeamsFound2),
+  [] = mc_worker_api:find(Connection, Collection, #{}, #{projector => #{<<"_id">> => false}}), % no data in another db
   % insert data and check it
   {{true, _}, _} = mc_worker_api:insert(Connection, Collection, AmericanTeams),
   {ok, AmericanTeamsCur} = mc_worker_api:find(Connection, Collection, #{}, #{projector => #{<<"_id">> => false}}),
