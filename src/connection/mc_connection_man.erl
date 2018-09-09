@@ -16,8 +16,9 @@
 -define(UNAUTHORIZED_ERROR(C), C =:= 10057; C =:= 16550).
 
 %% API
--export([request_worker/2, process_reply/2]).
--export([read/2, read/3, read_one/2, read_one_sync/4]).
+-export([request_worker/2]).
+-export([read/2, read/3, read_one/2]).
+-export([command/2, command/3, database_command/3, database_command/4]).
 
 -spec read(pid() | atom(), query()) -> [] | {ok, pid()}.
 read(Connection, Request) -> read(Connection, Request, undefined).
@@ -39,6 +40,55 @@ read_one(Connection, Request) ->
     [Doc | _] -> Doc
   end.
 
+command(Connection, Query = #query{selector = Cmd}) ->
+  case determine_cursor(Cmd) of
+    false ->
+      Doc = read_one(Connection, Query),
+      process_reply(Doc, Query);
+    BatchSize ->
+      case read(Connection, Query#query{batchsize = -1}, BatchSize) of
+        [] -> [];
+        {ok, Cursor} when is_pid(Cursor) ->
+          {ok, Cursor}
+      end
+  end;
+command(Connection, Command) when not is_record(Command, query)->
+  command(Connection,
+    #'query'{
+      collection = <<"$cmd">>,
+      selector = Command
+    }).
+
+command(Connection, Command, _IsSlaveOk = true) ->
+  command(Connection,
+    #'query'{
+      collection = <<"$cmd">>,
+      selector = Command,
+      slaveok = true,
+      sok_overriden = true
+    });
+command(Connection, Command, _IsSlaveOk = false) ->
+  command(Connection, Command).
+
+-spec database_command(pid(), database(), selector()) -> {boolean(), map()} | {ok, cursor()}.
+database_command(Connection, Database, Command) ->
+  command(Connection,
+    #'query'{
+      collection = <<"$cmd">>,
+      selector = Command,
+      database = Database
+    }).
+
+-spec database_command(pid(), database(), selector(), boolean()) -> {boolean(), map()} | {ok, cursor()}.
+database_command(Connection, Database, Command, IsSlaveOk) ->
+  command(Connection,
+    #'query'{
+      collection = <<"$cmd">>,
+      selector = Command,
+      database = Database
+    },
+    IsSlaveOk).
+
 -spec request_worker(pid(), mongo_protocol:message()) -> ok | {non_neg_integer(), [map()]}.
 request_worker(Connection, Request) ->  %request to worker
   Timeout = mc_utils:get_timeout(),
@@ -49,14 +99,6 @@ process_reply(Doc = #{<<"ok">> := N}, _) when is_number(N) ->   %command succeed
   {N == 1, maps:remove(<<"ok">>, Doc)};
 process_reply(Doc, Command) -> %unknown result
   erlang:error({bad_command, Doc}, [Command]).
-
--spec read_one_sync(port(), mc_worker_api:database(), mongo_protocol:message(), module()) -> map().
-read_one_sync(Socket, Database, Request, SetOpts) ->
-  {0, Docs} = request_raw(Socket, Database, Request#'query'{batchsize = -1}, SetOpts),
-  case Docs of
-    [] -> #{};
-    [Doc | _] -> Doc
-  end.
 
 
 %% @private
@@ -81,33 +123,26 @@ process_error(_, Doc) ->
   erlang:error({bad_query, Doc}).
 
 %% @private
--spec request_raw(port(), mc_worker_api:database(), mongo_protocol:message(), module()) ->
-  ok | {non_neg_integer(), [map()]}.
-request_raw(Socket, Database, Request, NetModule) ->
-  Timeout = mc_utils:get_timeout(),
-  ok = set_opts(Socket, NetModule, false),
-  {ok, _, _} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
-  Responses = recv_all(Socket, Timeout, NetModule),
-  ok = set_opts(Socket, NetModule, true),
-  {_, Reply} = hd(Responses),
-  reply(Reply).
-
-%% @private
-set_opts(Socket, ssl, Value) ->
-  ssl:setopts(Socket, [{active, Value}]);
-set_opts(Socket, gen_tcp, Value) ->
-  inet:setopts(Socket, [{active, Value}]).
-
-%% @private
-recv_all(Socket, Timeout, NetModule) ->
-  recv_all(Socket, Timeout, NetModule, <<>>).
-recv_all(Socket, Timeout, NetModule, Rest) ->
-  {ok, Packet} = NetModule:recv(Socket, 0, Timeout),
-  case mc_worker_logic:decode_responses(<<Rest/binary, Packet/binary>>) of
-    {[], Unfinished} -> recv_all(Socket, Timeout, NetModule, Unfinished);
-    {Responses, _} -> Responses
-  end.
-
-%% @private
 select_batchsize(undefined, Batchsize) -> Batchsize;
 select_batchsize(Batchsize, _) -> Batchsize.
+
+%% @private
+determine_cursor(#{<<"cursor">> := Cursor}) -> find_batchsize(Cursor);
+determine_cursor(Cmd) when is_tuple(Cmd) ->
+  bson:doc_foldl(
+    fun
+      (<<"cursor">>, Cursor, _) ->
+        find_batchsize(Cursor);
+      (_, _, Acc) ->
+        Acc
+    end, false, Cmd);
+determine_cursor(_) -> false.
+
+%% @private
+find_batchsize(#{<<"batchSize">> := Batchsize}) -> Batchsize;
+find_batchsize(Bson) when is_tuple(Bson) ->
+  case bson:at(<<"batchSize">>, Bson) of
+    null -> 101;
+    V -> V
+  end;
+find_batchsize(_) -> 101.

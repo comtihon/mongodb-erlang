@@ -12,12 +12,12 @@
 -include("mongo_protocol.hrl").
 
 %% API
--export([encode_request/2, decode_responses/1, process_responses/2, connect_to_database/1, get_version/3]).
+-export([decode_responses/1, process_responses/2, connect/1]).
 -export([make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1, ensure_index/3]).
 
 %% Make connection to database and return socket
--spec connect_to_database(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
-connect_to_database(Conf) ->
+-spec connect(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
+connect(Conf) ->
   Timeout = mc_utils:get_value(timeout, Conf, infinity),
   Host = mc_utils:get_value(host, Conf, "127.0.0.1"),
   Port = mc_utils:get_value(port, Conf, 27017),
@@ -25,24 +25,11 @@ connect_to_database(Conf) ->
   SslOpts = mc_utils:get_value(ssl_opts, Conf, []),
   do_connect(Host, Port, Timeout, SSL, SslOpts).
 
-%% Get server version. This is need to choose default authentication method.
--spec get_version(port(), binary(), module()) -> float().
-get_version(Socket, Database, SetOpts) ->
-  {true, #{<<"version">> := Version}} = mc_worker_api:sync_command(Socket, Database, {<<"buildinfo">>, 1}, SetOpts),
-  {VFloat, _} = string:to_float(binary_to_list(Version)),
-  VFloat.
-
--spec encode_request(mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) -> {iodata(), pos_integer()}.
-encode_request(Database, Request) when is_list(Request) ->
-  lists:foldl(fun(Message, {Bin, _}) ->
-    {NewBin, NewId} = encode_request(Database, Message),
-    {Bin ++ [NewBin], NewId}
-  end, {[], 0}, Request);
-  
-encode_request(Database, Request) ->
-  RequestId = mongo_id_server:request_id(),
-  Payload = mongo_protocol:put_message(Database, Request, RequestId),
-  {<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
+-spec make_request(gen_tcp:socket() | ssl:sslsocket(), atom(), mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) ->
+  {ok | {error, any()}, integer(), pos_integer()}.
+make_request(Socket, NetModule, Database, Request) ->
+  {Packet, Id} = encode_request(Database, Request),
+  {NetModule:send(Socket, Packet), iolist_size(Packet), Id}.
 
 decode_responses(Data) ->
   decode_responses(Data, []).
@@ -69,12 +56,6 @@ process_responses(Responses, RequestStorage) ->
       end
     end, RequestStorage, Responses).
 
--spec make_request(gen_tcp:socket() | ssl:sslsocket(), atom(), mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) ->
-  {ok | {error, any()}, integer(), pos_integer()}.
-make_request(Socket, NetModule, Database, Request) ->
-  {Packet, Id} = encode_request(Database, Request),
-  {NetModule:send(Socket, Packet), iolist_size(Packet), Id}.
-
 update_dbcoll({Db, _}, Coll) -> {Db, Coll};
 update_dbcoll(_, Coll) -> Coll.
 
@@ -89,6 +70,18 @@ ensure_index(IndexSpec, Database, Collection) when is_tuple(IndexSpec) ->
   Key = bson:lookup(<<"key">>, IndexSpec),
   do_ensure_index(IndexSpec, Database, Collection, Key).
 
+
+%% @private
+-spec encode_request(mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) -> {iodata(), pos_integer()}.
+encode_request(Database, Request) when is_list(Request) ->
+  lists:foldl(fun(Message, {Bin, _}) ->
+    {NewBin, NewId} = encode_request(Database, Message),
+    {Bin ++ [NewBin], NewId}
+              end, {[], 0}, Request);
+encode_request(Database, Request) ->
+  RequestId = mongo_id_server:request_id(),
+  Payload = mongo_protocol:put_message(Database, Request, RequestId),
+  {<<(byte_size(Payload) + 4):32/little, Payload/binary>>, RequestId}.
 
 %% @private
 do_ensure_index(IndexSpec, Database, Collection, Key) ->
