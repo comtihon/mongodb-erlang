@@ -53,6 +53,7 @@
 
 %% system
 -record(ensure_index, {
+  database :: database(),
   collection :: colldb(),
   index_spec
 }).

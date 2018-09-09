@@ -65,9 +65,10 @@ init(Options) ->
 
 handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state) ->  % update state, return old
   {reply, {ok, OldState}, State#state{conn_state = NewState}};
-handle_call(#ensure_index{collection = Coll, index_spec = IndexSpec}, _, State) -> % ensure index request with insert request
+handle_call(CMD = #ensure_index{collection = Coll, index_spec = IndexSpec}, _, State) -> % ensure index request with insert request
   #state{conn_state = ConnState, socket = Socket, net_module = NetModule} = State,
-  Index = mc_worker_logic:ensure_index(IndexSpec, ConnState#conn_state.database, Coll),
+  DB = get_database(CMD, ConnState),
+  Index = mc_worker_logic:ensure_index(IndexSpec, DB, Coll),
   {ok, _, _} =
     mc_worker_logic:make_request(
       Socket,
@@ -217,4 +218,6 @@ get_set_opts_module(Options) ->
 
 %% @private
 get_database(#query{database = undefined}, ConnState) -> ConnState#conn_state.database;
-get_database(Query, _) -> Query#query.database.
+get_database(#ensure_index{database = undefined}, ConnState) -> ConnState#conn_state.database;
+get_database(#query{database = DB}, _) -> DB;
+get_database(#ensure_index{database = DB}, _) -> DB.

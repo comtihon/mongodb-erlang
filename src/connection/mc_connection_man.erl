@@ -18,7 +18,7 @@
 %% API
 -export([request_worker/2]).
 -export([read/2, read/3, read_one/2]).
--export([command/2, command/3, database_command/3]).
+-export([command/2, command/3, database_command/3, database_command/4]).
 
 -spec read(pid() | atom(), query()) -> [] | {ok, pid()}.
 read(Connection, Request) -> read(Connection, Request, undefined).
@@ -78,6 +78,16 @@ database_command(Connection, Database, Command) ->
       selector = Command,
       database = Database
     }).
+
+-spec database_command(pid(), database(), selector(), boolean()) -> {boolean(), map()} | {ok, cursor()}.
+database_command(Connection, Database, Command, IsSlaveOk) ->
+  command(Connection,
+    #'query'{
+      collection = <<"$cmd">>,
+      selector = Command,
+      database = Database
+    },
+    IsSlaveOk).
 
 -spec request_worker(pid(), mongo_protocol:message()) -> ok | {non_neg_integer(), [map()]}.
 request_worker(Connection, Request) ->  %request to worker
