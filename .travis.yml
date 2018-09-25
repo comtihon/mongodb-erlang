@@ -1,14 +1,13 @@
+dist: trusty
+sudo: required
 language: erlang
 otp_release:
+  - 21.0
+  - 20.0
   - 19.0
   - 18.0
-script: "rm -rf .git && make tests"
-services:
-  - mongo
+script:
+  - make tests
 addons:
 before_install:
-  - sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 0C49F3730359A14518585931BC711F9BA15703C6
-  - echo "deb http://repo.mongodb.org/apt/ubuntu precise/mongodb-org/3.3 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.4.list
-  - sudo apt-get update -q
-  - sudo apt-get install -y mongodb-org
-  - sleep 15
+  - sudo docker-compose up -d

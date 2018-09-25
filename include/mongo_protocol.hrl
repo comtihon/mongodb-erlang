@@ -32,6 +32,7 @@
 
 %% read
 -record('query', {
+  database :: database(),  % overrides connection's database
   collection :: colldb(),
   tailablecursor = false :: boolean(),
   slaveok = false :: boolean(),
@@ -52,14 +53,15 @@
 
 %% system
 -record(ensure_index, {
+  database :: database(),
   collection :: colldb(),
   index_spec
 }).
 
 -record(conn_state, {
-  write_mode = unsafe :: mc_worker_api:write_mode(),
-  read_mode = master :: mc_worker_api:read_mode(),
-  database :: mc_worker_api:database()
+          write_mode = unsafe :: mc_worker_api:write_mode(),
+          read_mode = master :: mc_worker_api:read_mode(),
+          database :: mc_worker_api:database()
 }).
 -type conn_state() :: #conn_state{}.
 
@@ -70,9 +72,9 @@
 -record(reply, {
   cursornotfound :: boolean(),
   queryerror :: boolean(),
-  awaitcapable :: boolean(),
+  awaitcapable = false :: boolean(),
   cursorid :: mc_worker_api:cursorid(),
-  startingfrom :: integer(),
+  startingfrom = 0 :: integer(),
   documents :: [map()]
 }).
 -endif.

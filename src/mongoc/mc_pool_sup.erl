@@ -24,7 +24,7 @@
 %%% API functions
 %%%===================================================================
 start_pool(SizeArgs, WorkerArgs) ->
-  PoolArgs = [{worker_module, mc_worker}] ++ SizeArgs,
+  PoolArgs = [{worker_module, {mc_worker_api, connect}}] ++ SizeArgs,
   supervisor:start_child(?MODULE, [PoolArgs, WorkerArgs]).
 
 stop_pool(Pid) when is_pid(Pid) ->

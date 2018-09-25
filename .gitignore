@@ -6,3 +6,4 @@ logs/
 *.beam
 variables-ct*
 *.iml
+data

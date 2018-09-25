@@ -14,7 +14,9 @@ all() ->
     insert_and_delete,
     search_and_query,
     update,
+    update_non_command,
     aggregate_sort_and_limit,
+    aggregate_cursor,
     insert_map,
     find_sort_skip_limit_test,
     find_one_test
@@ -28,7 +30,7 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  {ok, Connection} = mc_worker:start_link([{database, ?config(database, Config)}, {w_mode, safe}]),
+  {ok, Connection} = mc_worker_api:connect([{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}, {w_mode, safe}]),
   [{connection, Connection}, {collection, mc_test_utils:collection(Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
@@ -204,29 +206,61 @@ aggregate_sort_and_limit(Config) ->
   ]),
 
   %test match and sort
-  {true, #{<<"result">> := Res}} = mc_worker_api:command(Connection,
-    {<<"aggregate">>, Collection, <<"pipeline">>,
-      [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}]}),
+  {ok, Cursor} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>, [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}],
+      <<"cursor">>, {<<"batchSize">>, 10}}),
+  true = is_pid(Cursor),
 
   [
     #{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1},
     #{<<"key">> := <<"test">>, <<"value">> := <<"two">>, <<"tag">> := 2},
     #{<<"key">> := <<"test">>, <<"value">> := <<"three">>, <<"tag">> := 3},
     #{<<"key">> := <<"test">>, <<"value">> := <<"four">>, <<"tag">> := 4}
-  ] = Res,
+  ] = mc_cursor:rest(Cursor),
 
   %test match & sort with limit
-  {true, #{<<"result">> := Res1}} = mc_worker_api:command(Connection,
-    {<<"aggregate">>, Collection, <<"pipeline">>,
+  {ok, Cursor2} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>,
       [
         {<<"$match">>, {<<"key">>, <<"test">>}},
         {<<"$sort">>, {<<"tag">>, 1}},
         {<<"$limit">>, 1}
-      ]}),
+      ],
+      <<"cursor">>, {<<"batchSize">>, 10}}),
 
   [
     #{<<"key">> := <<"test">>, <<"value">>:= <<"one">>, <<"tag">> := 1}
-  ] = Res1,
+  ] = mc_cursor:rest(Cursor2),
+  Config.
+
+
+aggregate_cursor(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  %insert test data
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection, [
+    #{<<"key">> => <<"test">>, <<"value">> => <<"two">>, <<"tag">> => 2},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"one">>, <<"tag">> => 1},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"four">>, <<"tag">> => 4},
+    #{<<"key">> => <<"another">>, <<"value">> => <<"five">>, <<"tag">> => 5},
+    #{<<"key">> => <<"test">>, <<"value">> => <<"three">>, <<"tag">> => 3}
+  ]),
+
+  {ok, Cursor} = mc_worker_api:command(Connection,
+    {<<"aggregate">>, Collection,
+      <<"pipeline">>, [{<<"$match">>, {<<"key">>, <<"test">>}}, {<<"$sort">>, {<<"tag">>, 1}}],
+      <<"cursor">>, {<<"batchSize">>, 100}}),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"one">>, <<"tag">> := 1}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"two">>, <<"tag">> := 2}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"three">>, <<"tag">> := 3}} = mc_cursor:next(Cursor),
+
+  {#{<<"key">> := <<"test">>, <<"value">> := <<"four">>, <<"tag">> := 4}} = mc_cursor:next(Cursor),
   Config.
 
 find_sort_skip_limit_test(Config) ->
@@ -272,29 +306,7 @@ update(Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
 
-  %insert test data
-  {{true, _}, _} = mc_worker_api:insert(Connection, Collection,
-    #{<<"_id">> => 100,
-      <<"sku">> => <<"abc123">>,
-      <<"quantity">> => 250,
-      <<"instock">> => true,
-      <<"reorder">> => false,
-      <<"details">> => {<<"model">>, "14Q2", <<"make">>, "xyz"},
-      <<"tags">> => ["apparel", "clothing"],
-      <<"ratings">> => [#{<<"by">> => "ijk", <<"rating">> => 4}]}
-  ),
-
-  %check data inserted
-  {ok, Cursor} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
-  [Res] = mc_cursor:rest(Cursor),
-  #{<<"_id">> := 100,
-    <<"sku">> := <<"abc123">>,
-    <<"quantity">> := 250,
-    <<"instock">> := true,
-    <<"reorder">> := false,
-    <<"details">> := #{<<"model">> := "14Q2", <<"make">> := "xyz"},
-    <<"tags">> := ["apparel", "clothing"],
-    <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
+  ok = populate_and_check(Connection, Collection),
 
   %update existent fields
   Command = #{
@@ -371,3 +383,53 @@ update(Config) ->
     <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 2}],
     <<"expired">> := true} = Res4,
   Config.
+
+%% Run updates without $set
+update_non_command(Config) ->
+  Connection = ?config(connection, Config),
+  Collection = ?config(collection, Config),
+
+  ok = populate_and_check(Connection, Collection),
+
+  Update = #{
+    <<"quantity">> => 500,
+    <<"details">> => #{<<"model">> => "14Q3"},
+    <<"tags">> => ["coats", "outerwear", "clothing"]
+  },
+  {true, #{<<"n">> := 1, <<"nModified">> := 1}} =
+    mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Update),
+
+  %check data updated
+  {ok, Cursor1} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
+  [Res1] = mc_cursor:rest(Cursor1),
+
+  #{<<"_id">> := 100,
+    <<"details">> := #{<<"model">> := "14Q3"}, <<"quantity">> := 500,
+    <<"tags">> := ["coats", "outerwear", "clothing"]} = Res1,
+  ok.
+
+populate_and_check(Connection, Collection) ->
+  %insert test data
+  {{true, _}, _} = mc_worker_api:insert(Connection, Collection,
+    #{<<"_id">> => 100,
+      <<"sku">> => <<"abc123">>,
+      <<"quantity">> => 250,
+      <<"instock">> => true,
+      <<"reorder">> => false,
+      <<"details">> => {<<"model">>, "14Q2", <<"make">>, "xyz"},
+      <<"tags">> => ["apparel", "clothing"],
+      <<"ratings">> => [#{<<"by">> => "ijk", <<"rating">> => 4}]}
+  ),
+
+  %check data inserted
+  {ok, Cursor} = mc_worker_api:find(Connection, Collection, #{<<"_id">> => 100}),
+  [Res] = mc_cursor:rest(Cursor),
+  #{<<"_id">> := 100,
+    <<"sku">> := <<"abc123">>,
+    <<"quantity">> := 250,
+    <<"instock">> := true,
+    <<"reorder">> := false,
+    <<"details">> := #{<<"model">> := "14Q2", <<"make">> := "xyz"},
+    <<"tags">> := ["apparel", "clothing"],
+    <<"ratings">> := [#{<<"by">> := "ijk", <<"rating">> := 4}]} = Res,
+  ok.
