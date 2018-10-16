@@ -217,6 +217,7 @@ get_set_opts_module(Options) ->
   end.
 
 %% @private
+get_database(#getmore{}, ConnState) -> ConnState#conn_state.database;
 get_database(#query{database = undefined}, ConnState) -> ConnState#conn_state.database;
 get_database(#ensure_index{database = undefined}, ConnState) -> ConnState#conn_state.database;
 get_database(#query{database = DB}, _) -> DB;
