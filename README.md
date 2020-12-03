@@ -7,11 +7,14 @@ This is the [MongoDB](https://www.mongodb.org/) driver for Erlang.
 Add this repo as the dependency:  
 Rebar
 
+```erlang
     {deps, [
       {mongodb, ".*",
        {git, "git://github.com/comtihon/mongodb-erlang", {tag, "<Latest tag>"}}}
        ]
     }
+```
+    
 Erlang.mk
 
     DEPS = mongodb
@@ -57,15 +60,18 @@ use `mc_worker_api:connect/1`.
 `mc_worker_api:connect` returns `{error, Reason}` if it failed to connect.
  See arguments you can pass in `mc_worker_api.erl` type spec:
 
-    -type arg() :: {database, database()}
-    | {login, binary()}
-    | {password, binary()}
-    | {w_mode, write_mode()}
-    | {r_mode, read_mode()}
-    | {host, list()}
-    | {port, integer()}
-    | {register, atom() | fun()}
-    | {next_req_fun, fun()}.
+```erlang
+-type arg() :: {database, database()}
+| {login, binary()}
+| {password, binary()}
+| {w_mode, write_mode()}
+| {r_mode, read_mode()}
+| {host, list()}
+| {port, integer()}
+| {register, atom() | fun()}
+| {next_req_fun, fun()}.
+```
+   
 To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` 
 instead and pass all args to it.
 
@@ -162,10 +168,14 @@ __Important!__ Do not forget to close cursors after using them!
 
 To search for params - specify `Selector`:
 
-    mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>}).
+```erlang
+mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>}).
+```
 will return one document from collection Collection with key == <<"123">>.
 
-    mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>, <<"value">> => <<"built_in">>}).
+```erlang
+mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>, <<"value">> => <<"built_in">>}).
+```
 will return one document from collection Collection with key == <<"123">> 
 `and` value == <<"built_in">>.
 Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
@@ -173,11 +183,16 @@ Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
 
 For filtering result - use `Projector`:
 
-    mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"value">> => true}).
+```erlang
+mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"value">> => true}).
+```
+
 will return one document from collection Collection with fetching `only` 
 _id and value.
 
-    mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"key">> => false, <<"value">> => false}}).
+```erlang
+mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"key">> => false, <<"value">> => false}}).
+```
 will return your data without key and value params. If there is no other 
 data - only _id will be returned.
 
@@ -186,36 +201,46 @@ To add or update field in document - use `mc_worker_api:update` function
  with `$set` param.
 This updates selected fields:
 
+```erlang
     Command = #{<<"$set">> => #{
         <<"quantity">> => 500,
         <<"details">> => #{<<"model">> => "14Q3", <<"make">> => "xyz"},
         <<"tags">> => ["coats", "outerwear", "clothing"]
     }},
     mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
+```
 This will add new field `expired`, if there is no such field, and set it 
 to true.
 
+```erlang
     Command = #{<<"$set">> => #{<<"expired">> => true}},
     mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
+```
 This will update fields in nested documents.
 
+```erlang
     Command = #{<<"$set">> => #{<<"details.make">> => "zzz"}},
     mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
+```
 This will update elements in array.
-
+```erlang
     Command = #{<<"$set">> => #{
         <<"tags.1">> => "rain gear",
         <<"ratings.0.rating">> => 2
       }},
     mc_worker_api:update(Connection, Collection, #{'_id' => 100}, Command),
+```
+    
 For result of executing this functions - see mongo_SUITE update test.
 
 ### Creating indexes
 To create indexes - use `mc_worker_api:ensure_index/3` command:
 
+```erlang
     mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}}).  %simple
     mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>}).  %advanced
     mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>, <<"unique">> => true, <<"dropDups">> => true}).  %full
+```
 
 ensure_index takes `mc_worker`' pid or atom name as first parameter, 
 collection, where to create index, as second
@@ -266,7 +291,9 @@ You can use `mongo_api.erl` for easy working with mongoc.
 
 For opening connection to a MongoDB you can use this call of mongoc:connect method:
 
-    {ok, Topology} = mongo_api:connect(Type, Hosts, Options, WorkerOptions)
+```erlang
+{ok, Topology} = mongo_api:connect(Type, Hosts, Options, WorkerOptions)
+```
 
 
 Where **Seed** contains information about host names and ports to connect
@@ -275,28 +302,37 @@ Where **Seed** contains information about host names and ports to connect
 So you can pass just a hostname with port (or tuple with single key) for 
 connection to a single server deployment:
 
-    "hostname:27017"
-    { single, "hostname:27017" }
+```erlang
+"hostname:27017"
+{ single, "hostname:27017" }
+```
 
 
 If you want to connect to a replica set _ReplicaSetName_ use this format
  of Seeds value:
 
-    { rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
+```erlang
+{ rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
+```
 
 To connect to a sharded cluster of mongos:
 
-    { sharded,  ["hostname1:port1", "hostname2:port2"] }
+```erlang
+{ sharded,  ["hostname1:port1", "hostname2:port2"] }
+```
 
 And if you want your MongoDB deployment metadata to be auto revered use 
 unknow id in Seed tuple:   
 
-    { unknown,  ["hostname1:port1", "hostname2:port2"] }
+```erlang
+{ unknown,  ["hostname1:port1", "hostname2:port2"] }
+```
 
 Type in `mongo_api:connect` is topology type (`unknown` | `sharded`). 
 
 mongoc topology **Options**
 
+```erlang
     [
         { name,  Name },    % Name should be used for mongoc pool to be registered with
         { register,  Name },    % Name should be used for mongoc topology process to be registered with
@@ -321,13 +357,16 @@ mongoc topology **Options**
 
         { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
     ]
+```
 
 mongoc **WorkerOptions** (as described in mongo Connecting chapter)
 
-    -type arg() :: {database, database()}
-    | {login, binary()}
-    | {password, binary()}
-    | {w_mode, write_mode()}.
+```erlang
+-type arg() :: {database, database()}
+| {login, binary()}
+| {password, binary()}
+| {w_mode, write_mode()}.
+```
 
 
 ### More Documentation
