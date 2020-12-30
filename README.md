@@ -264,70 +264,80 @@ You can use `mongo_api.erl` for easy working with mongoc.
 
 ### Connection
 
-For opening connection to a MongoDB you can use this call of mongoc:connect method:
+For opening a connection to a MongoDB server you can call `mongoc:connect/3`:
 
-    {ok, Topology} = mongo_api:connect(Type, Hosts, Options, WorkerOptions)
+```erlang
+{ok, Topology} = mongoc:connect(Seed, Options, WorkerOptions)
+```
 
-
-Where **Seed** contains information about host names and ports to connect
+Where `Seed` contains information about host names and ports to connect
  and info about topology of MongoDB deployment.
 
 So you can pass just a hostname with port (or tuple with single key) for 
 connection to a single server deployment:
 
-    "hostname:27017"
-    { single, "hostname:27017" }
-
+```erlang
+SingleSeed = "hostname:27017",
+SingleSeedTuple = { single, "hostname:27017" }
+```
 
 If you want to connect to a replica set _ReplicaSetName_ use this format
- of Seeds value:
+ of the `Seed` value:
 
-    { rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
+```erlang
+ReplicaSeed = { rs, <<"ReplicaSetName">>, [ "hostname1:port1", "hostname2:port2"] }
+```
 
 To connect to a sharded cluster of mongos:
 
-    { sharded,  ["hostname1:port1", "hostname2:port2"] }
+```erlang
+ShardedSeed = { sharded,  ["hostname1:port1", "hostname2:port2"] }
+```
 
-And if you want your MongoDB deployment metadata to be auto revered use 
-unknow id in Seed tuple:   
+And if you want your MongoDB deployment metadata to be auto-discovered use 
+the `unknown` type in the `Seed` tuple:   
 
-    { unknown,  ["hostname1:port1", "hostname2:port2"] }
-
-Type in `mongo_api:connect` is topology type (`unknown` | `sharded`). 
+```erlang
+AutoDiscoveredSeed = { unknown,  ["hostname1:port1", "hostname2:port2"] }
+```
 
 mongoc topology **Options**
 
-    [
-        { name,  Name },    % Name should be used for mongoc pool to be registered with
-        { register,  Name },    % Name should be used for mongoc topology process to be registered with
+```erlang
+[
+    { name,  Name },    % Name should be used for mongoc pool to be registered with
+    { register,  Name },    % Name should be used for mongoc topology process to be registered with
 
-        { pool_size, 5 }, % pool size on start
-        { max_overflow, 10 },	% number of overflow workers be created, when all workers from pool are busy
-        { overflow_ttl, 1000 }, % number of milliseconds for overflow workers to stay in pool before terminating
-        { overflow_check_period, 1000 }, % overflow_ttl check period for workers (in milliseconds)
+    { pool_size, 5 }, % pool size on start
+    { max_overflow, 10 },	% number of overflow workers be created, when all workers from pool are busy
+    { overflow_ttl, 1000 }, % number of milliseconds for overflow workers to stay in pool before terminating
+    { overflow_check_period, 1000 }, % overflow_ttl check period for workers (in milliseconds)
 
-        { localThresholdMS, 1000 }, % secondaries only which RTTs fit in window from lower RTT to lower RTT + localThresholdMS could be selected for handling user's requests
+    { localThresholdMS, 1000 }, % secondaries only which RTTs fit in window from lower RTT to lower RTT + localThresholdMS could be selected for handling user's requests
 
-        { connectTimeoutMS, 20000 },
-        { socketTimeoutMS, 100 },
+    { connectTimeoutMS, 20000 },
+    { socketTimeoutMS, 100 },
 
-        { serverSelectionTimeoutMS, 30000 }, % max time appropriate server should be select by
-        { waitQueueTimeoutMS, 1000 }, % max time for waiting worker to be available in the pool
+    { serverSelectionTimeoutMS, 30000 }, % max time appropriate server should be select by
+    { waitQueueTimeoutMS, 1000 }, % max time for waiting worker to be available in the pool
 
-        { heartbeatFrequencyMS, 10000 },    %  delay between Topology rescans
-        { minHeartbeatFrequencyMS, 1000 },
+    { heartbeatFrequencyMS, 10000 },    %  delay between Topology rescans
+    { minHeartbeatFrequencyMS, 1000 },
 
-        { rp_mode, primary }, % default ReadPreference mode - primary, secondary, primaryPreferred, secondaryPreferred, nearest
+    { rp_mode, primary }, % default ReadPreference mode - primary, secondary, primaryPreferred, secondaryPreferred, nearest
 
-        { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
-    ]
+    { rp_tags, [{tag,1}] }, % tags that servers shoul be tagged by for becoming candidates for server selection  (may be an empty list)
+]
+```
 
 mongoc **WorkerOptions** (as described in mongo Connecting chapter)
 
-    -type arg() :: {database, database()}
-    | {login, binary()}
-    | {password, binary()}
-    | {w_mode, write_mode()}.
+```erlang
+-type arg() :: {database, database()}
+| {login, binary()}
+| {password, binary()}
+| {w_mode, write_mode()}.
+```
 
 
 ### More Documentation
