@@ -9,6 +9,16 @@
 -module(mc_utils).
 -author("tihon").
 
+-ifdef(OTP_RELEASE).
+  -if(?OTP_RELEASE >= 22).
+    -define(CRYPTO_API, new).
+  -else.
+    -define(CRYPTO_API, old).
+  -endif.
+-else.
+  -define(CRYPTO_API, old).
+-endif.
+
 %% API
 -export([
   get_value/2,
@@ -62,7 +72,11 @@ get_timeout() ->
     undefined -> infinity
   end.
 
+-if(?CRYPTO_API == new).
+hmac(One, Two) -> crypto:mac(hmac, sha, One, Two).
+-elif(?CRYPTO_API == old).
 hmac(One, Two) -> crypto:hmac(sha, One, Two).
+-endif.
 
 pw_key(Nonce, Username, Password) ->
   bson:utf8(binary_to_hexstr(crypto:hash(md5, [Nonce, Username, pw_hash(Username, Password)]))).
