@@ -2,7 +2,6 @@ dist: trusty
 sudo: required
 language: erlang
 otp_release:
-  - 21.0
   - 20.0
   - 19.0
   - 18.0
