@@ -1,0 +1,12 @@
+[{<<"bson">>,
+  {git,"git://github.com/comtihon/bson-erlang",
+       {ref,"14308ab927cfa69324742c3de720578094e0bb19"}},
+  0},
+ {<<"pbkdf2">>,
+  {git,"git://github.com/comtihon/erlang-pbkdf2.git",
+       {ref,"5201a735639496fc595061160117e4ec155d73f5"}},
+  0},
+ {<<"poolboy">>,
+  {git,"git://github.com/comtihon/poolboy.git",
+       {ref,"9c06a9ad4e700e0724a2e3c4b44c5f5d51380a0d"}},
+  0}].

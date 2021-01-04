@@ -1,7 +1,7 @@
 PROJECT = mongodb
 
 DIALYZER = dialyzer
-REBAR = $(shell which rebar || echo ./rebar)
+REBAR = $(shell which rebar3 || echo ./rebar3)
 
 all: app
 
@@ -31,7 +31,7 @@ clean-docs:
 tests: clean app eunit ct
 
 eunit:
-	@$(REBAR) eunit skip_deps=true
+	@$(REBAR) eunit skip_deps=true --dir="test/eunit"
 
 ct: app
 	@$(REBAR) ct skip_deps=true
