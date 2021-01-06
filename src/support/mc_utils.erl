@@ -9,14 +9,11 @@
 -module(mc_utils).
 -author("tihon").
 
+-define(OLD_CRYPTO_API, true).
 -ifdef(OTP_RELEASE).
   -if(?OTP_RELEASE >= 22).
-    -define(CRYPTO_API, new).
-  -else.
-    -define(CRYPTO_API, old).
+    -undef(OLD_CRYPTO_API).
   -endif.
--else.
-  -define(CRYPTO_API, old).
 -endif.
 
 %% API
@@ -72,10 +69,10 @@ get_timeout() ->
     undefined -> infinity
   end.
 
--if(?CRYPTO_API == new).
-hmac(One, Two) -> crypto:mac(hmac, sha, One, Two).
--elif(?CRYPTO_API == old).
+-ifdef(OLD_CRYPTO_API).
 hmac(One, Two) -> crypto:hmac(sha, One, Two).
+-else.
+hmac(One, Two) -> crypto:mac(hmac, sha, One, Two).
 -endif.
 
 pw_key(Nonce, Username, Password) ->
