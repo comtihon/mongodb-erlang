@@ -36,7 +36,7 @@ ct: app
 	./rebar3 ct skip_deps=true
 
 report-rebar3-version:
-	@$(REBAR) version
+	./rebar3 version
 
 # Dialyzer.
 .$(PROJECT).plt: 
