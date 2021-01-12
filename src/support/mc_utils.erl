@@ -11,7 +11,7 @@
 
 -define(OLD_CRYPTO_API, true).
 -ifdef(OTP_RELEASE).
-  -if(?OTP_RELEASE >= 22).
+  -if(?OTP_RELEASE >= 23).
     -undef(OLD_CRYPTO_API).
   -endif.
 -endif.
