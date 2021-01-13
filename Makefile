@@ -27,13 +27,16 @@ clean-docs:
 	rm -f doc/edoc-info
 
 # Tests.
-tests: clean app eunit ct
+tests: report-rebar3-version clean app eunit ct
 
 eunit:
 	./rebar3 eunit skip_deps=true
 
 ct: app
 	./rebar3 ct skip_deps=true
+
+report-rebar3-version:
+	./rebar3 version
 
 # Dialyzer.
 .$(PROJECT).plt: 
@@ -49,4 +52,4 @@ dialyze: .$(PROJECT).plt
 	@$(DIALYZER) -I include -I deps --src -r src --plt .$(PROJECT).plt --no_native \
 		-Werror_handling -Wrace_conditions -Wunmatched_returns
 
-.PHONY: deps clean-plt build-plt dialyze
+.PHONY: deps clean-plt build-plt dialyze report-rebar3-version
