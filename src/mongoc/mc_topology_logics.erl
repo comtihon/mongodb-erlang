@@ -154,7 +154,7 @@ stop_servers_not_in_list(HostsList, Tab) ->
         false ->
           ets:insert(Tab, E#mc_server{type = deleted}),
           unlink(E#mc_server.pid),
-          exit(E#mc_server.pid, kill),
+          exit(E#mc_server.pid, normal),
           [E#mc_server.host | Acc];
         true -> Acc
       end
