@@ -21,9 +21,12 @@ connect(Conf) ->
   Timeout = mc_utils:get_value(timeout, Conf, infinity),
   Host = mc_utils:get_value(host, Conf, "127.0.0.1"),
   Port = mc_utils:get_value(port, Conf, 27017),
-  SSL = mc_utils:get_value(ssl, Conf, false),
   SslOpts = mc_utils:get_value(ssl_opts, Conf, []),
-  do_connect(Host, Port, Timeout, SSL, SslOpts).
+  SSL = mc_utils:get_value(ssl, Conf, false),
+  case mc_utils:get_value(srv, Conf) of
+    undefined -> do_connect(Host, Port, Timeout, SSL, SslOpts);
+    Srv -> do_srv_connect(Srv, Timeout, SSL, SslOpts)
+  end.
 
 -spec make_request(gen_tcp:socket() | ssl:sslsocket(), atom(), mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) ->
   {ok | {error, any()}, integer(), pos_integer()}.
@@ -128,3 +131,10 @@ do_connect(Host, Port, Timeout, true, Opts) ->
   ssl:connect(Host, Port, [binary, {active, true}, {packet, raw}] ++ Opts, Timeout);
 do_connect(Host, Port, Timeout, false, _) ->
   gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}], Timeout).
+
+do_srv_connect(Srv, Timeout, SSL, SslOpts) ->
+  {ok, Seeds} = mc_utils:get_srv_seeds(Srv),
+  SeedNum = rand:uniform(length(Seeds)),
+  {Host, Port} = lists:nth(SeedNum, Seeds),
+  io:format("{Host, Port} ~p", [{Host, Port}]),
+  do_connect(Host, Port, Timeout, SSL, SslOpts).
