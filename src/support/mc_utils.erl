@@ -9,6 +9,8 @@
 -module(mc_utils).
 -author("tihon").
 
+-include_lib("kernel/include/inet.hrl").
+
 -define(OLD_CRYPTO_API, true).
 -ifdef(OTP_RELEASE).
   -if(?OTP_RELEASE >= 23).
@@ -28,7 +30,8 @@
   random_nonce/1,
   hmac/2,
   is_proplist/1,
-  to_binary/1]).
+  to_binary/1,
+  get_srv_seeds/1]).
 
 get_value(Key, List) -> get_value(Key, List, undefined).
 
@@ -89,3 +92,33 @@ to_binary(Str) when is_binary(Str) -> Str.
 %% @private
 binary_to_hexstr(Bin) ->
   lists:flatten([io_lib:format("~2.16.0b", [X]) || X <- binary_to_list(Bin)]).
+
+%% Returns a list of {Host, port} seeds for a given host. Performs
+%% a DNS lookup of the SRV as described in the MongoDB reference manual
+-spec get_srv_seeds(string() | binary()) -> {ok, [{Host :: string(), Port :: inet:port_number()}]} |
+                                 {error, srv_lookup_failed | srv_insecure_endpoints}.
+get_srv_seeds(Host) when is_binary(Host) ->
+  get_srv_seeds(unicode:characters_to_list(Host));
+get_srv_seeds(Host) ->
+  Srv = "_mongodb._tcp." ++ Host,
+  case inet_res:getbyname(Srv, srv) of
+    {ok, #hostent{h_addr_list = Endpoints}} ->
+      Seeds = [{H, P} || {_, _, P, H} <- Endpoints],
+      case lists:all(fun ({H, _P}) ->
+                           valid_endpoint(Host, H)
+                     end,
+                     Seeds)
+        of
+        true ->
+          {ok, Seeds};
+        false ->
+          {error, srv_insecure_endpoints}
+      end;
+    {error, _Reason} ->
+      {error, srv_lookup_failed}
+  end.
+
+valid_endpoint(Host, Srv) ->
+  [_ | HostBaseDomain] = string:split(Host, "."),
+  [_ | SrvBaseDomain] = string:split(Srv, "."),
+  HostBaseDomain == SrvBaseDomain.
