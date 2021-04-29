@@ -136,5 +136,4 @@ do_srv_connect(Srv, Timeout, SSL, SslOpts) ->
   {ok, Seeds} = mc_utils:get_srv_seeds(Srv),
   SeedNum = rand:uniform(length(Seeds)),
   {Host, Port} = lists:nth(SeedNum, Seeds),
-  io:format("{Host, Port} ~p", [{Host, Port}]),
   do_connect(Host, Port, Timeout, SSL, SslOpts).
