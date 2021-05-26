@@ -22,7 +22,7 @@
 -export([update_topology_state/2, init_seeds/4, init_seeds/1]).
 
 update_topology_state(#mc_server{type = SType, pid = Pid}, State = #topology_state{type = sharded}) when ?NON_SHARDED(SType) -> %% SHARDED
-  exit(Pid, kill),
+  exit(Pid, normal),
   State;
 update_topology_state(_, State = #topology_state{type = sharded}) ->
   State;
@@ -33,7 +33,7 @@ update_topology_state(#mc_server{type = rsGhost}, State = #topology_state{type =
 update_topology_state(#mc_server{type = standalone}, State = #topology_state{type = unknown, seeds = Seeds}) when length(Seeds) =< 1 ->
   State#topology_state{type = standalone};
 update_topology_state(#mc_server{type = standalone, pid = Pid}, State = #topology_state{type = unknown}) ->
-  exit(Pid, kill),
+  exit(Pid, normal),
   State;
 update_topology_state(#mc_server{type = mongos}, State = #topology_state{type = unknown}) ->
   State#topology_state{type = sharded};
@@ -48,11 +48,11 @@ update_topology_state(
   set_possible_primary(Tab, Primary),
   State#topology_state{type = checkIfHasPrimary(Tab), setName = SetName};
 update_topology_state(#mc_server{type = SType, pid = Pid}, State = #topology_state{type = unknown}) when ?SEC_ARB_OTH(SType) ->
-  exit(Pid, kill),
+  exit(Pid, normal),
   State;
 update_topology_state(#mc_server{type = SType, pid = Pid},
     State = #topology_state{type = replicaSetNoPrimary}) when ?STAL_MONGS(SType) ->  %% REPLICASETNOPRIMARY
-  exit(Pid, kill),
+  exit(Pid, normal),
   State;
 update_topology_state(Server = #mc_server{type = SType, setName = SetName},
     State = #topology_state{type = replicaSetNoPrimary, setName = SetName}) when ?SEC_ARB_OTH(SType) ->
@@ -65,14 +65,14 @@ update_topology_state(
   set_possible_primary(Tab, Primary),
   State#topology_state{setName = SetName};
 update_topology_state(#mc_server{type = SType, pid = Pid}, State = #topology_state{type = replicaSetNoPrimary}) when ?SEC_ARB_OTH(SType) ->
-  exit(Pid, kill),
+  exit(Pid, normal),
   State;
 update_topology_state(#mc_server{type = SType},
     State = #topology_state{type = replicaSetWithPrimary, servers = Tab}) when ?UNKN_GHST(SType) -> %% REPLICASETWITHPRIMARY
   State#topology_state{type = checkIfHasPrimary(Tab)};
 update_topology_state(#mc_server{type = SType, pid = Pid},
     State = #topology_state{type = replicaSetWithPrimary, servers = Tab}) when ?STAL_MONGS(SType) ->
-  exit(Pid, kill),
+  exit(Pid, normal),
   State#topology_state{type = checkIfHasPrimary(Tab)};
 update_topology_state(
     #mc_server{type = SType, setName = SetName, primary = Primary},
@@ -82,7 +82,7 @@ update_topology_state(
 update_topology_state(
     #mc_server{type = SType, pid = Pid},
     State = #topology_state{type = replicaSetWithPrimary, servers = Tab}) when ?SEC_ARB_OTH(SType) ->
-  exit(Pid, kill),
+  exit(Pid, normal),
   State#topology_state{type = checkIfHasPrimary(Tab)};
 update_topology_state(Server = #mc_server{type = rsPrimary, setName = SetName}, State = #topology_state{setName = SetName}) -> %% REPLICASETWITHPRIMARY
   update_topology_state(Server, State#topology_state{setName = undefined});
@@ -100,7 +100,7 @@ update_topology_state(
 update_topology_state(#mc_server{type = rsPrimary, pid = Pid, host = Host, setName = SSetName},
     State = #topology_state{setName = CSetName, servers = Tab}) when SSetName =/= CSetName ->
   ets:insert(Tab, #mc_server{pid = Pid, host = Host, type = deleted}),
-  exit(Pid, kill),
+  exit(Pid, normal),
   State#topology_state{type = checkIfHasPrimary(Tab)};
 update_topology_state(_, State) ->
   State.
@@ -154,7 +154,7 @@ stop_servers_not_in_list(HostsList, Tab) ->
         false ->
           ets:insert(Tab, E#mc_server{type = deleted}),
           unlink(E#mc_server.pid),
-          exit(E#mc_server.pid, kill),
+          exit(E#mc_server.pid, normal),
           [E#mc_server.host | Acc];
         true -> Acc
       end
