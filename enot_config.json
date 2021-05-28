@@ -1,6 +1,6 @@
 {
   "name": "mongodb",
-  "app_vsn": "3.4.3",
+  "app_vsn": "3.4.4",
   "deps": [
     {
       "name": "bson",
