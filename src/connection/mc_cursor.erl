@@ -121,7 +121,7 @@ init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
     connection = Connection,
     collection = Collection,
     cursor = Cursor,
-    batchsize = BatchSize,
+    batchsize = batch_size(BatchSize),
     batch = format_batch(Batch),
     monitor = Monitor
   }}.
@@ -208,3 +208,7 @@ rest_i(State, Acc, Limit, Timeout) ->
 %% @private
 format_batch([#{<<"cursor">> := #{<<"firstBatch">> := Batch}}]) -> Batch;
 format_batch(Reply) -> Reply.
+
+%% @private
+batch_size(0) -> infinity;
+batch_size(BatchSize) when is_integer(BatchSize) -> BatchSize.
