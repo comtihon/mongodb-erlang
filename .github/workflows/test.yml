@@ -1,0 +1,43 @@
+name: Run tests
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        erlang: [21, 22, 23]
+        mongodb: ["4.4 4.4.8", "5.0 5.0.2"]
+    container:
+      image: erlang:23
+    steps:
+      - uses: actions/checkout@v2.0.0
+      - run: ./scripts/install_mongo_debian.sh 4.4 4.4.8
+      - run: ./scripts/start_mongo_single_node.sh
+      - run: ./scripts/start_mongo_cluster.sh
+      - run: ./rebar3 eunit
+      - run: ./rebar3 ct
+      - name: Archive Replica Set Logs
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: mongodb_replica_set_logs
+          path: rs0-logs
+          retention-days: 1
+      - name: Archive Single Node Log
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: single_node.log
+          path: single_node.log
+          retention-days: 1
+      - name: CT Logs
+        uses: actions/upload-artifact@v2
+        with:
+          name: ct_logs
+          path: _build/test/logs/
+          retention-days: 5
