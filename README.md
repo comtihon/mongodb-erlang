@@ -4,7 +4,7 @@ This is the [MongoDB](https://www.mongodb.org/) driver for Erlang.
 [![Enot](https://enot.justtech.blog/badge?full_name=comtihon/mongodb-erlang)](https://enot.justtech.blog)
 
 ### Usage
-Add this repo as the dependency:  
+Add this repo as the dependency:
 Rebar
 
     {deps, [
@@ -31,14 +31,14 @@ Start all applications, needed by mongodb
 
 	> application:ensure_all_started (mongodb).
 
-__Important__: 
-`mongoc` API was changed in `3.0.0`.  
-`mc_cursor` API was changed in `3.0.0.`  
+__Important__:
+`mongoc` API was changed in `3.0.0`.
+`mc_cursor` API was changed in `3.0.0.`
 
-This driver has two api modules - `mc_worker_api` and `mongo_api`. 
+This driver has two api modules - `mc_worker_api` and `mongo_api`.
 `mc_worker_api` works directly with one connection, while all `mongo_api`
 interfaces refer to `mongoc` pool. Although `mongoc` is not stable for now
-you should use it if you have shard and need to determine mongo topology.  
+you should use it if you have shard and need to determine mongo topology.
 If you are choosing between using
 [mongos](https://docs.mongodb.com/manual/reference/program/mongos/) and
 using mongo shard with `mongo_api` - prefer mongos and use `mc_worker_api`.
@@ -47,7 +47,7 @@ mc_worker_api -- direct connection client
 ---------------------------------
 
 ### Connecting
-To connect to a database `test` on mongodb server listening on 
+To connect to a database `test` on mongodb server listening on
 `localhost:27017` (or any address & port of your choosing)
 use `mc_worker_api:connect/1`.
 
@@ -66,50 +66,56 @@ use `mc_worker_api:connect/1`.
     | {port, integer()}
     | {register, atom() | fun()}
     | {next_req_fun, fun()}.
-To connect mc_worker in your supervised pool, use `mc_worker:start_link/1` 
+To connect mc_worker in your supervised pool, use `mc_worker:start_link/1`
 instead and pass all args to it.
 
-`safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are 
+`safe`, along with `{safe, GetLastErrorParams}` and `unsafe`, are
 write-modes. Safe mode makes a *getLastError* request
-after every write in the sequence. If the reply says it failed then 
-the rest of the sequence is aborted and returns 
-`{failure, {write_failure, Reason}}`, or `{failure, not_master}` when 
+after every write in the sequence. If the reply says it failed then
+the rest of the sequence is aborted and returns
+`{failure, {write_failure, Reason}}`, or `{failure, not_master}` when
 connected to a slave. An example write
-failure is attempting to insert a duplicate key that is indexed to be 
+failure is attempting to insert a duplicate key that is indexed to be
 unique. Alternatively, unsafe mode issues every
-write without a confirmation, so if a write fails you won't know about 
+write without a confirmation, so if a write fails you won't know about
 it and remaining operations will be executed.
-This is unsafe but faster because you there is no round-trip delay.  
+This is unsafe but faster because you there is no round-trip delay.
 
-`master`, along with `slave_ok`, are read-modes. `master` means every 
+`master`, along with `slave_ok`, are read-modes. `master` means every
 query in the sequence must read fresh data (from
-a master/primary server). If the connected server is not a master then 
+a master/primary server). If the connected server is not a master then
 the first read will fail, the remaining operations
-will be aborted, and `mongo:do` will return `{failure, not_master}`. 
+will be aborted, and `mongo:do` will return `{failure, not_master}`.
 `slave_ok` means every query is allowed to read
-stale data from a slave/secondary (fresh data from a master is fine too).  
+stale data from a slave/secondary (fresh data from a master is fine too).
 
-If you set `{register, Name}` option - mc_worker process will be 
-registered on this Name, or you can pass function 
-`fun(pid())`, which it runs with self pid.    
-If you set `{login, Login}` and `{password, Password}` options - 
-mc_worker will try to authenticate to the database.  
+Read-modes only apply to the deprecated mc_worker_api query commands. Pass
+a `readopts` map, like `#{<<"mode">> => <<"primary">>}` to an `mc_worker_api`
+function like
+`find_one(Conn, Coll, Selector, [{readopts, #{<<"mode">> => <<"primary">>}}])`
+for the new API.
 
-`next_req_fun` is a function caller every time, when worker sends 
-request to database. It can be use to optimise pool 
-usage. When you use poolboy transaction (or mongoc transaction, which 
+If you set `{register, Name}` option - mc_worker process will be
+registered on this Name, or you can pass function
+`fun(pid())`, which it runs with self pid.
+If you set `{login, Login}` and `{password, Password}` options -
+mc_worker will try to authenticate to the database.
+
+`next_req_fun` is a function caller every time, when worker sends
+request to database. It can be use to optimise pool
+usage. When you use poolboy transaction (or mongoc transaction, which
 use poolboy transaction) - `mc_worker` sends request
-to database and do nothing, waiting for reply. You can use 
+to database and do nothing, waiting for reply. You can use
 `{next_req_fun, fun() -> poolboy:checkin(?DBPOOL, self()) end}`
-to make workers return to pool as soon as they finish request. 
+to make workers return to pool as soon as they finish request.
 When responce from database comes back - it will be saved in
-mc_worker msgbox. Msgbox will be processed just before the next 
-call to mc_worker.  
-__Notice__, that poolboy's pool should be created with `{strategy, fifo}` 
+mc_worker msgbox. Msgbox will be processed just before the next
+call to mc_worker.
+__Notice__, that poolboy's pool should be created with `{strategy, fifo}`
 to make uniform usage of pool workers.
 
 ### Writing
-After you connected to your database - you can carry out write operations, 
+After you connected to your database - you can carry out write operations,
 such as `insert`, `update` and `delete`:
 
     > Collection = <<"test">>.
@@ -127,7 +133,7 @@ such as `insert`, `update` and `delete`:
                                                          <<"home">>=> #{<<"city">> => <<"Boston">>, <<"state">> => <<"MA">>},
                                                          <<"league">> => <<"American">>}
                                                      ]),
-An insert example (from `mongo_SUITE` test module). `Connection` is your 
+An insert example (from `mongo_SUITE` test module). `Connection` is your
 Connection, got `from mc_worker_api:connect`, `Collection`
 is your collection name, `Doc` is something, you want to save.
 Doc will be returned, if insert succeeded. If Doc doesn't contains `_id`
@@ -136,9 +142,9 @@ automatically generated '_id' fields. If error occurred - Connection will
  fall.
 
     > mc_worker_api:delete(Connection, Collection, Selector).
-Delete example. `Connection` is your Connection, `Collection` - is a 
+Delete example. `Connection` is your Connection, `Collection` - is a
 collection you want to clean. `Selector` is the
-rules for cleaning. If you want to clean everything - pass empty `{}`.  
+rules for cleaning. If you want to clean everything - pass empty `{}`.
 You can also use maps instead bson documents:
 
     > Collection = <<"test">>.
@@ -150,14 +156,14 @@ To call read operations use `find`, `find_one`:
 
     > {ok, Cursor} = mc_worker_api:find(Connection, Collection, Selector)
 All params similar to `delete`.
-The difference between `find` and `find_one` is in return. Find_one just 
+The difference between `find` and `find_one` is in return. Find_one just
 returns your result, while find returns you a
-`Cursor` - special process' pid. You can query data through the process 
+`Cursor` - special process' pid. You can query data through the process
 with the help of `mc_cursor' module.
 
     > Result = mc_cursor:next(Cursor),
     > mc_cursor:close(Cursor),
-__Important!__ Do not forget to close cursors after using them! 
+__Important!__ Do not forget to close cursors after using them!
 `mc_cursor:rest` closes the cursor automatically.
 
 To search for params - specify `Selector`:
@@ -166,7 +172,7 @@ To search for params - specify `Selector`:
 will return one document from collection Collection with key == <<"123">>.
 
     mc_worker_api:find_one(Connection, Collection, #{<<"key">> => <<"123">>, <<"value">> => <<"built_in">>}).
-will return one document from collection Collection with key == <<"123">> 
+will return one document from collection Collection with key == <<"123">>
 `and` value == <<"built_in">>.
 Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
  <<"value">>, <<"built_in">>}` are selectors.
@@ -174,11 +180,11 @@ Tuples `{<<"key">>, <<"123">>}` in first example and `{<<"key">>, <<"123">>,
 For filtering result - use `Projector`:
 
     mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"value">> => true}).
-will return one document from collection Collection with fetching `only` 
+will return one document from collection Collection with fetching `only`
 _id and value.
 
     mc_worker_api:find_one(Connection, Collection, {}, #{projector => #{<<"key">> => false, <<"value">> => false}}).
-will return your data without key and value params. If there is no other 
+will return your data without key and value params. If there is no other
 data - only _id will be returned.
 
 ### Updating
@@ -192,7 +198,7 @@ This updates selected fields:
         <<"tags">> => ["coats", "outerwear", "clothing"]
     }},
     mc_worker_api:update(Connection, Collection, #{<<"_id">> => 100}, Command),
-This will add new field `expired`, if there is no such field, and set it 
+This will add new field `expired`, if there is no such field, and set it
 to true.
 
     Command = #{<<"$set">> => #{<<"expired">> => true}},
@@ -217,42 +223,42 @@ To create indexes - use `mc_worker_api:ensure_index/3` command:
     mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>}).  %advanced
     mc_worker_api:ensure_index(Connection, Collection, #{<<"key">> => #{<<"index">> => 1}, <<"name">> => <<"MyI">>, <<"unique">> => true, <<"dropDups">> => true}).  %full
 
-ensure_index takes `mc_worker`' pid or atom name as first parameter, 
+ensure_index takes `mc_worker`' pid or atom name as first parameter,
 collection, where to create index, as second
 parameter and bson document with index
-specification - as third parameter. In index specification one can set all 
+specification - as third parameter. In index specification one can set all
 or only some parameters.
-If index specification is not full - it is automatically filled with 
+If index specification is not full - it is automatically filled with
 values: `name, Name, unique, false, dropDups,
 false`, where `Name` is index's key.
 
 ### Administering
-This driver does not provide helper functions for commands. Use 
+This driver does not provide helper functions for commands. Use
 `mc_worker_api:command` directly and refer to the
-[MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands) 
+[MongoDB documentation](http://www.mongodb.org/display/DOCS/Commands)
 for how to issue raw commands.
 
 ### Authentication
-To authenticate use function `mc_worker_api:connect`, or 
-`mc_worker:start_link([...{login, <<"login">>}, {password, <<"password">>}...]`  
+To authenticate use function `mc_worker_api:connect`, or
+`mc_worker:start_link([...{login, <<"login">>}, {password, <<"password">>}...]`
 
 ### Timeout
 
-By default timeout for all connections to connection gen_server is `infinity`. 
+By default timeout for all connections to connection gen_server is `infinity`.
 If you found problems with it - you can
 modify timeout.
 To modify it just add `mc_worker_call_timeout` with new value to your
  applications's env config.
 
 Timeout for operations with cursors may be explicity passed to `mc_cursor:next/2`,
- `mc_cursor:take/3`, `mc_cursor:rest/2`, and `mc_cursor:foldl/5` functions, 
+ `mc_cursor:take/3`, `mc_cursor:rest/2`, and `mc_cursor:foldl/5` functions,
  by default used value of `cursor_timeout` from application config, or `
  infinity` if `cursor_timeout` not specified.
 
 ### Pooling
 
-If you need simple pool - use modified [Poolboy](https://github.com/comtihon/poolboy), 
-which is included in this app's deps. As a worker module use `mc_worker_api`.  
+If you need simple pool - use modified [Poolboy](https://github.com/comtihon/poolboy),
+which is included in this app's deps. As a worker module use `mc_worker_api`.
 If you need pool to mongo shard with determining topology - use `mongo_api`
 for automatic topology discovery and monitoring. It uses poolboy inside.
 
@@ -273,7 +279,7 @@ For opening a connection to a MongoDB server you can call `mongoc:connect/3`:
 Where `Seed` contains information about host names and ports to connect
  and info about topology of MongoDB deployment.
 
-So you can pass just a hostname with port (or tuple with single key) for 
+So you can pass just a hostname with port (or tuple with single key) for
 connection to a single server deployment:
 
 ```erlang
@@ -294,8 +300,8 @@ To connect to a sharded cluster of mongos:
 ShardedSeed = { sharded,  ["hostname1:port1", "hostname2:port2"] }
 ```
 
-And if you want your MongoDB deployment metadata to be auto-discovered use 
-the `unknown` type in the `Seed` tuple:   
+And if you want your MongoDB deployment metadata to be auto-discovered use
+the `unknown` type in the `Seed` tuple:
 
 ```erlang
 AutoDiscoveredSeed = { unknown,  ["hostname1:port1", "hostname2:port2"] }
