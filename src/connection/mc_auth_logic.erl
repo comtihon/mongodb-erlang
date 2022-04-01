@@ -52,7 +52,7 @@ scram_sha_1_auth(Connection, Database, Login, Password) ->
     scram_first_step(Connection, Database, Login, Password)
   catch
     _:_ ->
-      erlang:error(<<"Can't pass authentification">>)
+      erlang:error(<<"Can't pass authentication">>)
   end.
 
 %% @private
@@ -134,8 +134,8 @@ xorKeys(<<FA, RestA/binary>>, <<FB, RestB/binary>>, Res) ->
   xorKeys(RestA, RestB, <<Res/binary, <<(FA bxor FB)>>/binary>>).
 
 %% @private
-parse_server_responce(Responce) ->
-  ParamList = binary:split(Responce, <<",">>, [global]),
+parse_server_responce(Response) ->
+  ParamList = binary:split(Response, <<",">>, [global]),
   lists:map(
     fun(Param) ->
       [K, V] = binary:split(Param, <<"=">>),

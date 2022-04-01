@@ -13,7 +13,7 @@
 
 % A notice is an asynchronous message sent to the server (no reply expected)
 -type notice() :: #insert{} | #update{} | #delete{} | #killcursor{} | #ensure_index{}.
-% A request is a syncronous message sent to the server (reply expected)
+% A request is a synchronous message sent to the server (reply expected)
 -type request() :: #'query'{} | #getmore{}.
 % A reply to a request
 -type reply() :: #reply{}.
