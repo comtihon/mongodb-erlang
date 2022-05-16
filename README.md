@@ -108,7 +108,7 @@ use poolboy transaction) - `mc_worker` sends request
 to database and do nothing, waiting for reply. You can use
 `{next_req_fun, fun() -> poolboy:checkin(?DBPOOL, self()) end}`
 to make workers return to pool as soon as they finish request.
-When responce from database comes back - it will be saved in
+When response from database comes back - it will be saved in
 mc_worker msgbox. Msgbox will be processed just before the next
 call to mc_worker.
 __Notice__, that poolboy's pool should be created with `{strategy, fifo}`
@@ -250,7 +250,7 @@ modify timeout.
 To modify it just add `mc_worker_call_timeout` with new value to your
  applications's env config.
 
-Timeout for operations with cursors may be explicity passed to `mc_cursor:next/2`,
+Timeout for operations with cursors may be explicitly passed to `mc_cursor:next/2`,
  `mc_cursor:take/3`, `mc_cursor:rest/2`, and `mc_cursor:foldl/5` functions,
  by default used value of `cursor_timeout` from application config, or `
  infinity` if `cursor_timeout` not specified.

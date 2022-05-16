@@ -35,8 +35,8 @@ auth_test() ->
 
 
 %% @private
-parse_server_responce(Responce) ->
-  ParamList = binary:split(Responce, <<",">>, [global]),
+parse_server_responce(Response) ->
+  ParamList = binary:split(Response, <<",">>, [global]),
   lists:map(
     fun(Param) ->
       [K, V] = binary:split(Param, <<"=">>),
