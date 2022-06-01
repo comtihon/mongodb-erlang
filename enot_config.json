@@ -1,6 +1,6 @@
 {
   "name": "mongodb",
-  "app_vsn": "3.4.4",
+  "app_vsn": "3.4.5",
   "deps": [
     {
       "name": "bson",
@@ -15,7 +15,7 @@
     {
       "name": "poolboy",
       "url": "git://github.com/comtihon/poolboy",
-      "branch": "master"
+      "branch": "1.6.1"
     }
   ]
 }
