@@ -1,6 +1,6 @@
 This is the [MongoDB](https://www.mongodb.org/) driver for Erlang.
 
-[![Build Status](https://travis-ci.com/comtihon/mongodb-erlang.svg?branch=master)](https://travis-ci.com/comtihon/mongodb-erlang)
+[![Run tests](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml/badge.svg)](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml)
 [![Enot](https://enot.justtech.blog/badge?full_name=comtihon/mongodb-erlang)](https://enot.justtech.blog)
 
 ### Usage
