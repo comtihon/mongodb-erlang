@@ -24,13 +24,14 @@
 read(Connection, Request) -> read(Connection, Request, undefined).
 
 -spec read(pid() | atom(), query(), undefined | mc_worker_api:batchsize()) -> [] | {ok, pid()}.
-read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize}, CmdBatchSize) ->
+read(Connection, Request = #'query'{collection = Collection, batchsize = BatchSize, database = DB}, CmdBatchSize) ->
   case request_worker(Connection, Request) of
     {_, []} ->
       [];
     {Cursor, Batch} ->
-      mc_cursor:start_link(Connection, Collection, Cursor, select_batchsize(CmdBatchSize, BatchSize), Batch)
+      mc_cursor:start_link(Connection, Collection, Cursor, select_batchsize(CmdBatchSize, BatchSize), Batch, DB)
   end.
+  
 
 -spec read_one(pid() | atom(), query()) -> undefined | map().
 read_one(Connection, Request) ->

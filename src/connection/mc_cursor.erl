@@ -15,8 +15,10 @@
 ]).
 
 -export([
-  start_link/5
+  start_link/5,
+  start_link/6
 ]).
+
 
 -export([
   init/1,
@@ -33,7 +35,8 @@
   cursor :: integer(),
   batchsize :: integer(),
   batch :: [bson:document()],
-  monitor :: reference()
+  monitor :: reference(),
+  database :: database()
 }).
 
 
@@ -111,11 +114,13 @@ close(Cursor) ->
   gen_server:cast(Cursor, halt).
 
 start_link(Connection, Collection, Cursor, BatchSize, Batch) ->
-  gen_server:start_link(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch], []).
+  gen_server:start_link(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch,undefined], []).
+start_link(Connection, Collection, Cursor, BatchSize, Batch, DB) ->
+  gen_server:start_link(?MODULE, [self(), Connection, Collection, Cursor, BatchSize, Batch,DB], []).
 
 
 %% @hidden
-init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
+init([Owner, Connection, Collection, Cursor, BatchSize, Batch,DB]) ->
   Monitor = erlang:monitor(process, Owner),
   {ok, #state{
     connection = Connection,
@@ -123,7 +128,8 @@ init([Owner, Connection, Collection, Cursor, BatchSize, Batch]) ->
     cursor = Cursor,
     batchsize = BatchSize,
     batch = format_batch(Batch),
-    monitor = Monitor
+    monitor = Monitor,
+	database = DB
   }}.
 
 %% @hidden
@@ -181,7 +187,8 @@ next_i(#state{batch = []} = State, Timeout) ->
     #getmore{
       collection = State#state.collection,
       batchsize = State#state.batchsize,
-      cursorid = State#state.cursor
+      cursorid = State#state.cursor,
+	  database = State#state.database
     },
     Timeout),
   Cursor = Reply#reply.cursorid,
