@@ -125,8 +125,7 @@ generate_sig(SaltedPassword, AuthMessage) ->
 
 %% @private
 hi(Password, Salt, Iterations) ->
-  {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 20),
-  Key.
+  crypto:pbkdf2_hmac(sha, Password, Salt, Iterations, 20).
 
 %% @private
 xorKeys(<<>>, _, Res) -> Res;
