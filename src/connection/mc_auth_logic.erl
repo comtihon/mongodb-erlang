@@ -15,6 +15,13 @@
 -compile(export_all).
 -endif.
 
+-define(OLD_CRYPTO_API, true).
+-ifdef(OTP_RELEASE).
+  -if(?OTP_RELEASE >= 23).
+    -undef(OLD_CRYPTO_API).
+  -endif.
+-endif.
+
 -define(RANDOM_LENGTH, 24).
 -define(AUTH_CMD(Login, Nonce, Password),
   {
@@ -124,8 +131,13 @@ generate_sig(SaltedPassword, AuthMessage) ->
   mc_utils:hmac(ServerKey, AuthMessage).
 
 %% @private
+-ifdef(OLD_CRYPTO_API).
 hi(Password, Salt, Iterations) ->
-  crypto:pbkdf2_hmac(sha, Password, Salt, Iterations, 20).
+    {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 20),
+    Key.
+-else.
+hi(Password, Salt, Iterations) -> crypto:pbkdf2_hmac(sha, Password, Salt, Iterations, 20).
+-endif.
 
 %% @private
 xorKeys(<<>>, _, Res) -> Res;
