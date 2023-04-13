@@ -135,22 +135,22 @@ init([Owner, Connection, Collection, Cursor, BatchSize, Batch,DB]) ->
 %% @hidden
 handle_call({next, Timeout}, _From, State) ->
   case next_i(State, Timeout) of
-    {Reply, #state{cursor = 0, batch = []} = UpdatedState} ->
-      {stop, normal, Reply, UpdatedState};
+    {{}, UpdatedState} ->
+      {stop, normal, {}, UpdatedState};
     {Reply, UpdatedState} ->
       {reply, Reply, UpdatedState}
   end;
 handle_call({rest, Limit, Timeout}, _From, State) ->
   case rest_i(State, Limit, Timeout) of
-    {Reply, #state{cursor = 0} = UpdatedState} ->
-      {stop, normal, Reply, UpdatedState};
+    {{}, UpdatedState} ->
+      {stop, normal, {}, UpdatedState};
     {Reply, UpdatedState} ->
       {reply, Reply, UpdatedState}
   end;
 handle_call({next_batch, Timeout}, _From, State = #state{batchsize = Limit}) ->
   case rest_i(State, Limit, Timeout) of
-    {Reply, #state{cursor = 0} = UpdatedState} ->
-      {stop, normal, Reply, UpdatedState};
+    {{}, UpdatedState} ->
+      {stop, normal, {}, UpdatedState};
     {Reply, UpdatedState} ->
       {reply, Reply, UpdatedState}
   end.
