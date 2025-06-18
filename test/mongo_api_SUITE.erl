@@ -4,11 +4,12 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 all() ->
   [
     ensure_index_test,
+    per_connection_protocol_type_test,
     count_test,
     find_one_test,
     find_test,
@@ -25,13 +26,22 @@ end_per_suite(_Config) ->
 init_per_testcase(Case, Config) ->
   {ok, Pid} = mongo_api:connect(single, ["localhost:27017"],
     [{pool_size, 1}, {max_overflow, 0}], [{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}]),
-  [{connection, Pid}, {collection, mc_test_utils:collection(Case)} | Config].
+  [{connection, Pid}, {collection, mc_test_utils:collection(?MODULE, Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),
   Collection = ?config(collection, Config),
   mongo_api:delete(Connection, Collection, #{}),
   mongo_api:disconnect(Connection).
+
+parse_mongo_version(StrVersion) ->
+  Segments = string:split(StrVersion, ".", all),
+  case lists:map(fun list_to_integer/1, Segments) of
+    [Major, Minor] ->
+      {Major, Minor, 0};
+    [Major, Minor, Patch] ->
+      {Major, Minor, Patch}
+  end.
 
 %% Tests
 ensure_index_test(Config) ->
@@ -40,6 +50,38 @@ ensure_index_test(Config) ->
   ok = mongo_api:ensure_index(Pid, Collection, #{<<"key">> => {<<"cid">>, 1, <<"ts">>, 1}}),
   ok = mongo_api:ensure_index(Pid, Collection, {<<"key">>, {<<"z_first">>, 1, <<"a_last">>, 1}}),
   Config.
+
+%% regardless of application env, we can set the protocol type per connection
+per_connection_protocol_type_test(Config) ->
+  {ok, MCWorkerConnection0} =
+    mc_worker:start_link([{database, ?config(database, Config)}
+      , {w_mode, safe}
+      , {use_legacy_protocol, true}
+    ]),
+  ?assert(mc_utils:use_legacy_protocol(MCWorkerConnection0)),
+  MRef0 = monitor(process, MCWorkerConnection0),
+  mc_worker:disconnect(MCWorkerConnection0),
+  receive
+    {'DOWN', MRef0, process, MCWorkerConnection0, _} ->
+      ok
+  after
+    1_000 -> ct:fail("worker didn't halt")
+  end,
+  {ok, MCWorkerConnection1} =
+    mc_worker:start_link([{database, ?config(database, Config)}
+      , {w_mode, safe}
+      , {use_legacy_protocol, false}
+    ]),
+  ?assertNot(mc_utils:use_legacy_protocol(MCWorkerConnection1)),
+  MRef1 = monitor(process, MCWorkerConnection1),
+  mc_worker:disconnect(MCWorkerConnection1),
+  receive
+    {'DOWN', MRef1, process, MCWorkerConnection1, _} ->
+      ok
+  after
+    1_000 -> ct:fail("worker didn't halt")
+  end,
+  ok.
 
 count_test(Config) ->
   Collection = ?config(collection, Config),

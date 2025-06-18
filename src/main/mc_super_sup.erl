@@ -17,4 +17,5 @@ start_link() ->
 init(app) ->
 	MongoIdServer = ?CHILD(mongo_id_server, worker),
 	McPoolSup = ?CHILD(mc_pool_sup, supervisor),
-	{ok, {{one_for_one, 1000, 3600}, [MongoIdServer, McPoolSup]}}.
+	PIDInfoServer = ?CHILD(mc_worker_pid_info, worker),
+	{ok, {{one_for_one, 1000, 3600}, [MongoIdServer, McPoolSup, PIDInfoServer]}}.

@@ -15,6 +15,8 @@
 -export([decode_responses/1, process_responses/2, connect/1]).
 -export([make_request/4, get_resp_fun/2, update_dbcoll/2, collection/1, ensure_index/3]).
 
+-dialyzer({no_fail_call, ensure_index/3}).
+
 %% Make connection to database and return socket
 -spec connect(proplists:proplist()) -> {ok, port()} | {error, inet:posix()}.
 connect(Conf) ->
@@ -30,6 +32,7 @@ connect(Conf) ->
 
 -spec make_request(gen_tcp:socket() | ssl:sslsocket(), atom(), mc_worker_api:database(), mongo_protocol:message() | list(mongo_protocol:message())) ->
   {ok | {error, any()}, integer(), pos_integer()}.
+
 make_request(Socket, NetModule, Database, Request) ->
   {Packet, Id} = encode_request(Database, Request),
   {NetModule:send(Socket, Packet), iolist_size(Packet), Id}.
@@ -37,11 +40,14 @@ make_request(Socket, NetModule, Database, Request) ->
 decode_responses(Data) ->
   decode_responses(Data, []).
 
--spec get_resp_fun(#query{} | #getmore{} | #insert{} | #update{} | #delete{}, pid()) -> fun().
+-spec get_resp_fun(#query{} | #getmore{} | #insert{} | #update{} | #delete{} | #op_msg_command{} | #op_msg_write_op{},
+    pid()) -> fun().
 get_resp_fun(Read, From) when is_record(Read, query); is_record(Read, getmore) ->
   fun(Response) -> gen_server:reply(From, Response) end;
 get_resp_fun(Write, From) when is_record(Write, insert); is_record(Write, update); is_record(Write, delete) ->
-  process_write_response(From).
+  process_write_response(From);
+get_resp_fun(OpMsg, From) when is_record(OpMsg, op_msg_write_op); is_record(OpMsg, op_msg_command) ->
+  process_op_msg_response(From).
 
 -spec process_responses(Responses :: list(), RequestStorage :: map()) -> UpdStorage :: map().
 process_responses(Responses, RequestStorage) ->
@@ -123,6 +129,11 @@ process_write_response(From) ->
           Code -> gen_server:reply(From, {error, {write_failure, Code, String}})
         end
     end
+  end.
+
+process_op_msg_response(From) ->
+  fun(#op_msg_response{} = OpMsg) ->
+    gen_server:reply(From, OpMsg)
   end.
 
 %% @private

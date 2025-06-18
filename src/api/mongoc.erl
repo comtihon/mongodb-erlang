@@ -21,8 +21,10 @@
   transaction/4,
   status/1,
   append_read_preference/2,
+  extract_read_preference/1,
   find_query/6,
   count_query/4,
+  command_query/2,
   find_one_query/5]).
 
 
@@ -60,19 +62,23 @@ transaction(Topology, Transaction, Options, Timeout) ->
       catch
         error:not_master ->
           mc_topology:update_topology(Topology),
+          error_logger:error_msg("transaction error:~p reason:~p~n", [error, not_master]),
           {error, not_master};
         error:{bad_query, {not_master, _}} ->
           mc_topology:update_topology(Topology),
+          error_logger:error_msg("transaction error:~p reason:~p~n", [error, not_master]),
           {error, not_master};
-        _:R ->
+        E:R ->
           mc_topology:update_topology(Topology),
+          error_logger:error_msg("transaction error:~p reason:~p~n", [E, R]),
           {error, R}
       end;
     Error ->
+      error_logger:error_msg("mc_topology get_pool error:~p~n", [Error]),
       Error
   end.
 
-%% @doc Get worker from pool and run transaction with additioanl query options on it. Suitable for read transactions
+%% @doc Get worker from pool and run transaction with additional query options on it. Suitable for read transactions
 -spec transaction_query(pid() | atom(), fun()) -> any().
 transaction_query(Topology, Transaction) ->
   transaction_query(Topology, Transaction, #{}).
@@ -83,12 +89,7 @@ transaction_query(Topology, Transaction, Options) ->
 
 -spec transaction_query(pid() | atom(), fun(), map(), integer() | infinity) -> any().
 transaction_query(Topology, Transaction, Options, Timeout) ->
-  case mc_topology:get_pool(Topology, Options) of
-    {ok, Pool = #{pool := C}} ->
-      poolboy:transaction(C, fun(Worker) -> Transaction(Pool#{pool => Worker}) end, Timeout);
-    Error ->
-      Error
-  end.
+  transaction(Topology, Transaction, Options, Timeout).
 
 -spec find_one_query(map(), collection(), selector(), projector(), integer()) -> query().
 find_one_query(#{server_type := ServerType, read_preference := RPrefs}, Coll, Selector, Projector, Skip) ->
@@ -129,7 +130,15 @@ count_query(#{server_type := ServerType, read_preference := RPrefs}, Coll, Selec
   },
   mongos_query_transform(ServerType, Q, RPrefs).
 
--spec append_read_preference(selector(), map()) -> selector().
+-spec command_query(map(), selector()) -> query().
+command_query(#{server_type := ServerType, read_preference := RPrefs}, Command) ->
+  Q = #'query'{
+    collection = <<"$cmd">>,
+    selector = Command
+  },
+  mongos_query_transform(ServerType, Q, RPrefs).
+
+-spec append_read_preference(selector(), readpref()) -> selector().
 append_read_preference(Selector = #{<<"$query">> := _}, RP) ->
   Selector#{<<"$readPreference">> => RP};
 append_read_preference(Selector, RP) when is_tuple(Selector) andalso element(1, Selector) =:= <<"count">> ->
@@ -139,6 +148,31 @@ append_read_preference(Selector, RP) when is_tuple(Selector) andalso element(1, 
 append_read_preference(Selector, RP) ->
   #{<<"$query">> => Selector, <<"$readPreference">> => RP}.
 
+
+extract_read_preference(#{<<"$readPreference">> := RP} = Selector) ->
+  {RP,
+    maps:get(<<"$query">>, Selector, #{}),
+    maps:get(<<"$orderby">>, Selector, #{})};
+extract_read_preference(Selector) when is_map(Selector) ->
+  {#{<<"mode">> => <<"primary">>},
+    maps:get(<<"$query">>, Selector, Selector),
+    maps:get(<<"$orderby">>, Selector, #{})};%TODO also extract orderby and what else might be inside (strange but needed to pass test)
+extract_read_preference(Selector) when is_tuple(Selector) ->
+  Fields = bson:fields(Selector),
+  Query = case lists:keyfind(<<"$query">>, 1, Fields) of
+    {_, Q} -> Q;
+    false -> Selector
+  end,
+  OrderBy = case lists:keyfind(<<"$orderby">>, 1, Fields) of
+    {_, OB} -> OB;
+    false -> #{}
+  end,
+  case lists:keyfind(<<"$readPreference">>, 1, Fields) of
+    {_, RP} ->
+      {RP, Query, OrderBy};
+    false ->
+      {#{<<"mode">> => <<"primary">>}, Query, OrderBy}
+  end.
 
 %%%===================================================================
 %%% Internal functions

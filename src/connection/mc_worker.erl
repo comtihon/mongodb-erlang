@@ -5,6 +5,7 @@
 
 -define(WRITE(Req), is_record(Req, insert); is_record(Req, update); is_record(Req, delete)).
 -define(READ(Req), is_record(Request, 'query'); is_record(Request, getmore)).
+-define(OP_MSG(Req), is_record(Request, 'op_msg_command'); is_record(Request, 'op_msg_write_op')).
 -define(LOG_DEFAULT_DB, fun() -> error_logger:info_msg("Using default 'test' database"), <<"test">> end).
 
 -export([start_link/1, database/2, disconnect/1, hibernate/1]).
@@ -16,12 +17,14 @@
   terminate/2,
   code_change/3]).
 
+-dialyzer({no_fail_call, get_op_msg_write_concern/1}).
+
 -record(state, {
   socket :: gen_tcp:socket() | ssl:sslsocket(),
   request_storage = #{} :: map(),
   buffer = <<>> :: binary(),
   conn_state :: conn_state(),
-  hibernate_timer :: reference() | undefined,
+  hibernate_timer :: timer:tref() | reference() | undefined,
   next_req_fun :: fun(),
   net_module :: ssl | gen_tcp
 }).
@@ -53,12 +56,20 @@ init(Options) ->
       try_register(Options),
       NetModule = get_set_opts_module(Options),
       NextReqFun = mc_utils:get_value(next_req_fun, Options, fun() -> ok end),
-      proc_lib:init_ack({ok, self()}),
-      gen_server:enter_loop(?MODULE, [],
-        #state{socket = Socket,
-          conn_state = ConnState,
-          net_module = NetModule,
-          next_req_fun = NextReqFun});
+      DefaultUseLegacyProtocol = application:get_env(mongodb, use_legacy_protocol, auto),
+      UseLegacyProtocol = mc_utils:get_value(use_legacy_protocol, Options, DefaultUseLegacyProtocol),
+      ProtoOpts = #{use_legacy_protocol => UseLegacyProtocol},
+      case mc_worker_pid_info:install_mc_worker_info(Options, NetModule, ConnState#conn_state.database, ProtoOpts) of
+        ok ->
+          proc_lib:init_ack({ok, self()}),
+          gen_server:enter_loop(?MODULE, [],
+            #state{socket = Socket,
+              conn_state = ConnState,
+              net_module = NetModule,
+              next_req_fun = NextReqFun});
+        {error, _} = Error ->
+          proc_lib:init_ack(Error)
+      end;
     Error ->
       proc_lib:init_ack(Error)
   end.
@@ -76,6 +87,8 @@ handle_call(CMD = #ensure_index{collection = Coll, index_spec = IndexSpec}, _, S
       ConnState#conn_state.database,
       #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>), documents = [Index]}),
   {reply, ok, State};
+handle_call(Request, From, State) when ?OP_MSG(Request) ->  % MongoDB OpMsg request
+  process_op_msg_request(Request, From, State);
 handle_call(Request, From, State) when ?WRITE(Request) ->  % write requests (deprecated)
   process_write_request(Request, From, State);
 handle_call(Request, From, State) when ?READ(Request) -> % read requests (and all through command)
@@ -121,6 +134,39 @@ terminate(_, State = #state{net_module = NetModule}) ->
 %% @hidden
 code_change(_Old, State, _Extra) ->
   {ok, State}.
+
+process_op_msg_request(Request, From, State) ->
+  #state{socket = Socket,
+    request_storage = RequestStorage,
+    conn_state = CS,
+    net_module = NetModule,
+    next_req_fun = Next} = State,
+  Database = CS#conn_state.database,
+  {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
+  UState = need_hibernate(PacketSize, State),
+  case get_op_msg_write_concern(Request) of
+    {_, {<<"w">>, 0}} -> %no concern request
+      Next(),
+      {reply,
+        #op_msg_response{response_doc = #{<<"ok">> => 1.0}},
+        UState};
+    _ ->  %ordinary request with response
+      Next(),
+      RespFun = mc_worker_logic:get_resp_fun(Request, From),  % save function, which will be called on response
+      URStorage = RequestStorage#{Id => RespFun},
+      {noreply, UState#state{request_storage = URStorage}}
+  end.
+
+get_op_msg_write_concern(#op_msg_write_op{extra_fields = ExtraFields}) ->
+  case lists:keyfind(<<"writeConcern">>, 1, ExtraFields) of
+    {_, WC} -> WC;
+    _ -> not_found
+  end;
+get_op_msg_write_concern(#op_msg_command{command_doc = DocList}) ->
+  case lists:keyfind(<<"writeConcern">>, 1, DocList) of
+    {_, WC} -> WC;
+    _ -> not_found
+  end.
 
 %% @private
 process_read_request(Request, From, State) ->

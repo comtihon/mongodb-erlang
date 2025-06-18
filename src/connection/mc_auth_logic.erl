@@ -36,7 +36,7 @@ auth(Connection, _, Database, Login, Password) ->   %old authorisation
 
 
 %% @private
--spec mongodb_cr_auth(pid(), binary(), binary(), binary()) -> boolean().
+-spec mongodb_cr_auth(pid(), binary(), binary(), binary()) -> boolean() | no_return().
 mongodb_cr_auth(Connection, Database, Login, Password) ->
   {true, Res} = mc_connection_man:database_command(Connection, Database, {<<"getnonce">>, 1}),
   Nonce = maps:get(<<"nonce">>, Res),
@@ -46,7 +46,7 @@ mongodb_cr_auth(Connection, Database, Login, Password) ->
   end.
 
 %% @private
--spec scram_sha_1_auth(port(), binary(), binary(), binary()) -> boolean().
+-spec scram_sha_1_auth(pid(), database(), binary(), binary()) -> boolean().
 scram_sha_1_auth(Connection, Database, Login, Password) ->
   try
     scram_first_step(Connection, Database, Login, Password)
@@ -124,9 +124,14 @@ generate_sig(SaltedPassword, AuthMessage) ->
   mc_utils:hmac(ServerKey, AuthMessage).
 
 %% @private
+-if(?OTP_RELEASE >= 24).
+hi(Password, Salt, Iterations) ->
+  crypto:pbkdf2_hmac(sha, Password, Salt, Iterations, 20).
+-else.
 hi(Password, Salt, Iterations) ->
   {ok, Key} = pbkdf2:pbkdf2(sha, Password, Salt, Iterations, 20),
   Key.
+-endif.
 
 %% @private
 xorKeys(<<>>, _, Res) -> Res;

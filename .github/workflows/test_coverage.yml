@@ -7,11 +7,11 @@ on:
 
 jobs:
   test_coverage:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     container:
-      image: erlang:23
+      image: erlang:24
     steps:
-      - uses: actions/checkout@v2.0.0
+      - uses: actions/checkout@v4
       - run: ./scripts/install_mongo_debian.sh 5.0.2
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
@@ -19,27 +19,27 @@ jobs:
       - run: ./rebar3 ct --cover --cover_export_name ct.coverdata
       - run: rebar3 cover --verbose
       - name: Archive Replica Set Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: mongodb_replica_set_logs
           path: rs0-logs
           retention-days: 1
       - name: Archive Single Node Log
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: single_node.log
           path: single_node.log
           retention-days: 1
       - name: Coverage Report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: Coverage Report
           path: _build/test/cover/
           retention-days: 5
       - name: CT Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ct_logs
           path: _build/test/logs/

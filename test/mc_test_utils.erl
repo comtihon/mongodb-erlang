@@ -10,11 +10,12 @@
 -author("tihon").
 
 %% API
--export([collection/1]).
+-export([collection/2]).
 
-collection(Case) ->
+collection(Mod, Case) ->
   Now = now_to_seconds(os:timestamp()),
   <<(atom_to_binary(?MODULE, utf8))/binary, $-,
+    (atom_to_binary(Mod, utf8))/binary, $-,
     (atom_to_binary(Case, utf8))/binary, $-,
     (list_to_binary(integer_to_list(Now)))/binary>>.
 
