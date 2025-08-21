@@ -1,7 +1,6 @@
 This is the [MongoDB](https://www.mongodb.org/) driver for Erlang.
 
-[![Run tests](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml/badge.svg)](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml)
-[![Enot](https://enot.justtech.blog/badge?full_name=comtihon/mongodb-erlang)](https://enot.justtech.blog)
+[![Run tests](https://github.com/raxdcx/mongodb-erlang/actions/workflows/test.yml/badge.svg)](https://github.com/raxdcx/mongodb-erlang/actions/workflows/test.yml)
 
 ### Usage
 Add this repo as the dependency:
