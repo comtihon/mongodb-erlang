@@ -153,10 +153,15 @@ maybe_recheck(_, Topology, Server, ConnectArgs, HB_MS, MinHB_MS) ->
 check(ConnectArgs, Server) ->
   Start = os:timestamp(),
   {ok, Conn} = mc_worker_api:connect(ConnectArgs),
-  {true, IsMaster} = mc_worker_api:command(Conn, {isMaster, 1}),
+  {true, IsMaster} = is_master_check(mc_utils:use_legacy_protocol(Conn), Conn),
   Finish = os:timestamp(),
   mc_worker_api:disconnect(Conn),
   {monitor_ismaster, Server, IsMaster, timer:now_diff(Finish, Start)}.
+
+is_master_check(true, Connection) ->
+  mc_worker_api:command(Connection, {isMaster, 1});
+is_master_check(false, Connection) ->
+  mc_worker_api:command(Connection, {hello, 1}).
 
 %% @private
 do_timeout(Pid, TO) when TO > 0 ->

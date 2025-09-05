@@ -7,37 +7,37 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        erlang: [22, 23]
+        erlang: [24, 25]
         mongodb: ["4.4.8", "5.0.2"]
     container:
       image: erlang:${{ matrix.erlang }}
     steps:
-      - uses: actions/checkout@v2.0.0
+      - uses: actions/checkout@v4
       - run: ./scripts/install_mongo_debian.sh ${{ matrix.mongodb }}
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
       - run: ./rebar3 eunit
       - run: ./rebar3 ct
       - name: Archive Replica Set Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: mongodb_replica_set_logs
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-mongodb_replica_set_logs
           path: rs0-logs
           retention-days: 1
       - name: Archive Single Node Log
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: single_node.log
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-single_node.log
           path: single_node.log
           retention-days: 1
       - name: CT Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: ct_logs
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-ct_logs
           path: _build/test/logs/
           retention-days: 5

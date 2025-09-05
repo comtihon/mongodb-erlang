@@ -76,7 +76,7 @@
 | {password, binary()}
 | {w_mode, mc_worker_api:write_mode()}.
 -type readprefs() :: [readpref()].
--type readpref() :: #{rp_mode => readmode()}
+-type readpref() :: #{rp_mode => readmode()} | #{mode => binary()} | #{mode => binary(), tags => tuple()}
 |{rp_tags, [tuple()]}.
 -type reason() :: atom().
 

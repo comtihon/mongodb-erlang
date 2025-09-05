@@ -19,11 +19,12 @@
 -type reply() :: #reply{}.
 % message id
 -type requestid() :: integer().
--type message() :: notice() | request().
+-type message() :: notice() | request() | #op_msg_command{} | #op_msg_write_op{}.
 
 % RequestId expected to be in scope at call site
 -define(put_header(Opcode), ?put_int32(_RequestId), ?put_int32(0), ?put_int32(Opcode)).
 -define(get_header(Opcode, ResponseTo), ?get_int32(_RequestId), ?get_int32(ResponseTo), ?get_int32(Opcode)).
+-define(get_header_ignore_req_id(Opcode, ResponseTo), ?get_int32(_), ?get_int32(ResponseTo), ?get_int32(Opcode)).
 
 -define(ReplyOpcode, 1).
 -define(UpdateOpcode, 2001).
@@ -32,7 +33,14 @@
 -define(GetmoreOpcode, 2005).
 -define(DeleteOpcode, 2006).
 -define(KillcursorOpcode, 2007).
+-define(OpMsgOpcode, 2013).
 
+-define(OpMsgDbFieldIndex, 4).
+
+-define (put_uint32 (N), (N):32/unsigned-little).
+-define (put_uint8 (N), (N):8/unsigned-little).
+-define (get_uint32 (N), N:32/unsigned-little).
+-define (get_uint8 (N), N:8/unsigned-little).
 
 -spec dbcoll(database(), colldb()) -> bson:utf8().
 
@@ -82,12 +90,56 @@ put_message(Db, #getmore{collection = Coll, batchsize = Batch, cursorid = Cid}, 
   ?put_int32(0),
   (bson_binary:put_cstring(dbcoll(Db, Coll)))/binary,
   ?put_int32(Batch),
-  ?put_int64(Cid)>>.
+  ?put_int64(Cid)>>;
+put_message(Db, #op_msg_write_op{} = OpMsg, _RequestId) ->
+  <<
+    ?put_header(?OpMsgOpcode),
+    ?put_uint32(0), % Flags
+    (put_section_type_zero(OpMsg#op_msg_write_op{database = make_bin(Db)}))/binary
+  >>;
+put_message(Db, #op_msg_command{} = OpMsg, _RequestId) ->
+  <<
+    ?put_header(?OpMsgOpcode),
+    ?put_uint32(0), % Flags
+    (put_section_type_zero(OpMsg#op_msg_command{database = make_bin(Db)}))/binary
+  >>.
 
+make_bin(Atom) when is_atom(Atom) ->
+  erlang:atom_to_binary(Atom, utf8);
+make_bin(Bin) ->
+  Bin.
+
+put_section_type_zero(#op_msg_command{
+  command_doc = Doc,
+  database = Database
+}) ->
+  <<
+    ?put_uint8(0),
+    (bson_binary:put_document(bson:merge(Doc, {<<"$db">>, Database})))/binary
+  >>;
+put_section_type_zero(#op_msg_write_op{
+  command = Command,
+  collection = Collection,
+  database = Database,
+  extra_fields = ExtraFields,
+  documents_name = DocumentsName,
+  documents = Documents
+}) ->
+  Msg = [
+    {erlang:atom_to_binary(Command), Collection},
+    {<<"$db">>, Database}
+  ] ++
+    ExtraFields
+    ++
+    [{DocumentsName, Documents}],
+  <<
+    ?put_uint8(0),
+    (bson_binary:put_document(bson:document(Msg)))/binary
+  >>.
 
 -spec get_reply(binary()) -> {requestid(), reply(), binary()}.
-get_reply(Message) ->
-  <<?get_header(?ReplyOpcode, ResponseTo),
+get_reply(<<?get_header(?ReplyOpcode, _), _/binary>> = Message) ->
+  <<?get_header_ignore_req_id(?ReplyOpcode, ResponseTo),
   ?get_bits32(_, _, _, _, AwaitCapable, _, QueryError, CursorNotFound),
   ?get_int64(CursorId),
   ?get_int32(StartingFrom),
@@ -102,7 +154,21 @@ get_reply(Message) ->
     startingfrom = StartingFrom,
     documents = Docs
   },
-  {ResponseTo, Reply, BinRest}.
+  {ResponseTo, Reply, BinRest};
+get_reply(<<?get_header(?OpMsgOpcode, _), _/binary>> = Message) ->
+  <<?get_int32(_RequestId_),
+    ?get_int32(ResponseTo),
+    ?get_uint32(?OpMsgOpcode),
+    ?get_uint32(_Flags),
+    Bin1/binary>> = Message,
+  %% For now assume the sequence type is zero
+  <<?get_uint8(0), % Sequence type
+    Bin2/binary>> = Bin1,
+  {Doc, Rest} = bson_binary:get_map(Bin2),
+  Reply = #op_msg_response{
+    response_doc = Doc
+  },
+  {ResponseTo, Reply, Rest}.
 
 -spec binarize(binary() | atom()) -> binary().
 %@doc Ensures the given term is converted to a UTF-8 binary.

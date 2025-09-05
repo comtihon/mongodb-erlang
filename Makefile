@@ -40,7 +40,7 @@ report-rebar3-version:
 
 # Dialyzer.
 .$(PROJECT).plt: 
-	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt -r deps \
+	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt -r _build/default/lib/ \
 		--apps erts kernel stdlib sasl inets crypto public_key ssl mnesia syntax_tools asn1
 
 clean-plt: 
@@ -48,8 +48,8 @@ clean-plt:
 
 build-plt: clean-plt .$(PROJECT).plt
 
-dialyze: .$(PROJECT).plt
-	@$(DIALYZER) -I include -I deps --src -r src --plt .$(PROJECT).plt --no_native \
-		-Werror_handling -Wrace_conditions -Wunmatched_returns
+dialyzer: .$(PROJECT).plt
+	@$(DIALYZER) -I include -I _build/default/lib/ --src -r src --plt .$(PROJECT).plt --no_native \
+		-Werror_handling -Wrace_conditions -Wunmatched_returns --get_warnings
 
-.PHONY: deps clean-plt build-plt dialyze report-rebar3-version
+.PHONY: deps clean-plt build-plt dialyzer report-rebar3-version

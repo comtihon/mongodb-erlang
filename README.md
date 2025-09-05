@@ -1,7 +1,6 @@
 This is the [MongoDB](https://www.mongodb.org/) driver for Erlang.
 
-[![Run tests](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml/badge.svg)](https://github.com/comtihon/mongodb-erlang/actions/workflows/test.yml)
-[![Enot](https://enot.justtech.blog/badge?full_name=comtihon/mongodb-erlang)](https://enot.justtech.blog)
+[![Run tests](https://github.com/raxdcx/mongodb-erlang/actions/workflows/test.yml/badge.svg)](https://github.com/raxdcx/mongodb-erlang/actions/workflows/test.yml)
 
 ### Usage
 Add this repo as the dependency:
@@ -43,9 +42,30 @@ If you are choosing between using
 [mongos](https://docs.mongodb.com/manual/reference/program/mongos/) and
 using mongo shard with `mongo_api` - prefer mongos and use `mc_worker_api`.
 
+In MongoDB 3.6, the `OP_MSG` and `OP_COMPRESSED` opcodes were added to the wired
+message protocol. `OP_MSG` was added to standardize the MongoDB message format,
+and `OP_COMPRESSED` takes things a step further by compressing the message to increase
+network efficiency. As of MongoDB 5.1, the old opcodes were deprecated, and all
+messages are sent with either `OP_MSG` or `OP_COMPRESSED`. 
+
+By default, this driver tries to automatically detect which MongoDB messaging protocol
+to use - the legacy one that existed before the `OP_MSG` opcode was introduced, or the
+modern messaging protocol based on `OP_MSG`. This is accomplished by setting the default
+value for the `use_legacy_protocol` env variable to `auto`. One can force the driver to
+use the legacy opcodes or the `OP_MSG`opcode by setting the application env
+`use_legacy_protocol` to `true` or `false` (for example by calling
+`application:set_env(mongodb, use_legacy_protocol, false)`).
+
+It's also possible to define the usage of legacy protocol on a per-connection basis.
+Simple pass `{use_legacy_protocol, false | true}` to mc_worker start options.
+
+As the `OP_MSG` opcode has existed in MongoDB since 3.6, and the driver defaults to auto-
+detecting which set of opcodes to use, ALL of the messages will be sent using the `OP_MSG`
+opcode if you are using a version for MongoDB greater 3.6 unless you explicitly set the
+`use_legacy_protocol` variable to `true`.
+
 mc_worker_api -- direct connection client
 ---------------------------------
-
 ### Connecting
 To connect to a database `test` on mongodb server listening on
 `localhost:27017` (or any address & port of your choosing)

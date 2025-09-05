@@ -33,7 +33,7 @@ end_per_suite(_Config) ->
 
 init_per_testcase(Case, Config) ->
   {ok, Connection} = mc_worker_api:connect([{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}, {w_mode, safe}]),
-  [{connection, Connection}, {collection, mc_test_utils:collection(Case)} | Config].
+  [{connection, Connection}, {collection, mc_test_utils:collection(?MODULE, Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
   Connection = ?config(connection, Config),

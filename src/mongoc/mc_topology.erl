@@ -218,12 +218,16 @@ parse_ismaster(Server, IsMaster, RTT, State = #topology_state{servers = Tab}) ->
     arbiters = maps:get(<<"arbiters">>, IsMaster, []),
     electionId = maps:get(<<"electionId">>, IsMaster, undefined),
     primary = maps:get(<<"primary">>, IsMaster, undefined),
-    ismaster = maps:get(<<"ismaster">>, IsMaster, undefined),
+    ismaster = is_master(IsMaster),
     secondary = maps:get(<<"secondary">>, IsMaster, undefined)
   },
   ets:insert(Tab, ToUpdate),
   mc_server:update_ismaster(ToUpdate#mc_server.pid, {SType, ToUpdate}),
   mc_topology_logics:update_topology_state(ToUpdate, State).
+
+is_master(#{<<"ismaster">> := V} = _IsMaster) -> V;
+is_master(#{<<"isWritablePrimary">> := V} = _IsMaster) -> V;
+is_master(_) -> undefined.
 
 %% @private
 parse_rtt(_, undefined, RTT) -> {RTT, RTT};
@@ -234,7 +238,11 @@ parse_rtt(OldRTT, CurRTT, RTT) ->
 %% @private
 server_type(#{<<"ismaster">> := true, <<"secondary">> := false, <<"setName">> := _}) ->
   rsPrimary;
+server_type(#{<<"isWritablePrimary">> := true, <<"secondary">> := false, <<"setName">> := _}) ->
+  rsPrimary;
 server_type(#{<<"ismaster">> := false, <<"secondary">> := true, <<"setName">> := _}) ->
+  rsSecondary;
+server_type(#{<<"isWritablePrimary">> := false, <<"secondary">> := true, <<"setName">> := _}) ->
   rsSecondary;
 server_type(#{<<"arbiterOnly">> := true, <<"setName">> := _}) ->
   rsArbiter;
@@ -246,6 +254,8 @@ server_type(#{<<"msg">> := <<"isdbgrid">>}) ->
   mongos;
 server_type(#{<<"isreplicaset">> := true}) ->
   rsGhost;
+server_type(#{<<"isWritablePrimary">> := true}) ->
+  standalone;
 server_type(#{<<"ok">> := _}) ->
   unknown;
 server_type(_) ->
