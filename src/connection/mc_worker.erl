@@ -84,7 +84,7 @@ handle_call(CMD = #ensure_index{collection = Coll, index_spec = IndexSpec}, _, S
     mc_worker_logic:make_request(
       Socket,
       NetModule,
-      ConnState#conn_state.database,
+      DB,
       #insert{collection = mc_worker_logic:update_dbcoll(Coll, <<"system.indexes">>), documents = [Index]}),
   {reply, ok, State};
 handle_call(Request, From, State) when ?OP_MSG(Request) ->  % MongoDB OpMsg request
