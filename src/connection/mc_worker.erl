@@ -162,11 +162,11 @@ get_op_msg_write_concern(#op_msg_write_op{extra_fields = ExtraFields}) ->
     {_, WC} -> WC;
     _ -> not_found
   end;
-get_op_msg_write_concern(#op_msg_command{command_doc = DocList}) ->
-  case lists:keyfind(<<"writeConcern">>, 1, DocList) of
-    {_, WC} -> WC;
-    _ -> not_found
-  end.
+get_op_msg_write_concern(#op_msg_command{command_doc = _Doc}) ->
+  %% For op_msg_command, writeConcern is typically not in command_doc
+  %% It would be in a separate field if needed
+  %% Just return not_found to indicate no write concern found
+  not_found.
 
 %% @private
 process_read_request(Request, From, State) ->

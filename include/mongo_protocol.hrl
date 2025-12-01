@@ -61,7 +61,7 @@
 
 -record(op_msg_command, {
   database :: undefined | mc_worker_api:database(),
-  command_doc :: bson:document() | nonempty_list({binary(),any()})
+  command_doc :: bson:document() | nonempty_list({binary(),any()}) | map()
 }).
 
 -record(getmore, {

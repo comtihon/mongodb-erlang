@@ -15,13 +15,20 @@
 -dialyzer({no_fail_call, query_to_op_msg_cmd/2}).
 
 -define(NOT_MASTER_ERROR, 13435).
--define(UNAUTHORIZED_ERROR(C), C =:= 10057; C =:= 16550).
+-define(UNAUTHORIZED_ERROR(C), C =:= 13; C =:= 10057; C =:= 16550).
 
 %% API
 -export([request_worker/2, process_reply/2]).
 -export([read/2, read/3, read_one/2]).
 -export([op_msg/2, op_msg_read_one/2, op_msg_raw_result/2]).
 -export([command/2, command/3, database_command/3, database_command/4, request_raw_no_parse/4]).
+
+%% Exported for testing
+-ifdef(TEST).
+-export([normalize_map_values/1]).
+-endif.
+
+
 
 -spec read(pid() | atom(), query()) -> [] | {ok, pid()}.
 read(Connection, Request) -> read(Connection, Request, undefined).
@@ -86,20 +93,69 @@ query_to_op_msg_cmd(true, Query) ->
   Query#query{batchsize = -1};
 query_to_op_msg_cmd(false, Query) ->
   #query{database = DB, slaveok = SlaveOk, selector = Selector} = Query,
-  Fields = bson:fields(Selector),
-  NewSelector =
-    case {lists:keyfind(<<"$readPreference">>, 1, Fields), SlaveOk} of
-      {{<<"$readPreference">>, _}, _} -> Selector;
-      {false, true} ->
-        bson:merge(Fields, {<<"$readPreference">>, #{<<"mode">> => <<"primaryPreferred">>}});
-      {false, false} ->
-        %% primary is the default mode so we do not need to change anything
-        Fields
-    end,
+  %% Handle maps and BSON documents differently for MongoDB 6.0+ compatibility
+  NewSelector = case Selector of
+    S when is_map(S) ->
+      %% For maps, normalize any tuple values to maps (MongoDB 6.0+ compatibility)
+      %% This handles cases where application code passes tuples like {key, value}
+      NormalizedMap = normalize_map_values(S),
+      %% Check if $readPreference is already present
+      case {maps:is_key(<<"$readPreference">>, NormalizedMap), SlaveOk} of
+        {true, _} -> NormalizedMap;  %% Already has $readPreference
+        {false, true} ->
+          %% Add $readPreference for slave reads
+          NormalizedMap#{<<"$readPreference">> => #{<<"mode">> => <<"primaryPreferred">>}};
+        {false, false} ->
+          %% Primary is default, no change needed
+          NormalizedMap
+      end;
+    _ ->
+      %% For BSON documents (tuples), use the original logic
+      Fields = bson:fields(Selector),
+      case {lists:keyfind(<<"$readPreference">>, 1, Fields), SlaveOk} of
+        {{<<"$readPreference">>, _}, _} -> Selector;
+        {false, true} ->
+          bson:merge(Fields, bson:document([{<<"$readPreference">>, #{<<"mode">> => <<"primaryPreferred">>}}]));
+        {false, false} ->
+          Fields
+      end
+  end,
   #'op_msg_command'{
     database = DB,
     command_doc = NewSelector
   }.
+
+%% @private
+%% Normalize map values by converting plain tuples to maps
+%% This handles MongoDB 6.0+ compatibility where nested tuples in maps cause issues
+normalize_map_values(Map) when is_map(Map) ->
+  maps:map(fun(_K, V) -> normalize_value(V) end, Map).
+
+%% @private
+normalize_value({}) -> #{};  %% Empty tuple -> empty map
+normalize_value({K, V}) when is_atom(K); is_binary(K) ->
+  %% Single key-value tuple -> map
+  Key = if is_atom(K) -> atom_to_binary(K, utf8); true -> K end,
+  #{Key => normalize_value(V)};
+normalize_value(V) when is_map(V) ->
+  %% Recursively normalize nested maps
+  normalize_map_values(V);
+normalize_value(V) when is_list(V) ->
+  %% Check if it's a proplist or just a list
+  case is_proplist(V) of
+    true -> maps:from_list([{ensure_binary(K), normalize_value(Val)} || {K, Val} <- V]);
+    false -> V  %% Regular list, leave as-is
+  end;
+normalize_value(V) -> V.  %% Other values pass through unchanged
+
+%% @private
+is_proplist([]) -> true;
+is_proplist([{K, _V} | Rest]) when is_atom(K); is_binary(K) -> is_proplist(Rest);
+is_proplist(_) -> false.
+
+%% @private
+ensure_binary(A) when is_atom(A) -> atom_to_binary(A, utf8);
+ensure_binary(B) when is_binary(B) -> B.
 
 command(Connection, Command, _IsSlaveOk = true) ->
   command(Connection,
@@ -217,6 +273,10 @@ reply(#op_msg_response{response_doc = (#{<<"cursor">> := #{<<"firstBatch">> := B
   {Id, Batch};
 reply(#op_msg_response{response_doc = Document}) when map_get(<<"ok">>, Document) == 1 ->
   Document;
+reply(#op_msg_response{response_doc = Document}) ->
+  %% Handle error responses (ok != 1)
+  Code = maps:get(<<"code">>, Document, unknown_error),
+  process_error(Code, Document);
 reply(Resp) ->
   erlang:error({error_cannot_parse_response, Resp}).
 

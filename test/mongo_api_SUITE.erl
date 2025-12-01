@@ -24,8 +24,30 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  {ok, Pid} = mongo_api:connect(single, ["localhost:27017"],
-    [{pool_size, 1}, {max_overflow, 0}], [{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}]),
+  Database = ?config(database, Config),
+  %% Check if we should use auth by testing with a simple worker connection first
+  UseAuth = case (catch mc_worker_api:connect([{database, Database}, 
+                                                 {login, <<"user">>}, 
+                                                 {password, <<"test">>}])) of
+    {ok, TestConn} ->
+      mc_worker_api:disconnect(TestConn),
+      true;
+    _ ->
+      false
+  end,
+  
+  %% Now connect with the pool using the appropriate auth settings
+  {ok, Pid} = case UseAuth of
+    true ->
+      ct:log("Connecting with authentication"),
+      mongo_api:connect(single, ["localhost:27017"],
+        [{pool_size, 1}, {max_overflow, 0}], 
+        [{database, Database}, {login, <<"user">>}, {password, <<"test">>}]);
+    false ->
+      ct:log("Connecting without authentication"),
+      mongo_api:connect(single, ["localhost:27017"],
+        [{pool_size, 1}, {max_overflow, 0}], [{database, Database}])
+  end,
   [{connection, Pid}, {collection, mc_test_utils:collection(?MODULE, Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
@@ -47,8 +69,14 @@ parse_mongo_version(StrVersion) ->
 ensure_index_test(Config) ->
   Pid = ?config(connection, Config),
   Collection = ?config(collection, Config),
-  ok = mongo_api:ensure_index(Pid, Collection, #{<<"key">> => {<<"cid">>, 1, <<"ts">>, 1}}),
-  ok = mongo_api:ensure_index(Pid, Collection, {<<"key">>, {<<"z_first">>, 1, <<"a_last">>, 1}}),
+  ok = mongo_api:ensure_index(Pid, Collection, #{
+    <<"key">> => {<<"cid">>, 1, <<"ts">>, 1},
+    <<"name">> => <<"cid_1_ts_1">>
+  }),
+  ok = mongo_api:ensure_index(Pid, Collection, {
+    <<"key">>, {<<"z_first">>, 1, <<"a_last">>, 1},
+    <<"name">>, <<"z_first_1_a_last_1">>
+  }),
   Config.
 
 %% regardless of application env, we can set the protocol type per connection

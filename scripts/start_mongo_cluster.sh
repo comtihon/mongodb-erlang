@@ -13,6 +13,13 @@ echo "notsosecretkey" > rs0-key/key
 # MongoDB won't start if the replica set shared key is world-writable
 chmod 600 rs0-key/key
 
+# Use mongosh if available (MongoDB 6.0+), otherwise use mongo
+if command -v mongosh &> /dev/null; then
+  MONGO_SHELL="mongosh"
+else
+  MONGO_SHELL="mongo"
+fi
+
 echo "Starting replica set nodes"
 mongod --replSet rs0 --port 27018 --bind_ip localhost --dbpath rs0-0 --oplogSize 128 >> rs0-logs/rs0-0.log.txt &
 mongod --replSet rs0 --port 27019 --bind_ip localhost --dbpath rs0-1 --oplogSize 128 >> rs0-logs/rs0-1.log.txt &
@@ -27,17 +34,17 @@ timeout 5m sh -c 'until nc -z localhost 27020; do sleep 1; done'
 
 # Create a replica set from the three nodes
 echo "Initiating replica set config"
-mongo --port 27018 admin --eval 'rs.initiate(
+$MONGO_SHELL --port 27018 admin --eval 'rs.initiate(
       {"_id": "rs0", "members": [
       {"_id": 0, "host": "localhost:27018"},
       {"_id": 1, "host": "localhost:27019"},
       {"_id": 2, "host": "localhost:27020"}]})'
 
 echo "Waiting for replica set to come up"
-timeout 1m sh -c "until mongo --quiet --host rs0/localhost:27018,localhost:27019,localhost:27020 admin --eval 'rs.status()'; do sleep 1; done"
+timeout 1m sh -c "until $MONGO_SHELL --quiet --host rs0/localhost:27018,localhost:27019,localhost:27020 admin --eval 'rs.status()'; do sleep 1; done"
 
 # Add a user for authentication
-mongo --host rs0/localhost:27018,localhost:27019,localhost:27020 \
+$MONGO_SHELL --host rs0/localhost:27018,localhost:27019,localhost:27020 \
       admin \
       --eval 'db.createUser(
                 {user: "rs_user",
@@ -63,8 +70,12 @@ timeout 5m sh -c 'until nc -z localhost 27019; do sleep 1; done'
 echo "Waiting on MongoDB to restart on 27020"
 timeout 5m sh -c 'until nc -z localhost 27020; do sleep 1; done'
 
+# Wait for replica set to stabilize with auth - retry with longer timeout
+echo "Waiting for authenticated replica set to stabilize"
+timeout 2m sh -c "until $MONGO_SHELL --host rs0/localhost:27018,localhost:27019,localhost:27020 --username rs_user --password rs_test --authenticationDatabase admin --eval 'rs.status()' > /dev/null 2>&1; do sleep 2; done"
+
 # Verify that we can auth to the restarted replica set
-mongo --host rs0/localhost:27018,localhost:27019,localhost:27020 \
+$MONGO_SHELL --host rs0/localhost:27018,localhost:27019,localhost:27020 \
       --username rs_user \
       --password rs_test \
       --authenticationDatabase admin \

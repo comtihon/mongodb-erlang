@@ -63,7 +63,12 @@ connect(Args) ->  % TODO args as map
   Password = mc_utils:get_value(password, Args),
   case (Login /= undefined) and (Password /= undefined) of
     true ->
-      AuthSource = mc_utils:get_value(auth_source, Args, <<"admin">>),
+      AuthSourceRaw = mc_utils:get_value(auth_source, Args, <<"admin">>),
+      % Ensure auth_source is a binary (convert atom to binary if needed)
+      AuthSource = case is_atom(AuthSourceRaw) of
+        true -> atom_to_binary(AuthSourceRaw, utf8);
+        false -> AuthSourceRaw
+      end,
       Version = get_version(Connection),
       mc_auth_logic:auth(Connection, Version, AuthSource, Login, Password);
     false -> ok
@@ -419,8 +424,8 @@ fixed_query(false, Query) ->
 batch_size(true, _BatchSize) -> [];
 batch_size(false, BatchSize) -> [{<<"batchSize">>, BatchSize}].
 
-single_batch(true) -> [];
-single_batch(false = SingleBatch) -> [{<<"singleBatch">>, SingleBatch}].
+single_batch(true) -> [{<<"singleBatch">>, true}];
+single_batch(false) -> [].
 
 sort_field(OrderBy) when is_map(OrderBy), map_size(OrderBy) =:= 0 -> [];
 sort_field(OrderBy) -> [{<<"sort">>, OrderBy}].
@@ -478,7 +483,11 @@ ensure_index(Connection, Coll, IndexSpec, DB) ->
 ensure_index(true, Connection, Coll, IndexSpec, DB) ->
   mc_connection_man:request_worker(Connection, #ensure_index{database = DB, collection = Coll, index_spec = IndexSpec});
 ensure_index(false, Connection, Coll, IndexSpec, DB) ->
-  command(DB, Connection, {<<"createIndexes">>, Coll, <<"indexes">>, IndexSpec}).
+  %% MongoDB createIndexes command requires indexes to be an array
+  case command(DB, Connection, {<<"createIndexes">>, Coll, <<"indexes">>, [IndexSpec]}) of
+    {true, _Result} -> ok;
+    {false, Error} -> {error, Error}
+  end.
 
 %% @doc Execute given MongoDB command and return its result.
 -spec command(pid(), selector()) -> {boolean(), map()} | {ok, cursor()}.

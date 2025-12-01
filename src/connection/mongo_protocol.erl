@@ -98,11 +98,19 @@ put_message(Db, #op_msg_write_op{} = OpMsg, _RequestId) ->
     (put_section_type_zero(OpMsg#op_msg_write_op{database = make_bin(Db)}))/binary
   >>;
 put_message(Db, #op_msg_command{} = OpMsg, _RequestId) ->
-  <<
-    ?put_header(?OpMsgOpcode),
-    ?put_uint32(0), % Flags
-    (put_section_type_zero(OpMsg#op_msg_command{database = make_bin(Db)}))/binary
-  >>.
+  try
+    Section = put_section_type_zero(OpMsg#op_msg_command{database = make_bin(Db)}),
+    <<
+      ?put_header(?OpMsgOpcode),
+      ?put_uint32(0), % Flags
+      Section/binary
+    >>
+  catch
+    error:Reason:Stacktrace ->
+      error_logger:error_msg("put_message failed for op_msg_command:~nOpMsg: ~p~nReason: ~p~nStacktrace: ~p~n",
+                             [OpMsg, Reason, Stacktrace]),
+      error({put_message_failed, Reason, OpMsg})
+  end.
 
 make_bin(Atom) when is_atom(Atom) ->
   erlang:atom_to_binary(Atom, utf8);
@@ -113,9 +121,29 @@ put_section_type_zero(#op_msg_command{
   command_doc = Doc,
   database = Database
 }) ->
+  %% Doc can be a bson:document() (tuple), a list of key-value pairs, or a map
+  %% Add $db field based on the input type
+  DocWithDb = if
+    is_tuple(Doc) ->
+      %% BSON document tuple - use bson:append
+      bson:append(Doc, bson:document([{<<"$db">>, Database}]));
+    is_map(Doc) ->
+      %% Map - convert to list, add $db at end, convert to BSON document
+      %% This ensures the command field stays first (MongoDB requires this)
+      DocList = maps:to_list(Doc),
+      bson:document(DocList ++ [{<<"$db">>, Database}]);
+    is_list(Doc) ->
+      %% List of key-value pairs - append $db and convert to BSON document
+      bson:document(Doc ++ [{<<"$db">>, Database}]);
+    true ->
+      %% Defensive fallback - should never reach here based on type spec
+      %% but provides graceful handling if an unexpected type is passed
+      bson:document([{<<"$db">>, Database}])
+  end,
+  DocBinary = bson_binary:put_document(DocWithDb),
   <<
     ?put_uint8(0),
-    (bson_binary:put_document(bson:merge(Doc, {<<"$db">>, Database})))/binary
+    DocBinary/binary
   >>;
 put_section_type_zero(#op_msg_write_op{
   command = Command,

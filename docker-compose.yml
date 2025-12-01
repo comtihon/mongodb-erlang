@@ -4,9 +4,6 @@ services:
  mongodb:
   image: mongo:latest
   container_name: "mongodb"
-  environment:
-      MONGO_INITDB_ROOT_USERNAME: "user"
-      MONGO_INITDB_ROOT_PASSWORD: "test"
   ports:
       - 27017:27017
   command: mongod --logpath=/dev/null

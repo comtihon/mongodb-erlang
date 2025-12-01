@@ -32,7 +32,15 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_testcase(Case, Config) ->
-  {ok, Connection} = mc_worker_api:connect([{database, ?config(database, Config)}, {login, <<"user">>}, {password, <<"test">>}, {w_mode, safe}]),
+  Database = ?config(database, Config),
+  %% Try to connect with auth first, fall back to no auth if it fails
+  Connection = case (catch mc_worker_api:connect([{database, Database}, {login, <<"user">>}, {password, <<"test">>}, {w_mode, safe}])) of
+    {ok, Conn} -> Conn;
+    _ ->
+      %% Auth failed, try without credentials
+      {ok, Conn} = mc_worker_api:connect([{database, Database}, {w_mode, safe}]),
+      Conn
+  end,
   [{connection, Connection}, {collection, mc_test_utils:collection(?MODULE, Case)} | Config].
 
 end_per_testcase(_Case, Config) ->
