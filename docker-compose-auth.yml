@@ -1,0 +1,15 @@
+version: '3.1'
+
+services:
+  mongodb-auth:
+    image: mongo:6.0
+    container_name: "mongodb-auth"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: admin
+    ports:
+      - 27021:27017
+    volumes:
+      - ./test/mongo-init-auth.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    command: mongod --auth --logpath=/dev/null

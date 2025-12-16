@@ -10,8 +10,21 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        erlang: [24, 25]
-        mongodb: ["4.4.8", "5.0.2"]
+        include:
+          # Erlang 24 & 25: Test MongoDB 5.0 and 6.0 (use older Debian with libssl1.1)
+          - erlang: 24
+            mongodb: "5.0.2"
+          - erlang: 24
+            mongodb: "6.0.16"
+          - erlang: 25
+            mongodb: "5.0.2"
+          - erlang: 25
+            mongodb: "6.0.16"
+          # Erlang 26: Test MongoDB 6.0 and 7.0 (Debian Bookworm, uses Ubuntu packages with libssl3)
+          - erlang: 26
+            mongodb: "6.0.16"
+          - erlang: 26
+            mongodb: "7.0.12"
     container:
       image: erlang:${{ matrix.erlang }}
     steps:
@@ -19,6 +32,7 @@ jobs:
       - run: ./scripts/install_mongo_debian.sh ${{ matrix.mongodb }}
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
+      - run: ./scripts/start_mongo_auth.sh
       - run: ./rebar3 eunit
       - run: ./rebar3 ct
       - name: Archive Replica Set Logs

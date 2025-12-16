@@ -8,11 +8,28 @@ on:
 jobs:
   test_coverage:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          # Erlang 24 & 25: Test MongoDB 5.0 and 6.0 (use older Debian with libssl1.1)
+          - erlang: 24
+            mongodb: "5.0.2"
+          - erlang: 24
+            mongodb: "6.0.16"
+          - erlang: 25
+            mongodb: "5.0.2"
+          - erlang: 25
+            mongodb: "6.0.16"
+          # Erlang 26: Test MongoDB 6.0 and 7.0 (Debian Bookworm, uses Ubuntu packages with libssl3)
+          - erlang: 26
+            mongodb: "6.0.16"
+          - erlang: 26
+            mongodb: "7.0.12"
     container:
-      image: erlang:24
+      image: erlang:${{ matrix.erlang }}
     steps:
       - uses: actions/checkout@v4
-      - run: ./scripts/install_mongo_debian.sh 5.0.2
+      - run: ./scripts/install_mongo_debian.sh ${{ matrix.mongodb }}
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
       - run: ./rebar3 eunit --cover --cover_export_name eunit.coverdata
@@ -22,25 +39,25 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: mongodb_replica_set_logs
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-mongodb_replica_set_logs
           path: rs0-logs
           retention-days: 1
       - name: Archive Single Node Log
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: single_node.log
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-single_node.log
           path: single_node.log
           retention-days: 1
       - name: Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: Coverage Report
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-coverage_report
           path: _build/test/cover/
           retention-days: 5
       - name: CT Logs
         uses: actions/upload-artifact@v4
         with:
-          name: ct_logs
+          name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-ct_logs
           path: _build/test/logs/
           retention-days: 5

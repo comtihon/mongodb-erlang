@@ -124,7 +124,7 @@ detect_protocol_type(auto, ConnectionOpts, NetModule, Database) ->
   %% * https://www.mongodb.com/docs/manual/reference/command/hello/#mongodb-dbcommand-dbcmd.hello
   %% * https://www.mongodb.com/docs/manual/reference/mongodb-wire-protocol/#std-label-wire-op-msg
   {ok, Socket} = mc_worker_logic:connect(ConnectionOpts),
-  Command = bson:fields({hello, 1}),
+  Command = bson:document([{hello, 1}]),
   Request = #op_msg_command{command_doc = Command, database = Database},
   try mc_connection_man:request_raw_no_parse(Socket, Database, Request, NetModule) of
     [{_, #op_msg_response{response_doc = #{<<"ok">> := _}}} | _] -> op_msg;

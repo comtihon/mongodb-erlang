@@ -159,9 +159,9 @@ check(ConnectArgs, Server) ->
   {monitor_ismaster, Server, IsMaster, timer:now_diff(Finish, Start)}.
 
 is_master_check(true, Connection) ->
-  mc_worker_api:command(Connection, {isMaster, 1});
+  mc_worker_api:command(Connection, bson:document([{isMaster, 1}]));
 is_master_check(false, Connection) ->
-  mc_worker_api:command(Connection, {hello, 1}).
+  mc_worker_api:command(Connection, bson:document([{hello, 1}])).
 
 %% @private
 do_timeout(Pid, TO) when TO > 0 ->

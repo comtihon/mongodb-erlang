@@ -94,10 +94,10 @@ encode_request(Database, Request) ->
 
 %% @private
 do_ensure_index(IndexSpec, Database, Collection, Key) ->
-  Defaults = {<<"name">>, gen_index_name(Key), <<"unique">>, false, <<"dropDups">>, false},
+  Defaults = [{<<"name">>, gen_index_name(Key)}, {<<"unique">>, false}, {<<"dropDups">>, false}],
   bson:update(<<"ns">>,
     mongo_protocol:dbcoll(Database, Collection),
-    bson:merge(IndexSpec, Defaults)).
+    bson:merge(IndexSpec, bson:document(Defaults))).
 
 %% @private
 gen_index_name(KeyOrder) ->
