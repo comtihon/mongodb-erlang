@@ -1,0 +1,62 @@
+name: Automatic version bump
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Increment version and push
+        env:
+          DEFAULT_BRANCH: master
+        run: |
+          set -euo pipefail
+
+          APP_SRC="src/mongodb.app.src"
+          ENOT_CONFIG="enot_config.json"
+
+          CURRENT_VERSION=$(sed -n 's/^[[:space:]]*{vsn, *"\([0-9]\+\.[0-9]\+\.[0-9]\+\)"}[,]*$/\1/p' "$APP_SRC")
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "Unable to find current version in $APP_SRC"
+            exit 1
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT_VERSION"
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+          sed -i 's/{vsn, *"[^"]*"}/{vsn, "'"$NEW_VERSION"'"}/' "$APP_SRC"
+
+          tmp_file=$(mktemp)
+          jq --arg v "$NEW_VERSION" '.app_vsn = $v' "$ENOT_CONFIG" > "$tmp_file"
+          mv "$tmp_file" "$ENOT_CONFIG"
+
+          git status --short
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add "$APP_SRC" "$ENOT_CONFIG"
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin HEAD:${DEFAULT_BRANCH}
+          git push origin "v$NEW_VERSION"
