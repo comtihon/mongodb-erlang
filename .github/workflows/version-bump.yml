@@ -57,6 +57,6 @@ jobs:
 
           git add "$APP_SRC" "$ENOT_CONFIG"
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
           git push origin HEAD:${DEFAULT_BRANCH}
           git push origin "v$NEW_VERSION"
