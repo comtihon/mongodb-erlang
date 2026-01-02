@@ -97,9 +97,13 @@ put_message(Db, #op_msg_write_op{} = OpMsg, _RequestId) ->
     ?put_uint32(0), % Flags
     (put_section_type_zero(OpMsg#op_msg_write_op{database = make_bin(Db)}))/binary
   >>;
-put_message(Db, #op_msg_command{} = OpMsg, _RequestId) ->
+put_message(Db, #op_msg_command{database = RecordDb} = OpMsg, _RequestId) ->
   try
-    Section = put_section_type_zero(OpMsg#op_msg_command{database = make_bin(Db)}),
+    ActualDb = case RecordDb of
+      undefined -> make_bin(Db);
+      _ -> make_bin(RecordDb)
+    end,
+    Section = put_section_type_zero(OpMsg#op_msg_command{database = ActualDb}),
     <<
       ?put_header(?OpMsgOpcode),
       ?put_uint32(0), % Flags

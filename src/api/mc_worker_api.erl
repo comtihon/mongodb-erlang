@@ -59,21 +59,32 @@ connect() ->
 -spec connect(args()) -> {ok, pid()}.
 connect(Args) ->  % TODO args as map
   {ok, Connection} = mc_worker:start_link(Args),
-  Login = mc_utils:get_value(login, Args),
-  Password = mc_utils:get_value(password, Args),
-  case (Login /= undefined) and (Password /= undefined) of
-    true ->
-      AuthSourceRaw = mc_utils:get_value(auth_source, Args, <<"admin">>),
-      % Ensure auth_source is a binary (convert atom to binary if needed)
-      AuthSource = case is_atom(AuthSourceRaw) of
-        true -> atom_to_binary(AuthSourceRaw, utf8);
-        false -> AuthSourceRaw
-      end,
+  authenticate(Connection, Args),
+  {ok, Connection}.
+
+%% @private
+authenticate(Connection, Args) ->
+  case mc_utils:get_value(auth_mechanism, Args) of
+    'MONGODB-X509' ->
+      mc_auth_logic:x509_auth(Connection, mc_utils:get_value(x509_subject, Args));
+    _ ->
+      scram_authenticate(Connection, Args)
+  end.
+
+%% @private
+scram_authenticate(Connection, Args) ->
+  case {mc_utils:get_value(login, Args), mc_utils:get_value(password, Args)} of
+    {Login, Password} when Login /= undefined, Password /= undefined ->
+      AuthSource = to_binary(mc_utils:get_value(auth_source, Args, <<"admin">>)),
       Version = get_version(Connection),
       mc_auth_logic:auth(Connection, Version, AuthSource, Login, Password);
-    false -> ok
-  end,
-  {ok, Connection}.
+    _ ->
+      ok
+  end.
+
+%% @private
+to_binary(A) when is_atom(A) -> atom_to_binary(A, utf8);
+to_binary(B) -> B.
 
 -spec disconnect(pid()) -> ok.
 disconnect(Connection) ->
