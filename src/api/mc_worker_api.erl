@@ -6,6 +6,23 @@
 -include("mongo_types.hrl").
 -include("mongo_protocol.hrl").
 
+-export_type([
+  args/0,
+  arg/0,
+  connection/0,
+  selector/0,
+  projector/0,
+  skip/0,
+  batchsize/0,
+  modifier/0,
+  write_mode/0,
+  read_mode/0,
+  cursorid/0,
+  database/0,
+  collection/0,
+  colldb/0
+]).
+
 -export([
   connect/0,
   connect/1,
