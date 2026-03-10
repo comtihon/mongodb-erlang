@@ -9,6 +9,7 @@
 -define(LOG_DEFAULT_DB, fun() -> error_logger:info_msg("Using default 'test' database"), <<"test">> end).
 
 -export([start_link/1, database/2, disconnect/1, hibernate/1]).
+-export_type([connection/0]).
 -export([
   init/1,
   handle_call/3,
@@ -18,6 +19,7 @@
   code_change/3]).
 
 -dialyzer({no_fail_call, get_op_msg_write_concern/1}).
+-type connection() :: pid().
 
 -record(state, {
   socket :: gen_tcp:socket() | ssl:sslsocket(),
@@ -68,10 +70,12 @@ init(Options) ->
               net_module = NetModule,
               next_req_fun = NextReqFun});
         {error, _} = Error ->
-          proc_lib:init_ack(Error)
+          proc_lib:init_ack(Error),
+          {stop, Error}
       end;
     Error ->
-      proc_lib:init_ack(Error)
+      proc_lib:init_ack(Error),
+      {stop, Error}
   end.
 
 handle_call(NewState, _, State = #state{conn_state = OldState}) when is_record(NewState, conn_state) ->  % update state, return old
