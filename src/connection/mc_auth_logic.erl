@@ -25,7 +25,7 @@
   }).
 
 %% API
--export([auth/5]).
+-export([auth/5, x509_auth/2, x509_auth/3]).
 
 %% Authorize on database synchronously
 -spec auth(pid(), float(), database(), binary() | undefined, binary() | undefined) -> boolean().
@@ -146,3 +146,27 @@ parse_server_responce(Response) ->
       [K, V] = binary:split(Param, <<"=">>),
       {K, V}
     end, ParamList).
+
+%% @private
+-spec x509_auth(pid(), binary() | undefined) -> boolean().
+x509_auth(Connection, Subject) ->
+  x509_auth(Connection, Subject, <<"$external">>).
+
+%% @private
+-spec x509_auth(pid(), binary() | undefined, binary()) -> boolean().
+x509_auth(Connection, Subject, Database) ->
+  try
+    Command = case Subject of
+      undefined ->
+        {<<"authenticate">>, 1, <<"mechanism">>, <<"MONGODB-X509">>};
+      _ when is_binary(Subject) ->
+        {<<"authenticate">>, 1, <<"mechanism">>, <<"MONGODB-X509">>, <<"user">>, Subject}
+    end,
+    case mc_connection_man:database_command(Connection, Database, Command) of
+      {true, _} -> true;
+      {false, Reason} -> erlang:error(Reason)
+    end
+  catch
+    _:_ ->
+      erlang:error(<<"X509 authentication failed">>)
+  end.

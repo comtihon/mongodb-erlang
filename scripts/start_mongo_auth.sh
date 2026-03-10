@@ -41,9 +41,9 @@ mongosh --port 27021 admin --eval "
   })
 " --quiet
 
-# Create test user
+# Create test user in admin database (so default auth_source works)
 echo "Creating test user..."
-mongosh --port 27021 -u admin -p admin123 --authenticationDatabase admin test --eval "
+mongosh --port 27021 -u admin -p admin123 --authenticationDatabase admin admin --eval "
   db.createUser({
     user: 'testuser',
     pwd: 'testpass',
