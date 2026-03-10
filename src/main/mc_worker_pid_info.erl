@@ -86,7 +86,7 @@ set_info(MCWorkerPID, InfoMap) ->
 discard_info(MCWorkerPID) ->
   ets:delete(?MC_WORKER_PID_INFO_TAB_NAME, MCWorkerPID).
 
-get_protocol_type(MCWorkerPID) ->
+get_protocol_type(MCWorkerPID) when is_pid(MCWorkerPID) ->
   case get_info(MCWorkerPID) of
     {ok, #{protocol_type := ProtocolType}} ->
       ProtocolType;
@@ -95,6 +95,11 @@ get_protocol_type(MCWorkerPID) ->
       %% mc_worker process was created before the hot_upgrade so we use
       %% the legacy protocol as this was what existed before
       legacy
+  end;
+get_protocol_type(Name) when is_atom(Name) ->
+  case whereis(Name) of
+    undefined -> legacy;
+    Pid -> get_protocol_type(Pid)
   end.
 
 %% This process should be called from mc_worker processes to install their info
