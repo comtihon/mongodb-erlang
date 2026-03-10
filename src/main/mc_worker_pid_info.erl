@@ -31,7 +31,7 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_) ->
-  ets:new(?MC_WORKER_PID_INFO_TAB_NAME, [public, named_table, {read_concurrency, true}]),
+  _ = ets:new(?MC_WORKER_PID_INFO_TAB_NAME, [public, named_table, {read_concurrency, true}]),
   {ok, start_cleanup_timer_update_state(#{})}.
 
 start_cleanup_timer_update_state(State) ->

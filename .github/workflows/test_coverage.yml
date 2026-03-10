@@ -32,9 +32,7 @@ jobs:
       - run: ./scripts/install_mongo_debian.sh ${{ matrix.mongodb }}
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
-      - run: ./rebar3 eunit --cover --cover_export_name eunit.coverdata
-      - run: ./rebar3 ct --cover --cover_export_name ct.coverdata
-      - run: rebar3 cover --verbose
+      - run: ./rebar3 ci_coverage
       - name: Archive Replica Set Logs
         uses: actions/upload-artifact@v4
         if: failure()

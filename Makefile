@@ -1,7 +1,5 @@
 PROJECT = mongodb
 
-DIALYZER = dialyzer
-
 all: app
 
 # Application.
@@ -27,7 +25,8 @@ clean-docs:
 	rm -f doc/edoc-info
 
 # Tests.
-tests: report-rebar3-version clean app eunit ct
+tests: report-rebar3-version clean app
+	./rebar3 ci_test
 
 eunit:
 	./rebar3 eunit skip_deps=true
@@ -35,21 +34,13 @@ eunit:
 ct: app
 	./rebar3 ct skip_deps=true
 
+coverage:
+	./rebar3 ci_coverage
+
 report-rebar3-version:
 	./rebar3 version
 
-# Dialyzer.
-.$(PROJECT).plt: 
-	@$(DIALYZER) --build_plt --output_plt .$(PROJECT).plt -r _build/default/lib/ \
-		--apps erts kernel stdlib sasl inets crypto public_key ssl mnesia syntax_tools asn1
+dialyzer:
+	./rebar3 ci_dialyzer
 
-clean-plt: 
-	rm -f .$(PROJECT).plt
-
-build-plt: clean-plt .$(PROJECT).plt
-
-dialyzer: .$(PROJECT).plt
-	@$(DIALYZER) -I include -I _build/default/lib/ --src -r src --plt .$(PROJECT).plt --no_native \
-		-Werror_handling -Wrace_conditions -Wunmatched_returns --get_warnings
-
-.PHONY: deps clean-plt build-plt dialyzer report-rebar3-version
+.PHONY: deps dialyzer report-rebar3-version coverage

@@ -33,8 +33,7 @@ jobs:
       - run: ./scripts/start_mongo_single_node.sh
       - run: ./scripts/start_mongo_cluster.sh
       - run: ./scripts/start_mongo_auth.sh
-      - run: ./rebar3 eunit
-      - run: ./rebar3 ct
+      - run: ./rebar3 ci_test
       - name: Archive Replica Set Logs
         uses: actions/upload-artifact@v4
         if: failure()
