@@ -28,12 +28,12 @@
   command/3,
   disconnect/1]).
 
--spec connect(atom(), list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()}.
+-spec connect(atom(), list(), proplists:proplist(), proplists:proplist()) -> {ok, pid()} | ignore | {error, term()}.
 connect(Type, Hosts, TopologyOptions, WorkerOptions) ->
   mongoc:connect({Type, Hosts}, TopologyOptions, WorkerOptions).
 
 -spec insert(atom() | pid(), collection(), list() | map() | bson:document()) ->
-  {{boolean(), map()}, list()}.
+  {{boolean(), map()}, list()} | {error, term()}.
 insert(Topology, Collection, Document) ->
   mongoc:transaction(Topology,
     fun(#{pool := Worker}) ->
@@ -42,7 +42,7 @@ insert(Topology, Collection, Document) ->
     #{}).
 
 -spec update(atom() | pid(), collection(), selector(), map(), map()) ->
-  {boolean(), map()}.
+  {boolean(), map()} | {error, term()}.
 update(Topology, Collection, Selector, Doc, Opts) ->
   Upsert = maps:get(upsert, Opts, false),
   MultiUpdate = maps:get(multi, Opts, false),
@@ -52,7 +52,7 @@ update(Topology, Collection, Selector, Doc, Opts) ->
     end, Opts).
 
 -spec delete(atom() | pid(), collection(), selector()) ->
-  {boolean(), map()}.
+  {boolean(), map()} | {error, term()}.
 delete(Topology, Collection, Selector) ->
   mongoc:transaction(Topology,
     fun(#{pool := Worker}) ->
@@ -61,12 +61,12 @@ delete(Topology, Collection, Selector) ->
     #{}).
 
 -spec find(atom() | pid(), collection(), selector(), projector()) ->
-  {ok, cursor()} | [].
+  {ok, cursor()} | [] | {error, term()}.
 find(Topology, Collection, Selector, Projector) ->
   find(Topology, Collection, Selector, Projector, 0, 0).
 
 -spec find(atom() | pid(), collection(), selector(), projector(), integer(), integer()) ->
-  {ok, cursor()} | [].
+  {ok, cursor()} | [] | {error, term()}.
 find(Topology, Collection, Selector, Projector, Skip, Batchsize) ->
   mongoc:transaction_query(Topology,
     fun(Conf = #{pool := Worker}) ->
@@ -75,12 +75,12 @@ find(Topology, Collection, Selector, Projector, Skip, Batchsize) ->
     end, #{}).
 
 -spec find_one(atom() | pid(), collection(), selector(), projector()) ->
-  map() | undefined.
+  map() | undefined | {error, term()}.
 find_one(Topology, Collection, Selector, Projector) ->
   find_one(Topology, Collection, Selector, Projector, 0).
 
 -spec find_one(atom() | pid(), collection(), selector(), projector(), integer()) ->
-  map() | undefined.
+  map() | undefined | {error, term()}.
 find_one(Topology, Collection, Selector, Projector, Skip) ->
   mongoc:transaction_query(Topology,
     fun(Conf = #{pool := Worker}) ->
@@ -88,7 +88,7 @@ find_one(Topology, Collection, Selector, Projector, Skip) ->
       mc_worker_api:find_one(Worker, Query)
     end, #{}).
 
--spec count(atom() | pid(), collection(), selector(), integer()) -> integer().
+-spec count(atom() | pid(), collection(), selector(), integer()) -> integer() | {error, term()}.
 count(Topology, Collection, Selector, Limit) ->
   mongoc:transaction_query(Topology,
     fun(Conf = #{pool := Worker}) ->

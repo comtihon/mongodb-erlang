@@ -154,7 +154,7 @@ put_section_type_zero(#op_msg_write_op{
   documents = Documents
 }) ->
   Msg = [
-    {erlang:atom_to_binary(Command), Collection},
+    {erlang:atom_to_binary(Command, latin1), Collection},
     {<<"$db">>, Database}
   ] ++
     ExtraFields
