@@ -140,8 +140,10 @@ normalize_value({K, V}) when is_atom(K); is_binary(K) ->
 normalize_value(V) when is_map(V) ->
   %% Recursively normalize nested maps
   normalize_map_values(V);
+normalize_value([]) ->
+  [];
 normalize_value(V) when is_list(V) ->
-  %% Check if it's a proplist or just a list
+  %% Convert proplists to maps; regular lists keep BSON array semantics.
   case is_proplist(V) of
     true -> maps:from_list([{ensure_binary(K), normalize_value(Val)} || {K, Val} <- V]);
     false -> V  %% Regular list, leave as-is

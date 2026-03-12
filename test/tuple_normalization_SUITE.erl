@@ -16,6 +16,7 @@
   test_mixed_nested_structures/1,
   test_already_normalized_map/1,
   test_atom_keys_to_binary/1,
+  test_empty_list_unchanged/1,
   test_regular_list_unchanged/1,
   test_deep_nesting/1
 ]).
@@ -30,6 +31,7 @@ all() ->
     test_mixed_nested_structures,
     test_already_normalized_map,
     test_atom_keys_to_binary,
+    test_empty_list_unchanged,
     test_regular_list_unchanged,
     test_deep_nesting
   ].
@@ -143,6 +145,20 @@ test_atom_keys_to_binary(_Config) ->
   Expected = #{
     <<"query">> => #{<<"device_id">> => <<"123">>}
   },
+  Result = normalize_map_values(Input),
+  ?assertEqual(Expected, Result).
+
+test_empty_list_unchanged(_Config) ->
+  %% Empty lists should remain arrays, not be coerced into empty maps
+  Input = #{
+    <<"findAndModify">> => <<"devices">>,
+    <<"update">> => #{
+      <<"$set">> => #{
+        <<"test_3">> => []
+      }
+    }
+  },
+  Expected = Input,
   Result = normalize_map_values(Input),
   ?assertEqual(Expected, Result).
 
