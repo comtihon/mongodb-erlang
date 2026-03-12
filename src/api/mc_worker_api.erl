@@ -69,11 +69,33 @@ connect(Args) ->  % TODO args as map
         true -> atom_to_binary(AuthSourceRaw, utf8);
         false -> AuthSourceRaw
       end,
-      Version = get_version(Connection),
+      Version = auth_version(Connection),
       mc_auth_logic:auth(Connection, Version, AuthSource, Login, Password);
     false -> ok
   end,
   {ok, Connection}.
+
+auth_version(Connection) ->
+  try
+    get_version(Connection)
+  catch
+    error:Reason:Stacktrace ->
+      case is_unauthorized_buildinfo(Reason) of
+        true -> 3.0;
+        false -> erlang:raise(error, Reason, Stacktrace)
+      end
+  end.
+
+is_unauthorized_buildinfo({error, #op_msg_response{response_doc = ResponseDoc}}) ->
+  is_unauthorized_buildinfo(ResponseDoc);
+is_unauthorized_buildinfo({error, ResponseDoc}) when is_map(ResponseDoc) ->
+  is_unauthorized_buildinfo(ResponseDoc);
+is_unauthorized_buildinfo(#{<<"code">> := 13}) ->
+  true;
+is_unauthorized_buildinfo(#{<<"codeName">> := <<"Unauthorized">>}) ->
+  true;
+is_unauthorized_buildinfo(_) ->
+  false.
 
 -spec disconnect(pid()) -> ok.
 disconnect(Connection) ->
