@@ -55,3 +55,33 @@ jobs:
           name: erlang-${{ matrix.erlang }}-mongodb-${{ matrix.mongodb }}-ct_logs
           path: _build/test/logs/
           retention-days: 5
+
+  buildinfo_auth_regression:
+    runs-on: ubuntu-24.04
+    container:
+      image: erlang:26
+    services:
+      mongo82:
+        image: mongo:8.2.5
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: admin
+          MONGO_INITDB_DATABASE: admin
+        options: >-
+          --health-cmd "mongosh mongodb://admin:admin@localhost:27017/admin?authSource=admin --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 15s
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./rebar3 ct --suite=test/buildinfo_auth_SUITE.erl
+        env:
+          MONGO_AUTH_HOST: mongo82
+          MONGO_AUTH_PORT: "27017"
+      - name: CT Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongodb-8.2.5-auth-buildinfo-regression-ct_logs
+          path: _build/test/logs/
+          retention-days: 5

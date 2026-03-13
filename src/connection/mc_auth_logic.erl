@@ -27,11 +27,17 @@
 %% API
 -export([auth/5]).
 
-%% Authorize on database synchronously
--spec auth(pid(), float(), database(), binary() | undefined, binary() | undefined) -> boolean().
-auth(Connection, Version, Database, Login, Password) when Version > 2.7 ->  %new authorisation
+%% Authorize on database synchronously.
+%% Keep the version-based argument form for external callers while
+%% allowing internal call sites to pass the resolved auth mode directly.
+-spec auth(pid(), modern | legacy | number(), database(), binary() | undefined, binary() | undefined) -> boolean().
+auth(Connection, modern, Database, Login, Password) ->
   scram_sha_1_auth(Connection, Database, Login, Password);
-auth(Connection, _, Database, Login, Password) ->   %old authorisation
+auth(Connection, legacy, Database, Login, Password) ->
+  mongodb_cr_auth(Connection, Database, Login, Password);
+auth(Connection, Version, Database, Login, Password) when is_number(Version), Version > 2.7 ->
+  scram_sha_1_auth(Connection, Database, Login, Password);
+auth(Connection, _, Database, Login, Password) ->
   mongodb_cr_auth(Connection, Database, Login, Password).
 
 
