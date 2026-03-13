@@ -69,11 +69,26 @@ connect(Args) ->  % TODO args as map
         true -> atom_to_binary(AuthSourceRaw, utf8);
         false -> AuthSourceRaw
       end,
-      Version = get_version(Connection),
-      mc_auth_logic:auth(Connection, Version, AuthSource, Login, Password);
+      AuthMode = auth_mode(Connection),
+      mc_auth_logic:auth(Connection, AuthMode, AuthSource, Login, Password);
     false -> ok
   end,
   {ok, Connection}.
+
+auth_mode(Connection) ->
+  Command =
+    case mc_utils:use_legacy_protocol(Connection) of
+      true -> bson:document([{isMaster, 1}]);
+      false -> bson:document([{hello, 1}])
+    end,
+  case command(Connection, Command) of
+    {true, #{<<"maxWireVersion">> := WireVersion}} when WireVersion >= 3 ->
+      modern;
+    {true, _} ->
+      legacy;
+    {false, Reason} ->
+      erlang:error(Reason)
+  end.
 
 -spec disconnect(pid()) -> ok.
 disconnect(Connection) ->
