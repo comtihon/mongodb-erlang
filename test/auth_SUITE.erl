@@ -52,6 +52,7 @@ test_successful_authentication(Config) ->
   %% Connect with correct credentials
   {ok, Conn} = mc_worker_api:connect([
     {database, Database},
+    {auth_source, Database},
     {login, <<"testuser">>},
     {password, <<"testpass">>},
     {host, "localhost"},
@@ -73,6 +74,7 @@ test_failed_authentication_wrong_password(Config) ->
   %% Try to connect with wrong password - should throw an exception
   Result = (catch mc_worker_api:connect([
     {database, Database},
+    {auth_source, Database},
     {login, <<"testuser">>},
     {password, <<"wrongpassword">>},
     {host, "localhost"},
@@ -91,6 +93,7 @@ test_failed_authentication_wrong_user(Config) ->
   %% Try to connect with non-existent user - should throw an exception
   Result = (catch mc_worker_api:connect([
     {database, Database},
+    {auth_source, Database},
     {login, <<"wronguser">>},
     {password, <<"testpass">>},
     {host, "localhost"},
@@ -109,6 +112,7 @@ test_operations_with_auth(Config) ->
   %% Connect with correct credentials
   {ok, Conn} = mc_worker_api:connect([
     {database, Database},
+    {auth_source, Database},
     {login, <<"testuser">>},
     {password, <<"testpass">>},
     {host, "localhost"},
