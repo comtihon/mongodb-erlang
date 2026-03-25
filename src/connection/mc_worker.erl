@@ -141,7 +141,7 @@ process_op_msg_request(Request, From, State) ->
     conn_state = CS,
     net_module = NetModule,
     next_req_fun = Next} = State,
-  Database = CS#conn_state.database,
+  Database = get_database(Request, CS),
   {ok, PacketSize, Id} = mc_worker_logic:make_request(Socket, NetModule, Database, Request),
   UState = need_hibernate(PacketSize, State),
   case get_op_msg_write_concern(Request) of
@@ -266,6 +266,10 @@ get_set_opts_module(Options) ->
 get_database(#getmore{database = undefined}, ConnState) -> ConnState#conn_state.database;
 get_database(#query{database = undefined}, ConnState) -> ConnState#conn_state.database;
 get_database(#ensure_index{database = undefined}, ConnState) -> ConnState#conn_state.database;
+get_database(#op_msg_command{database = undefined}, ConnState) -> ConnState#conn_state.database;
+get_database(#op_msg_write_op{database = undefined}, ConnState) -> ConnState#conn_state.database;
 get_database(#getmore{database = DB}, _) -> DB;
 get_database(#query{database = DB}, _) -> DB;
-get_database(#ensure_index{database = DB}, _) -> DB.
+get_database(#ensure_index{database = DB}, _) -> DB;
+get_database(#op_msg_command{database = DB}, _) -> DB;
+get_database(#op_msg_write_op{database = DB}, _) -> DB.

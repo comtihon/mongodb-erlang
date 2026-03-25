@@ -75,10 +75,12 @@ jobs:
           --health-start-period 15s
     steps:
       - uses: actions/checkout@v4
-      - run: ./rebar3 ct --suite=test/buildinfo_auth_SUITE.erl
+      - run: ./rebar3 ct --suite=test/buildinfo_auth_SUITE.erl --suite=test/op_msg_auth_source_SUITE.erl
         env:
           MONGO_AUTH_HOST: mongo82
           MONGO_AUTH_PORT: "27017"
+          MONGO_AUTH_USER: admin
+          MONGO_AUTH_PASSWORD: admin
       - name: CT Logs
         uses: actions/upload-artifact@v4
         with:
