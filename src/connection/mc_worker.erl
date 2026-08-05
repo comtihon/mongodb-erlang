@@ -118,7 +118,8 @@ handle_info({Net, _Socket, Data}, State = #state{request_storage = RequestStorag
   UState = need_hibernate(byte_size(Buffer), State),
   {noreply, UState#state{buffer = Pending, request_storage = UReqStor}};
 handle_info({NetR, _Socket}, State) when NetR =:= tcp_closed; NetR =:= ssl_closed ->
-  {stop, tcp_closed, State};
+  error_logger:info_msg("MongoDB connection closed by server: ~p, socket: ~p", [NetR, State#state.socket]),
+  {stop, {shutdown, NetR}, State};
 handle_info(hibernate, State) ->
   {noreply, State#state{hibernate_timer = undefined}, hibernate};
 handle_info({NetR, _Socket, Reason}, State) when NetR =:= tcp_error; NetR =:= ssl_error ->
